@@ -11,7 +11,7 @@ import {
   resolveDateRange,
   saveMonthStartDay,
 } from '../lib/dateRanges';
-import { formatMonthYear, monthKey, monthName, shiftMonth, shortMonthName, today } from '../lib/dates';
+import { formatMonthYear, monthKey, monthName, shiftMonth, today } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import type { ShoppingItem } from '../lib/types';
 import { useStore } from '../store';
@@ -37,7 +37,6 @@ export function Shopping() {
         subtitle="What does your home need?"
       />
       <div className="flex flex-col gap-space-lg">
-        <MonthSummary />
         <PillTabs
           label="Shopping view"
           value={tab}
@@ -50,41 +49,6 @@ export function Shopping() {
         {tab === 'history' ? <History /> : <ToBuy items={toBuy} />}
       </div>
     </>
-  );
-}
-
-function MonthSummary() {
-  const key = monthKey(today());
-  // All spending, not just Shopping: purchases plus expenses entered in Charts.
-  const thisMonth = useMoneyMonth('expense', key);
-  const lastMonth = useMoneyMonth('expense', shiftMonth(key, -1));
-  const ratio = lastMonth.total ? thisMonth.total / lastMonth.total : null;
-  return (
-    <Card className="p-space-md flex flex-col gap-space-xs">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-ink-sub">
-          <Icon name="payments" className="text-[16px] text-sky-dark" />
-          <span className="text-caption uppercase tracking-wider font-semibold">This month</span>
-        </div>
-        <Link to="/charts" className="min-h-[36px] -my-2 flex items-center gap-0.5 text-link text-label-sm font-medium">
-          View charts <Icon name="arrow_forward" className="text-[14px]" />
-        </Link>
-      </div>
-      <div className="flex items-baseline justify-between mt-0.5">
-        <span className="text-headline-md text-ink tabular-nums">{formatVnd(thisMonth.total)}</span>
-        <span className="text-caption text-ink-sub bg-soft px-2 py-0.5 rounded-full">
-          {thisMonth.count} expense{thisMonth.count === 1 ? '' : 's'} in {shortMonthName(key)}
-        </span>
-      </div>
-      {ratio != null && (
-        <div className="mt-1 flex flex-col gap-1">
-          <ProgressBar value={ratio} label={`This month compared with ${monthName(lastMonth.key)}`} />
-          <span className="text-caption text-ink-sub">
-            {Math.round(ratio * 100)}% of {monthName(lastMonth.key)} ({formatVnd(lastMonth.total)})
-          </span>
-        </div>
-      )}
-    </Card>
   );
 }
 
@@ -288,40 +252,53 @@ function History() {
     );
   }
 
+  const lastMonthKey = useMemo(() => shiftMonth(selection.monthKey || currentMonthKey, -1), [selection.monthKey, currentMonthKey]);
+  const lastMonthExpenses = useMoneyMonth('expense', lastMonthKey);
+  const ratio = useMemo(() => {
+    if (selection.mode !== 'month') return null;
+    return lastMonthExpenses.total ? totalSpent / lastMonthExpenses.total : null;
+  }, [selection.mode, totalSpent, lastMonthExpenses.total]);
+
   return (
     <div className="flex flex-col gap-space-lg">
-      {/* Header bar matching Image 1 */}
+      {/* Consolidated Header Card */}
       <Card className="p-space-md flex flex-col gap-space-xs bg-surface rounded-2xl shadow-card">
         <div className="flex items-center justify-between border-b border-line pb-space-xs">
-          <button
-            type="button"
-            onClick={handlePrevMonth}
-            aria-label="Previous month"
-            className="w-10 h-10 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
-          >
-            <Icon name="chevron_left" className="text-[22px]" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              aria-label="Previous month"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
+            >
+              <Icon name="chevron_left" className="text-[20px]" />
+            </button>
 
-          <button
-            type="button"
-            onClick={handleOpenDateSheet}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl hover:bg-canvas active:bg-soft transition-colors text-headline-md font-semibold text-ink"
-          >
-            <span>{displayMonthLabel}</span>
-            <Icon name="expand_more" className="text-[20px] text-ink-sub" />
-          </button>
+            <button
+              type="button"
+              onClick={handleOpenDateSheet}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-canvas active:bg-soft transition-colors text-headline-md font-semibold text-ink"
+            >
+              <span>{displayMonthLabel}</span>
+              <Icon name="expand_more" className="text-[18px] text-ink-sub" />
+            </button>
 
-          <button
-            type="button"
-            onClick={handleNextMonth}
-            aria-label="Next month"
-            className="w-10 h-10 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
-          >
-            <Icon name="chevron_right" className="text-[22px]" />
-          </button>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              aria-label="Next month"
+              className="w-9 h-9 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
+            >
+              <Icon name="chevron_right" className="text-[20px]" />
+            </button>
+          </div>
+
+          <Link to="/charts" className="flex items-center gap-0.5 text-link text-label-sm font-medium">
+            View charts <Icon name="arrow_forward" className="text-[14px]" />
+          </Link>
         </div>
 
-        <div className="pt-2 flex flex-col items-center justify-center">
+        <div className="pt-2 flex flex-col items-center justify-center text-center">
           <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Total Expenses</span>
           <span className="text-[28px] leading-tight font-bold text-err-ink tabular-nums mt-0.5">
             - {formatVnd(totalSpent)}
@@ -330,6 +307,15 @@ function History() {
             {filteredPurchases.length} {filteredPurchases.length === 1 ? 'purchase' : 'purchases'}
           </span>
         </div>
+
+        {ratio != null && (
+          <div className="mt-2 pt-2 border-t border-line/60 flex flex-col gap-1">
+            <ProgressBar value={ratio} label={`Compared with ${monthName(lastMonthExpenses.key)}`} />
+            <span className="text-caption text-ink-sub text-center">
+              {Math.round(ratio * 100)}% of {monthName(lastMonthExpenses.key)} ({formatVnd(lastMonthExpenses.total)})
+            </span>
+          </div>
+        )}
       </Card>
 
       {/* History list */}
