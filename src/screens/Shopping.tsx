@@ -16,7 +16,7 @@ type Tab = 'tobuy' | 'history';
 
 export function Shopping() {
   const [params, setParams] = useSearchParams();
-  const tab: Tab = params.get('tab') === 'history' ? 'history' : 'tobuy';
+  const tab: Tab = params.get('tab') === 'tobuy' ? 'tobuy' : 'history';
   const shopping = useStore((s) => s.shopping);
   const purchases = useStore((s) => s.purchases);
   const toBuy = shopping.filter((x) => !x.completed);
@@ -34,13 +34,13 @@ export function Shopping() {
         <PillTabs
           label="Shopping view"
           value={tab}
-          onChange={(v) => setParams(v === 'tobuy' ? {} : { tab: v }, { replace: true })}
+          onChange={(v) => setParams(v === 'history' ? {} : { tab: v }, { replace: true })}
           options={[
-            { value: 'tobuy', label: 'To Buy', count: toBuy.length },
             { value: 'history', label: 'History', count: purchases.length },
+            { value: 'tobuy', label: 'To Buy', count: toBuy.length },
           ]}
         />
-        {tab === 'tobuy' ? <ToBuy items={toBuy} /> : <History />}
+        {tab === 'history' ? <History /> : <ToBuy items={toBuy} />}
       </div>
     </>
   );
