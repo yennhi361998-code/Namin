@@ -1,12 +1,13 @@
-import { useUi } from '../store/ui';
+import { DateFilterSheet } from './DateFilterSheet';
 import { HouseholdSheet } from './HouseholdSheet';
 import { ItemSheet } from './ItemSheet';
+import { MoneyCategorySheet } from './MoneyCategorySheet';
 import { PurchaseSheet } from './PurchaseSheet';
 import { ShoppingSheet } from './ShoppingSheet';
 import { TaskSheet } from './TaskSheet';
-import { CategoriesSheet } from './CategoriesSheet';
-import { MoneyCategorySheet } from './MoneyCategorySheet';
 import { TransactionSheet } from './TransactionSheet';
+import { CategoriesSheet } from './CategoriesSheet';
+import { useUi } from '../store/ui';
 
 /** Renders whichever sheet is open. One sheet at a time keeps the modal story simple. */
 export function SheetHost() {
@@ -32,5 +33,15 @@ export function SheetHost() {
       return <CategoriesSheet key={sheet.key} {...common} type={sheet.txType} />;
     case 'money-category':
       return <MoneyCategorySheet key={sheet.key} {...common} categoryId={sheet.categoryId} month={sheet.month} txType={sheet.txType} />;
+    case 'date-filter':
+      return (
+        <DateFilterSheet
+          key={sheet.key}
+          {...common}
+          initialSelection={sheet.initialSelection}
+          initialMonthStartDay={sheet.initialMonthStartDay}
+          onApply={sheet.onApply}
+        />
+      );
   }
 }

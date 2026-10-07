@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { DateFilterSelection } from '../lib/dateRanges';
 import type { DateStr, TxType } from '../lib/types';
 
 export interface Toast {
@@ -17,7 +18,13 @@ export type Sheet =
   | { type: 'household' }
   | { type: 'transaction'; transactionId?: string; txType?: TxType; date?: DateStr }
   | { type: 'categories'; txType: TxType }
-  | { type: 'money-category'; categoryId: string; month: string; txType: TxType };
+  | { type: 'money-category'; categoryId: string; month: string; txType: TxType }
+  | {
+      type: 'date-filter';
+      initialSelection: DateFilterSelection;
+      initialMonthStartDay: number;
+      onApply: (selection: DateFilterSelection, monthStartDay: number) => void;
+    };
 
 interface UiState {
   toast: Toast | null;

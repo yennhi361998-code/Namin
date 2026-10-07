@@ -4,7 +4,14 @@ import { ActionSheet, SwipeRow } from '../components/overlay';
 import { PurchaseRow, ShoppingItemRow } from '../components/rows';
 import { BrandHeader, Fab, PillTabs, ScreenTitle } from '../components/shell';
 import { Card, cx, EmptyState, Icon, ListCard, ProgressBar, SectionHeader } from '../components/ui';
-import { monthKey, monthName, shiftMonth, shortMonthName, today } from '../lib/dates';
+import {
+  type DateFilterSelection,
+  getSavedMonthStartDay,
+  QUICK_RANGE_OPTIONS,
+  resolveDateRange,
+  saveMonthStartDay,
+} from '../lib/dateRanges';
+import { formatMonthYear, monthKey, monthName, shiftMonth, shortMonthName, today } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import type { ShoppingItem } from '../lib/types';
 import { useStore } from '../store';
@@ -192,37 +199,28 @@ function RestockCard() {
   );
 }
 
-type DateFilterMode = 'month' | 'range';
-
 function History() {
   const navigate = useNavigate();
   const purchases = useStore((s) => s.purchases);
-  const currentMonth = useMemo(() => monthKey(today()), []);
+  const currentMonthKey = useMemo(() => monthKey(today()), []);
 
-  const [mode, setMode] = useState<DateFilterMode>('month');
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
-  const [fromDate, setFromDate] = useState<string>('');
-  const [toDate, setToDate] = useState<string>('');
+  const [monthStartDay, setMonthStartDay] = useState<number>(() => getSavedMonthStartDay());
+  const [selection, setSelection] = useState<DateFilterSelection>({
+    mode: 'month',
+    monthKey: currentMonthKey,
+  });
 
-  const availableMonths = useMemo(() => {
-    const set = new Set<string>();
-    set.add(currentMonth);
-    purchases.forEach((p) => set.add(monthKey(p.purchaseDate)));
-    return Array.from(set).sort().reverse();
-  }, [purchases, currentMonth]);
+  const [startDate, endDate] = useMemo(() => {
+    return resolveDateRange(selection, monthStartDay);
+  }, [selection, monthStartDay]);
 
   const filteredPurchases = useMemo(() => {
     return purchases.filter((p) => {
-      if (mode === 'month') {
-        if (selectedMonth === 'all') return true;
-        return monthKey(p.purchaseDate) === selectedMonth;
-      } else {
-        if (fromDate && p.purchaseDate < fromDate) return false;
-        if (toDate && p.purchaseDate > toDate) return false;
-        return true;
-      }
+      if (startDate && p.purchaseDate < startDate) return false;
+      if (endDate && p.purchaseDate > endDate) return false;
+      return true;
     });
-  }, [purchases, mode, selectedMonth, fromDate, toDate]);
+  }, [purchases, startDate, endDate]);
 
   const months = useMemo(() => {
     const sorted = [...filteredPurchases].sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate));
@@ -237,111 +235,104 @@ function History() {
   const totalSpent = useMemo(() => filteredPurchases.reduce((sum, p) => sum + (p.price ?? 0), 0), [filteredPurchases]);
   const currentYear = today().slice(0, 4);
 
+  const displayMonthLabel = useMemo(() => {
+    if (selection.mode === 'month') {
+      return formatMonthYear(selection.monthKey);
+    }
+    if (selection.mode === 'quick') {
+      const item = QUICK_RANGE_OPTIONS.find((o) => o.id === selection.quickOption);
+      return item ? item.label : 'Quick Range';
+    }
+    return 'Custom Range';
+  }, [selection]);
+
   const handlePrevMonth = () => {
-    if (selectedMonth === 'all') return;
-    setSelectedMonth(shiftMonth(selectedMonth, -1));
+    const key = selection.monthKey || currentMonthKey;
+    const prev = shiftMonth(key, -1);
+    setSelection({
+      mode: 'month',
+      monthKey: prev,
+    });
   };
 
   const handleNextMonth = () => {
-    if (selectedMonth === 'all') return;
-    setSelectedMonth(shiftMonth(selectedMonth, 1));
+    const key = selection.monthKey || currentMonthKey;
+    const next = shiftMonth(key, 1);
+    setSelection({
+      mode: 'month',
+      monthKey: next,
+    });
   };
 
-  if (!purchases.length) return <EmptyState message="No purchases yet." action={{ label: 'Add expense', onClick: () => openSheet({ type: 'transaction', txType: 'expense' }) }} />;
+  const handleOpenDateSheet = () => {
+    openSheet({
+      type: 'date-filter',
+      initialSelection: selection,
+      initialMonthStartDay: monthStartDay,
+      onApply: (newSelection, newStartDay) => {
+        setSelection(newSelection);
+        if (newStartDay !== monthStartDay) {
+          setMonthStartDay(newStartDay);
+          saveMonthStartDay(newStartDay);
+        }
+      },
+    });
+  };
+
+  if (!purchases.length) {
+    return (
+      <EmptyState
+        message="No purchases yet."
+        action={{ label: 'Add expense', onClick: () => openSheet({ type: 'transaction', txType: 'expense' }) }}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <Card className="p-space-md flex flex-col gap-space-sm">
-        <div className="flex items-center justify-between gap-2 border-b border-line pb-space-xs">
-          <div className="flex items-center gap-1 bg-canvas p-0.5 rounded-full border border-line">
-            <button
-              type="button"
-              onClick={() => setMode('month')}
-              className={cx(
-                'px-3 py-1 rounded-full text-label-sm font-medium transition-colors',
-                mode === 'month' ? 'bg-surface text-ink shadow-sm' : 'text-ink-sub'
-              )}
-            >
-              By Month
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('range')}
-              className={cx(
-                'px-3 py-1 rounded-full text-label-sm font-medium transition-colors',
-                mode === 'range' ? 'bg-surface text-ink shadow-sm' : 'text-ink-sub'
-              )}
-            >
-              Pick Dates
-            </button>
-          </div>
+      {/* Header bar matching Image 1 */}
+      <Card className="p-space-md flex flex-col gap-space-xs bg-surface rounded-2xl shadow-card">
+        <div className="flex items-center justify-between border-b border-line pb-space-xs">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            aria-label="Previous month"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
+          >
+            <Icon name="chevron_left" className="text-[22px]" />
+          </button>
 
-          <div className="text-right">
-            <span className="text-caption text-ink-sub block">Total</span>
-            <span className="text-label-md font-semibold text-ink tabular-nums">{formatVnd(totalSpent)}</span>
-          </div>
+          <button
+            type="button"
+            onClick={handleOpenDateSheet}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl hover:bg-canvas active:bg-soft transition-colors text-headline-md font-semibold text-ink"
+          >
+            <span>{displayMonthLabel}</span>
+            <Icon name="expand_more" className="text-[20px] text-ink-sub" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            aria-label="Next month"
+            className="w-10 h-10 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
+          >
+            <Icon name="chevron_right" className="text-[22px]" />
+          </button>
         </div>
 
-        {mode === 'month' ? (
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                disabled={selectedMonth === 'all'}
-                aria-label="Previous month"
-                className="w-8 h-8 rounded-full flex items-center justify-center text-ink border border-line bg-surface active:bg-soft disabled:opacity-40"
-              >
-                <Icon name="chevron_left" className="text-[18px]" />
-              </button>
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                disabled={selectedMonth === 'all'}
-                aria-label="Next month"
-                className="w-8 h-8 rounded-full flex items-center justify-center text-ink border border-line bg-surface active:bg-soft disabled:opacity-40"
-              >
-                <Icon name="chevron_right" className="text-[18px]" />
-              </button>
-            </div>
-
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-surface border border-line text-body-sm text-ink font-medium focus:outline-none focus:ring-2 focus:ring-sky/30"
-            >
-              <option value="all">All months</option>
-              {availableMonths.map((m) => (
-                <option key={m} value={m}>
-                  {monthName(m, true)}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-caption text-ink-sub block mb-1">From</label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-xl bg-surface border border-line text-body-sm text-ink focus:outline-none focus:ring-2 focus:ring-sky/30"
-              />
-            </div>
-            <div>
-              <label className="text-caption text-ink-sub block mb-1">To</label>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-xl bg-surface border border-line text-body-sm text-ink focus:outline-none focus:ring-2 focus:ring-sky/30"
-              />
-            </div>
-          </div>
-        )}
+        <div className="pt-2 flex flex-col items-center justify-center">
+          <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Total Expenses</span>
+          <span className="text-[28px] leading-tight font-bold text-err-ink tabular-nums mt-0.5">
+            - {formatVnd(totalSpent)}
+          </span>
+          <span className="text-caption text-ink-sub mt-1">
+            {filteredPurchases.length} {filteredPurchases.length === 1 ? 'purchase' : 'purchases'}
+          </span>
+        </div>
       </Card>
 
+      {/* History list */}
       {months.length === 0 ? (
         <EmptyState message="No purchases found for the selected period." />
       ) : (

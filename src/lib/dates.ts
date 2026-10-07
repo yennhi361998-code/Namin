@@ -83,6 +83,11 @@ export function shiftMonth(key: string, n: number): string {
   return monthKey(addMonths(`${key}-01`, n));
 }
 
+export function formatMonthYear(key: string): string {
+  const [y, m] = key.split('-');
+  return `${m}/${y}`;
+}
+
 /** Human label for a due date relative to today: "Today", "Tomorrow", "Saturday", "3 Oct", "Yesterday", "2 days overdue". */
 export function relativeDay(s: DateStr, ref: DateStr = today()): string {
   const diff = daysBetween(ref, s);
