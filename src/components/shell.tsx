@@ -1,5 +1,6 @@
 import type { IconName } from './icons';
 import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentMember } from '../store/selectors';
 import { useStore } from '../store';
@@ -60,7 +61,44 @@ export function useBack(fallback: string) {
   return () => (location.key !== 'default' ? navigate(-1) : navigate(fallback, { replace: true }));
 }
 
-const HEADER = 'sticky top-0 z-30 -mx-margin bg-header text-ink pt-safe shadow-[0_2px_10px_rgba(38,52,59,0.08)]';
+function useHideOnScroll() {
+  const [visible, setVisible] = useState(true);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    setVisible(true);
+  }, [pathname]);
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+
+    const updateScroll = () => {
+      const scrollY = window.scrollY;
+      if (scrollY < 20) {
+        setVisible(true);
+      } else if (Math.abs(scrollY - lastScrollY) > 8) {
+        setVisible(scrollY < lastScrollY);
+      }
+      lastScrollY = scrollY > 0 ? scrollY : 0;
+      ticking = false;
+    };
+
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(updateScroll);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  return visible;
+}
+
+const HEADER = 'sticky top-0 z-30 -mx-margin bg-header text-ink pt-safe shadow-[0_2px_10px_rgba(38,52,59,0.08)] transition-transform duration-300 ease-in-out';
 
 /** Round icon button for the header band. */
 export function HeaderButton({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
@@ -123,8 +161,9 @@ export function PillTabs<T extends string>({
 /** Header of the three main screens: the Namin logo centred in white, profile on the right. */
 export function BrandHeader() {
   const me = useCurrentMember();
+  const visible = useHideOnScroll();
   return (
-    <header className={HEADER}>
+    <header className={cx(HEADER, !visible && '-translate-y-full')}>
       <div className="h-12 px-1.5 grid grid-cols-[52px_1fr_52px] items-center">
         <span aria-hidden />
         <div className="flex justify-center">
@@ -145,8 +184,9 @@ export function BrandHeader() {
 /** Light-blue band for pushed screens (details, Charts): back, centred title, one action, optional extra row. */
 export function PageHeader({ title, back, right, children }: { title: string; back: string; right?: ReactNode; children?: ReactNode }) {
   const goBack = useBack(back);
+  const visible = useHideOnScroll();
   return (
-    <header className={HEADER}>
+    <header className={cx(HEADER, !visible && '-translate-y-full')}>
       <div className="h-12 px-1.5 grid grid-cols-[52px_1fr_52px] items-center">
         <div className="flex justify-start">
           <HeaderButton icon="chevron_left" label="Back" onClick={goBack} />
