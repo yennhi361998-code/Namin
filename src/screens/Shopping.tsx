@@ -192,37 +192,173 @@ function RestockCard() {
   );
 }
 
+type DateFilterMode = 'month' | 'range';
+
 function History() {
   const navigate = useNavigate();
   const purchases = useStore((s) => s.purchases);
+  const currentMonth = useMemo(() => monthKey(today()), []);
+
+  const [mode, setMode] = useState<DateFilterMode>('month');
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    set.add(currentMonth);
+    purchases.forEach((p) => set.add(monthKey(p.purchaseDate)));
+    return Array.from(set).sort().reverse();
+  }, [purchases, currentMonth]);
+
+  const filteredPurchases = useMemo(() => {
+    return purchases.filter((p) => {
+      if (mode === 'month') {
+        if (selectedMonth === 'all') return true;
+        return monthKey(p.purchaseDate) === selectedMonth;
+      } else {
+        if (fromDate && p.purchaseDate < fromDate) return false;
+        if (toDate && p.purchaseDate > toDate) return false;
+        return true;
+      }
+    });
+  }, [purchases, mode, selectedMonth, fromDate, toDate]);
+
   const months = useMemo(() => {
-    const sorted = [...purchases].sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate));
+    const sorted = [...filteredPurchases].sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate));
     const m = new Map<string, typeof sorted>();
     sorted.forEach((p) => {
       const k = monthKey(p.purchaseDate);
       m.set(k, [...(m.get(k) ?? []), p]);
     });
     return [...m.entries()];
-  }, [purchases]);
+  }, [filteredPurchases]);
 
-  if (!months.length) return <EmptyState message="No purchases yet." action={{ label: 'Add expense', onClick: () => openSheet({ type: 'transaction', txType: 'expense' }) }} />;
-
+  const totalSpent = useMemo(() => filteredPurchases.reduce((sum, p) => sum + (p.price ?? 0), 0), [filteredPurchases]);
   const currentYear = today().slice(0, 4);
+
+  const handlePrevMonth = () => {
+    if (selectedMonth === 'all') return;
+    setSelectedMonth(shiftMonth(selectedMonth, -1));
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 'all') return;
+    setSelectedMonth(shiftMonth(selectedMonth, 1));
+  };
+
+  if (!purchases.length) return <EmptyState message="No purchases yet." action={{ label: 'Add expense', onClick: () => openSheet({ type: 'transaction', txType: 'expense' }) }} />;
+
   return (
     <div className="flex flex-col gap-space-lg">
-      {months.map(([key, ps]) => (
-        <section key={key} aria-label={monthName(key, true)}>
-          <SectionHeader
-            title={monthName(key, key.slice(0, 4) !== currentYear)}
-            right={<span className="text-body-sm text-ink-sub tabular-nums">{formatVnd(ps.reduce((n, p) => n + (p.price ?? 0), 0))}</span>}
-          />
-          <ListCard>
-            {ps.map((p) => (
-              <PurchaseRow key={p.id} purchase={p} onOpen={() => navigate(`/items/${p.itemId}`)} />
-            ))}
-          </ListCard>
-        </section>
-      ))}
+      <Card className="p-space-md flex flex-col gap-space-sm">
+        <div className="flex items-center justify-between gap-2 border-b border-line pb-space-xs">
+          <div className="flex items-center gap-1 bg-canvas p-0.5 rounded-full border border-line">
+            <button
+              type="button"
+              onClick={() => setMode('month')}
+              className={cx(
+                'px-3 py-1 rounded-full text-label-sm font-medium transition-colors',
+                mode === 'month' ? 'bg-surface text-ink shadow-sm' : 'text-ink-sub'
+              )}
+            >
+              By Month
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('range')}
+              className={cx(
+                'px-3 py-1 rounded-full text-label-sm font-medium transition-colors',
+                mode === 'range' ? 'bg-surface text-ink shadow-sm' : 'text-ink-sub'
+              )}
+            >
+              Pick Dates
+            </button>
+          </div>
+
+          <div className="text-right">
+            <span className="text-caption text-ink-sub block">Total</span>
+            <span className="text-label-md font-semibold text-ink tabular-nums">{formatVnd(totalSpent)}</span>
+          </div>
+        </div>
+
+        {mode === 'month' ? (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                disabled={selectedMonth === 'all'}
+                aria-label="Previous month"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-ink border border-line bg-surface active:bg-soft disabled:opacity-40"
+              >
+                <Icon name="chevron_left" className="text-[18px]" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                disabled={selectedMonth === 'all'}
+                aria-label="Next month"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-ink border border-line bg-surface active:bg-soft disabled:opacity-40"
+              >
+                <Icon name="chevron_right" className="text-[18px]" />
+              </button>
+            </div>
+
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-surface border border-line text-body-sm text-ink font-medium focus:outline-none focus:ring-2 focus:ring-sky/30"
+            >
+              <option value="all">All months</option>
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  {monthName(m, true)}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-caption text-ink-sub block mb-1">From</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full px-2.5 py-1.5 rounded-xl bg-surface border border-line text-body-sm text-ink focus:outline-none focus:ring-2 focus:ring-sky/30"
+              />
+            </div>
+            <div>
+              <label className="text-caption text-ink-sub block mb-1">To</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full px-2.5 py-1.5 rounded-xl bg-surface border border-line text-body-sm text-ink focus:outline-none focus:ring-2 focus:ring-sky/30"
+              />
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {months.length === 0 ? (
+        <EmptyState message="No purchases found for the selected period." />
+      ) : (
+        months.map(([key, ps]) => (
+          <section key={key} aria-label={monthName(key, true)}>
+            <SectionHeader
+              title={monthName(key, key.slice(0, 4) !== currentYear)}
+              right={<span className="text-body-sm text-ink-sub tabular-nums">{formatVnd(ps.reduce((n, p) => n + (p.price ?? 0), 0))}</span>}
+            />
+            <ListCard>
+              {ps.map((p) => (
+                <PurchaseRow key={p.id} purchase={p} onOpen={() => navigate(`/items/${p.itemId}`)} />
+              ))}
+            </ListCard>
+          </section>
+        ))
+      )}
     </div>
   );
 }
