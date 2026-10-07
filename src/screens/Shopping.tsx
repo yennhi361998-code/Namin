@@ -6,6 +6,7 @@ import { BrandHeader, Fab, PillTabs, ScreenTitle } from '../components/shell';
 import { Card, cx, EmptyState, Icon, ListCard, ProgressBar, SectionHeader } from '../components/ui';
 import {
   type DateFilterSelection,
+  formatDateRange,
   getSavedMonthStartDay,
   QUICK_RANGE_OPTIONS,
   resolveDateRange,
@@ -32,10 +33,7 @@ export function Shopping() {
     <>
       <BrandHeader />
       <Fab label="Add expense" onClick={() => openSheet({ type: 'transaction', txType: 'expense' })} />
-      <ScreenTitle
-        title="Shopping"
-        subtitle="What does your home need?"
-      />
+      <ScreenTitle title="Shopping" />
       <div className="flex flex-col gap-space-lg">
         <PillTabs
           label="Shopping view"
@@ -196,7 +194,14 @@ function History() {
     return [...m.entries()];
   }, [filteredPurchases]);
 
+  const transactions = useStore((s) => s.transactions);
   const totalSpent = useMemo(() => filteredPurchases.reduce((sum, p) => sum + (p.price ?? 0), 0), [filteredPurchases]);
+  const totalIncome = useMemo(() => {
+    return transactions
+      .filter((t) => t.type === 'income' && (!startDate || t.date >= startDate) && (!endDate || t.date <= endDate))
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [transactions, startDate, endDate]);
+
   const currentYear = today().slice(0, 4);
 
   const displayMonthLabel = useMemo(() => {
@@ -204,11 +209,12 @@ function History() {
       return formatMonthYear(selection.monthKey);
     }
     if (selection.mode === 'quick') {
+      if (selection.quickOption === 'all') return 'All time';
       const item = QUICK_RANGE_OPTIONS.find((o) => o.id === selection.quickOption);
-      return item ? item.label : 'Quick Range';
+      if (item) return item.label;
     }
-    return 'Custom Range';
-  }, [selection]);
+    return formatDateRange(startDate, endDate);
+  }, [selection, startDate, endDate]);
 
   const handlePrevMonth = () => {
     const key = selection.monthKey || currentMonthKey;
@@ -269,27 +275,27 @@ function History() {
               type="button"
               onClick={handlePrevMonth}
               aria-label="Previous month"
-              className="w-9 h-9 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
             >
-              <Icon name="chevron_left" className="text-[20px]" />
+              <Icon name="chevron_left" className="text-[18px]" />
             </button>
 
             <button
               type="button"
               onClick={handleOpenDateSheet}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-canvas active:bg-soft transition-colors text-headline-md font-semibold text-ink"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-canvas active:bg-soft transition-colors text-label-md font-semibold text-ink"
             >
               <span>{displayMonthLabel}</span>
-              <Icon name="expand_more" className="text-[18px] text-ink-sub" />
+              <Icon name="expand_more" className="text-[16px] text-ink-sub" />
             </button>
 
             <button
               type="button"
               onClick={handleNextMonth}
               aria-label="Next month"
-              className="w-9 h-9 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
             >
-              <Icon name="chevron_right" className="text-[20px]" />
+              <Icon name="chevron_right" className="text-[18px]" />
             </button>
           </div>
 
@@ -298,14 +304,15 @@ function History() {
           </Link>
         </div>
 
-        <div className="pt-2 flex flex-col items-center justify-center text-center">
-          <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Total Expenses</span>
-          <span className="text-[28px] leading-tight font-bold text-err-ink tabular-nums mt-0.5">
+        <div className="pt-1.5 flex flex-col items-center justify-center text-center">
+          <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Expense</span>
+          <span className="text-[20px] leading-snug font-bold text-err-ink tabular-nums mt-0.5">
             - {formatVnd(totalSpent)}
           </span>
-          <span className="text-caption text-ink-sub mt-1">
-            {filteredPurchases.length} {filteredPurchases.length === 1 ? 'purchase' : 'purchases'}
-          </span>
+          <div className="flex items-center gap-1 mt-1 text-caption text-done-ink">
+            <span>Income</span>
+            <span className="font-semibold tabular-nums">+ {formatVnd(totalIncome)}</span>
+          </div>
         </div>
 
         {ratio != null && (

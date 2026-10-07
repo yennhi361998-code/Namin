@@ -5,22 +5,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        // App background (everything except header and tab bar): butter cream.
-        canvas: '#FFF8E1',
-        // Header band and app-icon background.
-        header: '#CCF9FF',
-        // Same hue (187°) as `header`, deep enough to read: 5.0:1 on white, 4.5:1 on `header`.
-        'header-ink': '#0B7A89',
+        // App background: Pantone 11-0515 TCX Lemon Icing.
+        canvas: '#F6EBC8',
+        // Header band and app-icon background: Pantone 13-4306 TCX Ice Melt.
+        header: '#D3E4F1',
+        // Deep blue-grey for readability on Ice Melt header background.
+        'header-ink': '#1F5A7B',
         // Note-paper task lists (Home Today, Tasks day list).
-        note: { DEFAULT: '#F2FEFF', edge: '#A9E9F0', line: '#8FDCE6', fold: '#C6F3F8', ring: '#6FB9C4' },
-        // Sticky-note task paper: yellow, a step stronger than the butter-cream canvas so it stands out.
-        sticky: { DEFAULT: '#FFF1B8', edge: '#E6CF78', line: '#DCC46A', fold: '#F2DE92' },
+        note: { DEFAULT: '#F4FAFD', edge: '#BBD8EB', line: '#A2CDE4', fold: '#D4E7F4', ring: '#7AAECB' },
+        // Sticky-note task paper: Lemon Icing.
+        sticky: { DEFAULT: '#F6EBC8', edge: '#E4D2A2', line: '#DCC58F', fold: '#EDE0B4' },
         surface: '#FFFFFF',
-        sky: '#8CC9E8',
-        'sky-hover': '#7BC0E3',
-        'sky-dark': '#5FA8CC',
-        link: '#026687',
-        soft: '#E8F5FA',
+        sky: '#B2D4EB',
+        'sky-hover': '#9ECAE4',
+        'sky-dark': '#4B88B3',
+        link: '#1B577A',
+        soft: '#EBF3F9',
         ink: '#26343B',
         'ink-sub': '#7A8991',
         'ink-muted': '#40484D',

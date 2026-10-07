@@ -118,15 +118,15 @@ export function DateFilterSheet({
 
         {/* Checkbox: Set this day as default month start date */}
         <div className="px-2 pt-1">
-          <label className="flex items-start gap-2.5 cursor-pointer select-none">
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={isDefaultStartDayChecked}
               onChange={(e) => setIsDefaultStartDayChecked(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded border-line text-sky focus:ring-sky"
+              className="w-4 h-4 rounded border-line text-sky focus:ring-sky"
             />
-            <span className="text-body-sm text-ink">
-              Đặt ngày {currentStartDayNum} làm ngày bắt đầu tháng mặc định (chuyển chu kỳ hàng tháng)
+            <span className="text-body-sm text-ink font-medium">
+              Set day {currentStartDayNum} as default month start date
             </span>
           </label>
         </div>

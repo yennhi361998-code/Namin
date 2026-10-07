@@ -42,6 +42,29 @@ export interface DateFilterSelection {
   endDate?: string; // YYYY-MM-DD
 }
 
+/** Formats date range as e.g. "01/10 - 15/10/2026" or "01/10/2026" */
+export function formatDateRange(start?: string, end?: string): string {
+  if (!start && !end) return 'All time';
+  if (start && !end) {
+    const [y, m, d] = start.split('-');
+    return `From ${d}/${m}/${y}`;
+  }
+  if (!start && end) {
+    const [y, m, d] = end.split('-');
+    return `Until ${d}/${m}/${y}`;
+  }
+  if (start === end) {
+    const [y, m, d] = start!.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  const [y1, m1, d1] = start!.split('-');
+  const [y2, m2, d2] = end!.split('-');
+  if (y1 === y2) {
+    return `${d1}/${m1} - ${d2}/${m2}/${y1}`;
+  }
+  return `${d1}/${m1}/${y1} - ${d2}/${m2}/${y2}`;
+}
+
 const MONTH_START_DAY_KEY = 'namin:month-start-day';
 
 export function getSavedMonthStartDay(): number {

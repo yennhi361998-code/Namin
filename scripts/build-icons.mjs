@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const mark = JSON.parse(readFileSync('src/lib/logoMark.json', 'utf8'));
 // Same colour as the header, so the installed icon matches the app.
-const BG = '#CCF9FF';
+const BG = '#D3E4F1';
 const FG = '#FFFFFF';
 
 /** Mark scaled to `fill` of the square's width (keeps aspect), centred. */
