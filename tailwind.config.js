@@ -7,18 +7,18 @@ export default {
       colors: {
         // App background: Butter Yellow (#F6E7C1).
         canvas: '#F6E7C1',
-        // Header band and app-icon background: Sky Aqua (#A9E6E6).
-        header: '#A9E6E6',
-        // Deep teal-blue for readability on Sky Aqua header background.
-        'header-ink': '#1C5665',
+        // Header band and app-icon background: Aqua Sky (#B5E7F1).
+        header: '#B5E7F1',
+        // Deep teal-blue for readability on Aqua Sky header background.
+        'header-ink': '#175562',
         // Note-paper task lists (Home Today, Tasks day list).
         note: { DEFAULT: '#F4FAFD', edge: '#BBD8EB', line: '#A2CDE4', fold: '#D4E7F4', ring: '#7AAECB' },
         // Sticky-note task paper: Butter Yellow.
         sticky: { DEFAULT: '#F6E7C1', edge: '#E4D2A2', line: '#DCC58F', fold: '#EDE0B4' },
         surface: '#FFFFFF',
-        sky: '#A9E6E6',
-        'sky-hover': '#92D6D6',
-        'sky-dark': '#1F6B6B',
+        sky: '#B5E7F1',
+        'sky-hover': '#9DDDE9',
+        'sky-dark': '#217282',
         link: '#1F5A7B',
         soft: '#EBF3F9',
         ink: '#26343B',
