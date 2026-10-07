@@ -98,12 +98,12 @@ function useHideOnScroll() {
   return visible;
 }
 
-const HEADER = 'sticky top-0 z-30 -mx-margin bg-header text-ink pt-safe shadow-[0_2px_10px_rgba(38,52,59,0.08)] transition-transform duration-300 ease-in-out';
+const HEADER = 'sticky top-0 z-30 -mx-margin bg-header text-header-ink pt-safe shadow-[0_2px_10px_rgba(38,52,59,0.08)] transition-transform duration-300 ease-in-out';
 
 /** Round icon button for the header band. */
 export function HeaderButton({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} aria-label={label} title={label} className="w-11 h-11 rounded-full flex items-center justify-center text-ink active:bg-white/40">
+    <button type="button" onClick={onClick} aria-label={label} title={label} className="w-11 h-11 rounded-full flex items-center justify-center text-header-ink active:bg-header-ink/10">
       <Icon name={icon} className="text-[26px]" />
     </button>
   );
@@ -140,16 +140,16 @@ export function PillTabs<T extends string>({
               'min-h-[38px] px-4 rounded-full text-label-md transition-colors inline-flex items-center',
               tone === 'header'
                 ? active
-                  ? 'bg-white text-ink font-semibold shadow-sm'
-                  : 'text-ink/80 active:bg-white/30'
+                  ? 'bg-header text-header-ink font-semibold shadow-sm border border-header-ink/20'
+                  : 'text-header-ink/80 active:bg-header-ink/10'
                 : active
-                  ? 'bg-sky text-ink font-semibold shadow-sm'
+                  ? 'bg-header text-header-ink font-semibold shadow-sm border border-header-ink/20'
                   : 'bg-surface text-ink-sub border border-line active:bg-soft',
             )}
           >
             {o.label}
             {o.count != null && (
-              <span className={cx('ml-1.5 text-caption px-1.5 rounded-full', active ? 'bg-white/60' : 'bg-canvas border border-line')}>{o.count}</span>
+              <span className={cx('ml-1.5 text-caption px-1.5 rounded-full', active ? 'bg-white/60 text-header-ink' : 'bg-canvas border border-line')}>{o.count}</span>
             )}
           </button>
         );
@@ -167,11 +167,11 @@ export function BrandHeader() {
       <div className="h-12 px-1.5 grid grid-cols-[52px_1fr_52px] items-center">
         <span aria-hidden />
         <div className="flex justify-center">
-          <Logo height={30} color="#FFFFFF" />
+          <Logo height={30} color="#1F5A7B" />
         </div>
         <div className="flex justify-end">
-          <button type="button" onClick={() => openSheet({ type: 'household' })} aria-label="Household and members" className="w-11 h-11 rounded-full flex items-center justify-center active:bg-white/40">
-            <span className="rounded-full ring-2 ring-white">
+          <button type="button" onClick={() => openSheet({ type: 'household' })} aria-label="Household and members" className="w-11 h-11 rounded-full flex items-center justify-center active:bg-header-ink/10">
+            <span className="rounded-full ring-2 ring-header-ink/30">
               <MemberAvatar member={me} size={28} />
             </span>
           </button>
@@ -191,7 +191,7 @@ export function PageHeader({ title, back, right, children }: { title: string; ba
         <div className="flex justify-start">
           <HeaderButton icon="chevron_left" label="Back" onClick={goBack} />
         </div>
-        <h1 className="text-title-sm text-ink text-center truncate">{title}</h1>
+        <h1 className="text-title-sm text-header-ink text-center truncate">{title}</h1>
         <div className="flex justify-end">{right}</div>
       </div>
       {children && <div className="px-margin pb-3">{children}</div>}
