@@ -1,0 +1,132 @@
+import {
+  AlarmClock, ArrowRight, ArrowUp, Baby, Banknote, Bath, BedDouble, Bike, BookOpen, Briefcase, Bus, Calendar, CalendarClock,
+  CalendarDays, Car, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, CircleCheck, Clapperboard, Clock,
+  Coffee, Coins, CookingPot, CreditCard, Delete, Dog, Dumbbell, Footprints, Fuel, Gamepad2, Gem, Gift, GraduationCap, Heart,
+  Hospital, Hourglass, House, Info, Landmark, Leaf, Lightbulb, ListChecks, ListPlus, ListX, Maximize2, Minus, Package, Palette,
+  PartyPopper, Pencil, PiggyBank, Pill, Plane, Plug, Plus, Receipt, Repeat, RotateCcw, Sandwich, Scissors, Shirt, ShoppingBag,
+  ShoppingBasket, ShoppingCart, SlidersHorizontal, Smartphone, Sofa, Soup, Store, Sun, Timer, Trash2, Trees, TrendingUp, Undo2,
+  User, UserPlus, Wallet, WashingMachine, Wrench, X, SprayCan, Utensils, ShowerHead, Apple, Eraser, type LucideIcon,
+} from 'lucide-react';
+import type { Category } from '../lib/types';
+
+/**
+ * UI icons by the names the app uses (kept from the earlier icon font so call sites didn't change).
+ * Everything renders from Lucide.
+ */
+export const UI_ICONS = {
+  add: Plus,
+  add_shopping_cart: ShoppingCart,
+  add_task: ListPlus,
+  alarm: AlarmClock,
+  arrow_forward: ArrowRight,
+  arrow_upward: ArrowUp,
+  backspace: Delete,
+  bathtub: Bath,
+  bed: BedDouble,
+  calendar_today: Calendar,
+  calendar_view_week: CalendarDays,
+  chair: Sofa,
+  check: Check,
+  check_circle: CircleCheck,
+  checklist: ListChecks,
+  chevron_left: ChevronLeft,
+  chevron_right: ChevronRight,
+  close: X,
+  delete: Trash2,
+  edit: Pencil,
+  error: CircleAlert,
+  event: CalendarClock,
+  event_repeat: Repeat,
+  expand_less: ChevronUp,
+  expand_more: ChevronDown,
+  home: House,
+  hourglass_top: Hourglass,
+  info: Info,
+  kitchen: CookingPot,
+  light_mode: Sun,
+  local_laundry_service: WashingMachine,
+  open_in_full: Maximize2,
+  payments: Wallet,
+  person: User,
+  person_add: UserPlus,
+  priority_high: CircleAlert,
+  remove: Minus,
+  remove_shopping_cart: ListX,
+  replay: Repeat,
+  restart_alt: RotateCcw,
+  roofing: House,
+  schedule: Clock,
+  shopping_bag: ShoppingBag,
+  shopping_cart_checkout: Receipt,
+  spa: Leaf,
+  storefront: Store,
+  timer: Timer,
+  tune: SlidersHorizontal,
+  undo: Undo2,
+  yard: Trees,
+  clear: Eraser,
+} satisfies Record<string, LucideIcon>;
+
+export type IconName = keyof typeof UI_ICONS;
+
+/**
+ * Money-category pictures. Keys are the ids stored on categories (from the earlier
+ * illustration set), so existing data keeps working without a migration.
+ */
+export const CATEGORY_ICONS = {
+  'steaming-bowl': Soup,
+  'bento-box': Sandwich,
+  'hot-beverage': Coffee,
+  'shopping-cart': ShoppingCart,
+  basket: ShoppingBasket,
+  't-shirt': Shirt,
+  'high-heeled-shoe': Footprints,
+  lipstick: Palette,
+  'person-getting-haircut': Scissors,
+  'house-with-garden': House,
+  'couch-and-lamp': Sofa,
+  wrench: Wrench,
+  receipt: Receipt,
+  'light-bulb': Lightbulb,
+  'electric-plug': Plug,
+  'mobile-phone': Smartphone,
+  'motor-scooter': Bike,
+  automobile: Car,
+  'fuel-pump': Fuel,
+  bus: Bus,
+  airplane: Plane,
+  'party-popper': PartyPopper,
+  'clapper-board': Clapperboard,
+  'video-game': Gamepad2,
+  books: BookOpen,
+  'graduation-cap': GraduationCap,
+  'red-heart': Heart,
+  baby: Baby,
+  'dog-face': Dog,
+  pill: Pill,
+  hospital: Hospital,
+  'person-lifting-weights': Dumbbell,
+  'wrapped-gift': Gift,
+  ring: Gem,
+  briefcase: Briefcase,
+  'money-bag': PiggyBank,
+  bank: Landmark,
+  'chart-increasing': TrendingUp,
+  'alarm-clock': Clock,
+  coin: Coins,
+  package: Package,
+  'credit-card': CreditCard,
+  'dollar-banknote': Banknote,
+} satisfies Record<string, LucideIcon>;
+
+export type CategoryIconName = keyof typeof CATEGORY_ICONS;
+
+/** Shopping-list categories (Cleaning, Kitchen…): icon + deep ink to sit on the pastel category tint. */
+export const HOUSEHOLD_CATEGORY_ICONS: Record<Category, { icon: LucideIcon; fg: string }> = {
+  Cleaning: { icon: SprayCan, fg: '#2F7FA6' },
+  Kitchen: { icon: Utensils, fg: '#2F7562' },
+  Bathroom: { icon: ShowerHead, fg: '#4A5F96' },
+  Groceries: { icon: Apple, fg: '#8A6420' },
+  Maintenance: { icon: Wrench, fg: '#6F4E92' },
+  Other: { icon: Package, fg: '#55666E' },
+};
