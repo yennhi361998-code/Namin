@@ -167,11 +167,11 @@ export function BrandHeader() {
       <div className="h-12 px-1.5 grid grid-cols-[52px_1fr_52px] items-center">
         <span aria-hidden />
         <div className="flex justify-center">
-          <Logo height={30} color="#1F5A7B" />
+          <Logo height={30} color="#FFFFFF" />
         </div>
         <div className="flex justify-end">
-          <button type="button" onClick={() => openSheet({ type: 'household' })} aria-label="Household and members" className="w-11 h-11 rounded-full flex items-center justify-center active:bg-header-ink/10">
-            <span className="rounded-full ring-2 ring-header-ink/30">
+          <button type="button" onClick={() => openSheet({ type: 'household' })} aria-label="Household and members" className="w-11 h-11 rounded-full flex items-center justify-center active:bg-white/40">
+            <span className="rounded-full ring-2 ring-white">
               <MemberAvatar member={me} size={28} />
             </span>
           </button>
