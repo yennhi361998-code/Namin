@@ -1,4 +1,4 @@
-import type { Household, HouseholdItem, Member, MoneyCategory, Purchase, ShoppingItem, Task, TaskChecklistItem, Transaction } from '../lib/types';
+import type { Account, Household, HouseholdItem, Member, MoneyCategory, Purchase, ShoppingItem, Task, TaskChecklistItem, Transaction } from '../lib/types';
 
 /** Everything that gets persisted. Swap the persistence layer in store/index.ts to move this to a backend. */
 export interface Data {
@@ -12,4 +12,5 @@ export interface Data {
   purchases: Purchase[];
   moneyCategories: MoneyCategory[];
   transactions: Transaction[];
+  accounts: Account[];
 }

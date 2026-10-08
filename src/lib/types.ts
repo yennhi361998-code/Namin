@@ -21,6 +21,7 @@ export interface Member {
   householdId: string;
   name: string;
   color: string;
+  avatar?: string | null;
   createdAt: string;
 }
 
@@ -87,6 +88,16 @@ export interface HouseholdItem {
   spendCategoryId?: string | null;
 }
 
+export interface Account {
+  id: string;
+  householdId: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  archived?: boolean;
+  createdAt?: string;
+}
+
 export interface Purchase {
   id: string;
   householdId: string;
@@ -101,6 +112,8 @@ export interface Purchase {
   notes: string;
   /** Spending category this purchase counts toward in Charts. Missing = Daily. */
   spendCategoryId?: string | null;
+  accountId?: string | null;
+  memberId?: string | null;
 }
 
 export type TxType = 'expense' | 'income';
@@ -130,5 +143,6 @@ export interface Transaction {
   date: DateStr;
   note: string;
   memberId: string | null;
+  accountId?: string | null;
   createdAt: string;
 }

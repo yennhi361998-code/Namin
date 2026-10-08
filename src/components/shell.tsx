@@ -219,19 +219,46 @@ export function AssigneeFilter() {
   const setAssignee = useUi((s) => s.setAssignee);
   // A removed member (or stale stored id) falls back to "All".
   const value = members.some((m) => m.id === assignee) ? assignee : null;
-  const chip = (active: boolean) =>
-    cx('min-h-[36px] rounded-full text-label-md inline-flex items-center gap-1.5 shrink-0 border transition-colors', active ? 'bg-header border-header-ink/30 text-header-ink font-semibold' : 'bg-surface border-line text-ink-sub');
+
   return (
-    <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-margin px-margin" role="radiogroup" aria-label="Show tasks for">
-      <button type="button" role="radio" aria-checked={value === null} onClick={() => setAssignee(null)} className={cx(chip(value === null), 'px-3.5')}>
+    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-margin px-margin" role="radiogroup" aria-label="Show tasks for">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === null}
+        onClick={() => setAssignee(null)}
+        className={cx(
+          'min-h-[36px] px-3.5 rounded-full text-label-md inline-flex items-center shrink-0 border transition-all duration-200',
+          value === null
+            ? 'bg-header border-header-ink/30 text-header-ink font-semibold shadow-xs'
+            : 'bg-surface border-line text-ink-sub hover:bg-soft/60'
+        )}
+      >
         All
       </button>
-      {members.map((m) => (
-        <button key={m.id} type="button" role="radio" aria-checked={value === m.id} onClick={() => setAssignee(m.id)} className={cx(chip(value === m.id), 'pl-1 pr-3')}>
-          <MemberAvatar member={m} size={26} />
-          {m.name}
-        </button>
-      ))}
+      {members.map((m) => {
+        const isSelected = value === m.id;
+        return (
+          <button
+            key={m.id}
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            onClick={() => setAssignee(m.id)}
+            title={m.name}
+            aria-label={`Filter by ${m.name}`}
+            className={cx(
+              'min-h-[36px] rounded-full inline-flex items-center shrink-0 border transition-all duration-200',
+              isSelected
+                ? 'pl-1 pr-3 gap-1.5 bg-header border-header-ink/30 text-header-ink font-semibold shadow-xs text-label-md'
+                : 'w-[36px] h-[36px] p-0 justify-center bg-surface border-line hover:bg-soft/60 active:scale-95'
+            )}
+          >
+            <MemberAvatar member={m} size={isSelected ? 26 : 28} />
+            {isSelected && <span>{m.name}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -1,11 +1,11 @@
 import {
   AlarmClock, ArrowRight, ArrowUp, Baby, Banknote, Bath, BedDouble, Bike, BookOpen, Briefcase, Bus, Calendar, CalendarClock,
   CalendarDays, Car, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, CircleCheck, Clapperboard, Clock,
-  Coffee, Coins, CookingPot, CreditCard, Delete, Dog, Dumbbell, Footprints, Fuel, Gamepad2, Gem, Gift, GraduationCap, Heart,
+  Coffee, Coins, CookingPot, CreditCard, Delete, Dog, Dumbbell, Filter, Footprints, Fuel, Gamepad2, Gem, Gift, GraduationCap, Heart,
   Hospital, Hourglass, House, Info, Landmark, Leaf, Lightbulb, ListChecks, ListPlus, ListX, Maximize2, Minus, Package, Palette,
   PartyPopper, Pencil, PiggyBank, Pill, Plane, Plug, Plus, Receipt, Repeat, RotateCcw, Sandwich, Scissors, Shirt, ShoppingBag,
   ShoppingBasket, ShoppingCart, SlidersHorizontal, Smartphone, Sofa, Soup, Store, Sun, Timer, Trash2, Trees, TrendingUp, Undo2,
-  User, UserPlus, Wallet, WashingMachine, Wrench, X, SprayCan, Utensils, ShowerHead, Apple, Eraser, type LucideIcon,
+  User, UserPlus, Users, Wallet, WashingMachine, Wrench, X, SprayCan, Utensils, ShowerHead, Apple, Eraser, type LucideIcon,
 } from 'lucide-react';
 import type { Category } from '../lib/types';
 
@@ -23,6 +23,8 @@ export const UI_ICONS = {
   backspace: Delete,
   bathtub: Bath,
   bed: BedDouble,
+  book: BookOpen,
+  filter: Filter,
   calendar_today: Calendar,
   calendar_view_week: CalendarDays,
   chair: Sofa,
@@ -47,6 +49,14 @@ export const UI_ICONS = {
   local_laundry_service: WashingMachine,
   open_in_full: Maximize2,
   payments: Wallet,
+  account_balance_wallet: Wallet,
+  credit_card: CreditCard,
+  account_balance: Landmark,
+  savings: PiggyBank,
+  paid: Banknote,
+  point_of_sale: Receipt,
+  category: Package,
+  group: Users,
   person: User,
   person_add: UserPlus,
   priority_high: CircleAlert,

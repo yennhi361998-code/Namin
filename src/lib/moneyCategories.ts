@@ -143,6 +143,7 @@ export function demoTransactions(householdId: string, memberIds: string[], ref: 
         date,
         note,
         memberId: memberIds[i % memberIds.length] ?? null,
+        accountId: ['acc-cash', 'acc-bank', 'acc-momo'][i % 3],
         createdAt: new Date().toISOString(),
       });
     }),

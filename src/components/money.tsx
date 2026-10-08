@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { formatVnd } from '../lib/money';
 import { CHART_COLORS, OTHER_COLOR } from '../lib/moneyCategories';
 import type { MoneyCategory, TxType } from '../lib/types';
@@ -19,13 +19,14 @@ export function sharePct(share: number) {
   return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`;
 }
 
-interface Slice {
+export interface Slice {
   key: string;
   name: string;
-  icon: string;
+  icon?: string;
   color: string;
   total: number;
   share: number;
+  avatar?: ReactNode;
 }
 
 const MAX_SLICES = 6;
@@ -71,9 +72,22 @@ const CIRC = 2 * Math.PI * MID;
 const GAP = 2;
 
 /** Donut with the month's total in the middle. Tap a slice to see it in the centre; tap again to clear. */
-export function MoneyDonut({ month, type }: { month: MoneyMonth; type: TxType }) {
+export function MoneyDonut({
+  month,
+  type,
+  slices: customSlices,
+  total: customTotal,
+  title: customTitle,
+}: {
+  month?: MoneyMonth;
+  type: TxType;
+  slices?: Slice[];
+  total?: number;
+  title?: string;
+}) {
   const [picked, setPicked] = useState<string | null>(null);
-  const slices = toSlices(month);
+  const slices = customSlices ?? (month ? toSlices(month) : []);
+  const totalAmount = customTotal ?? (month ? month.total : slices.reduce((n, s) => n + s.total, 0));
   const sel = slices.find((s) => s.key === picked);
   const multi = slices.length > 1;
 
@@ -89,7 +103,7 @@ export function MoneyDonut({ month, type }: { month: MoneyMonth; type: TxType })
 
   return (
     <div className="relative mx-auto" style={{ width: SIZE + 32, height: SIZE + 32 }}>
-      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="absolute left-4 top-4 -rotate-0" role="img" aria-label={`${type === 'expense' ? 'Expenses' : 'Income'} by category`}>
+      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="absolute left-4 top-4 -rotate-0" role="img" aria-label={`${type === 'expense' ? 'Expenses' : 'Income'} chart`}>
         <circle cx={SIZE / 2} cy={SIZE / 2} r={MID} fill="none" stroke="#E5EEF2" strokeWidth={WIDTH} />
         {arcs.map((a) => (
           <circle
@@ -130,27 +144,35 @@ export function MoneyDonut({ month, type }: { month: MoneyMonth; type: TxType })
           return (
             <span
               key={`b-${a.key}`}
-              className="absolute w-9 h-9 -ml-[18px] -mt-[18px] rounded-full bg-surface flex items-center justify-center text-[18px] shadow-card pointer-events-none"
+              className="absolute w-9 h-9 -ml-[18px] -mt-[18px] rounded-full bg-surface flex items-center justify-center text-[18px] shadow-card pointer-events-none overflow-hidden"
               style={{ left: p.x + 16, top: p.y + 16, boxShadow: `0 0 0 2px ${a.color}, 0 2px 6px rgba(38,52,59,0.12)` }}
               aria-hidden
             >
-              <CategoryIcon name={a.icon} size={18} color={a.color} />
+              {a.avatar ? a.avatar : <CategoryIcon name={a.icon || 'package'} size={18} color={a.color} />}
             </span>
           );
         })}
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-24">
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-16">
         {sel ? (
           <>
-            <CategoryIcon name={sel.icon} size={24} color={sel.color} />
-            <span className="text-caption text-ink-sub mt-1 truncate max-w-full">{sel.name}</span>
-            <span className="text-label-md font-semibold text-ink tabular-nums">{formatVnd(sel.total)}</span>
-            <span className="text-caption text-ink-sub">{sharePct(sel.share)}</span>
+            {sel.avatar ? (
+              <div className="w-8 h-8 flex items-center justify-center mb-0.5">{sel.avatar}</div>
+            ) : (
+              <CategoryIcon name={sel.icon || 'package'} size={24} color={sel.color} />
+            )}
+            <span className="text-caption text-ink-sub mt-0.5 truncate max-w-full">{sel.name}</span>
+            <span className={cx('text-title-sm font-bold tabular-nums', type === 'expense' ? 'text-[#E5806A]' : 'text-[#3FA88B]')}>
+              {formatVnd(sel.total)}
+            </span>
+            <span className="text-caption text-ink-sub font-medium">{sharePct(sel.share)}</span>
           </>
         ) : (
           <>
-            <span className="text-caption text-ink-sub">{type === 'expense' ? 'Total expenses' : 'Total income'}</span>
-            <span className={cx('w-6 h-0.5 rounded-full my-1.5', type === 'expense' ? 'bg-[#E5806A]' : 'bg-[#3FA88B]')} aria-hidden />
-            <span className="text-title-sm text-ink tabular-nums">{formatVnd(month.total)}</span>
+            <span className="text-[12px] text-ink-sub font-medium">{customTitle || (type === 'expense' ? 'Total Expenses' : 'Total Income')}</span>
+            <span className={cx('w-6 h-0.5 rounded-full my-1', type === 'expense' ? 'bg-[#E5806A]' : 'bg-[#3FA88B]')} aria-hidden />
+            <span className={cx('text-[18px] font-bold tabular-nums', type === 'expense' ? 'text-[#E5806A]' : 'text-[#3FA88B]')}>
+              {formatVnd(totalAmount)}
+            </span>
           </>
         )}
       </div>

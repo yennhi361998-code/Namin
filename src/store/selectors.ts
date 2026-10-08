@@ -3,13 +3,18 @@ import { monthKey, toDateStr, today } from '../lib/dates';
 import { projectOccurrences } from '../lib/calendar';
 import { estimateRestock, LOW_THRESHOLD_DAYS, type RestockEstimate } from '../lib/restock';
 import { DAILY_CATEGORY_ID, OTHER_COLOR } from '../lib/moneyCategories';
-import type { DateStr, Member, MoneyCategory, Purchase, Task, TxType } from '../lib/types';
+import type { Account, DateStr, Member, MoneyCategory, Purchase, Task, TxType } from '../lib/types';
 import { useStore } from './index';
 import type { Data } from './types';
 
 export function useMembers() {
   const members = useStore((s) => s.members);
   return useMemo(() => new Map<string, Member>(members.map((m) => [m.id, m])), [members]);
+}
+
+export function useAccounts() {
+  const accounts = useStore((s) => s.accounts);
+  return useMemo(() => new Map<string, Account>((accounts ?? []).map((a) => [a.id, a])), [accounts]);
 }
 
 export function useCurrentMember() {
@@ -83,6 +88,8 @@ export interface MoneyEntry {
   date: DateStr;
   title: string;
   note: string;
+  memberId?: string | null;
+  accountId?: string | null;
   /** For purchases: the household item, to open its detail. */
   itemId?: string;
 }
@@ -110,7 +117,17 @@ export function moneyEntries(data: Pick<Data, 'transactions' | 'purchases' | 'mo
     .filter((t) => t.type === type)
     .map((t) => {
       const cat = data.moneyCategories.find((c) => c.id === t.categoryId);
-      return { kind: 'transaction', id: t.id, categoryId: t.categoryId, amount: t.amount, date: t.date, title: t.note || cat?.name || 'Entry', note: t.note };
+      return {
+        kind: 'transaction',
+        id: t.id,
+        categoryId: t.categoryId,
+        amount: t.amount,
+        date: t.date,
+        title: t.note || cat?.name || 'Entry',
+        note: t.note,
+        memberId: t.memberId,
+        accountId: t.accountId,
+      };
     });
   if (type === 'expense')
     for (const p of data.purchases)
@@ -124,6 +141,8 @@ export function moneyEntries(data: Pick<Data, 'transactions' | 'purchases' | 'mo
           title: p.itemName,
           note: p.store,
           itemId: p.itemId,
+          memberId: p.memberId,
+          accountId: p.accountId,
         });
   return out;
 }

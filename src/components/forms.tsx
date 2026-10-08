@@ -1,7 +1,8 @@
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
+import { forwardRef, useState, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
 import { addDays, parseDate, shortDate, today, weekdayName } from '../lib/dates';
 import type { DateStr } from '../lib/types';
 import { cx, Icon } from './ui';
+import { DatePickerModal } from './DatePickerModal';
 
 const inputBase =
   'w-full min-h-[48px] px-3.5 rounded-lg bg-surface border-[1.5px] text-body-md text-ink placeholder:text-ink-sub/80 ' +
@@ -57,7 +58,7 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
 
 /** Quick date chips plus the native picker for anything else. */
 export function DatePicker({ value, onChange, label }: { value: DateStr; onChange: (d: DateStr) => void; label: string }) {
-  const id = useId();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const t = today();
   const dow = parseDate(t).getDay();
   const saturday = addDays(t, (6 - dow + 7) % 7 || 7);
@@ -69,40 +70,43 @@ export function DatePicker({ value, onChange, label }: { value: DateStr; onChang
   ];
   const isQuick = quick.some((q) => q.value === value);
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
-      {quick.map((q) => (
+    <>
+      <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
+        {quick.map((q) => (
+          <button
+            key={q.label}
+            type="button"
+            aria-pressed={q.value === value}
+            onClick={() => onChange(q.value)}
+            className={cx(
+              'min-h-[36px] px-3 rounded-full text-label-md border transition-colors',
+              q.value === value ? 'bg-soft border-sky text-ink font-semibold' : 'bg-surface border-line text-ink-sub',
+            )}
+          >
+            {q.label}
+          </button>
+        ))}
         <button
-          key={q.label}
           type="button"
-          aria-pressed={q.value === value}
-          onClick={() => onChange(q.value)}
+          onClick={() => setPickerOpen(true)}
           className={cx(
-            'min-h-[36px] px-3 rounded-full text-label-md border transition-colors',
-            q.value === value ? 'bg-soft border-sky text-ink font-semibold' : 'bg-surface border-line text-ink-sub',
+            'min-h-[36px] px-3 rounded-full text-label-md border inline-flex items-center gap-1 cursor-pointer transition-colors',
+            !isQuick ? 'bg-soft border-sky text-ink font-semibold' : 'bg-surface border-line text-ink-sub',
           )}
         >
-          {q.label}
+          <Icon name="calendar_today" className="text-[15px]" />
+          {isQuick ? 'Pick date' : `${weekdayName(value).slice(0, 3)}, ${shortDate(value)}`}
         </button>
-      ))}
-      <label
-        htmlFor={id}
-        className={cx(
-          'relative min-h-[36px] px-3 rounded-full text-label-md border inline-flex items-center gap-1 cursor-pointer',
-          !isQuick ? 'bg-soft border-sky text-ink font-semibold' : 'bg-surface border-line text-ink-sub',
-        )}
-      >
-        <Icon name="calendar_today" className="text-[15px]" />
-        {isQuick ? 'Pick date' : `${weekdayName(value).slice(0, 3)}, ${shortDate(value)}`}
-        <input
-          id={id}
-          type="date"
-          value={value}
-          onChange={(e) => e.target.value && onChange(e.target.value)}
-          className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-          aria-label={`${label}: choose a date`}
-        />
-      </label>
-    </div>
+      </div>
+
+      <DatePickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        value={value}
+        onChange={onChange}
+        title="Select Date"
+      />
+    </>
   );
 }
 

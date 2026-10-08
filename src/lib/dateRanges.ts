@@ -1,4 +1,4 @@
-import { addDays, monthKey, parseDate, toDateStr, today } from './dates';
+import { addDays, addMonths, daysBetween, monthKey, parseDate, shiftMonth, toDateStr, today } from './dates';
 
 export type QuickRangeOption =
   | 'all'
@@ -84,6 +84,19 @@ export function saveMonthStartDay(day: number): void {
   } catch {}
 }
 
+/**
+ * Returns the monthKey (YYYY-MM) representing the cycle containing `refDate`.
+ * If refDate's day is < startDay, this cycle started in the preceding calendar month.
+ */
+export function getCurrentCycleMonthKey(refDate: string = today(), startDay = 1): string {
+  const [y, m, d] = refDate.split('-').map(Number);
+  if (d < startDay) {
+    const prevMonthDate = new Date(y, m - 2, 1);
+    return monthKey(toDateStr(prevMonthDate));
+  }
+  return monthKey(refDate);
+}
+
 /** Given a monthKey (YYYY-MM) and monthStartDay (1-28), returns [startDate, endDate] strings */
 export function getMonthDateRange(key: string, startDay = 1): [string, string] {
   const [y, m] = key.split('-').map(Number);
@@ -98,7 +111,16 @@ export function resolveDateRange(selection: DateFilterSelection, monthStartDay =
   const d = parseDate(t);
 
   if (selection.mode === 'custom') {
-    return [selection.startDate || '1970-01-01', selection.endDate || '2099-12-31'];
+    const start = selection.startDate || '1970-01-01';
+    let end = selection.endDate;
+    if (!end) {
+      if (monthStartDay > 1 && selection.startDate) {
+        end = addDays(addMonths(selection.startDate, 1), -1);
+      } else {
+        end = '2099-12-31';
+      }
+    }
+    return [start, end];
   }
 
   if (selection.mode === 'month') {
@@ -132,15 +154,13 @@ export function resolveDateRange(selection: DateFilterSelection, monthStartDay =
       return [lastMon, lastSun];
     }
     case 'this_month': {
-      const currentKey = monthKey(t);
-      return getMonthDateRange(currentKey, monthStartDay);
+      const currentCycleKey = getCurrentCycleMonthKey(t, monthStartDay);
+      return getMonthDateRange(currentCycleKey, monthStartDay);
     }
     case 'last_month': {
-      const currentKey = monthKey(t);
-      const [y, m] = currentKey.split('-').map(Number);
-      const prevMonthDate = new Date(y, m - 2, 1);
-      const prevKey = monthKey(toDateStr(prevMonthDate));
-      return getMonthDateRange(prevKey, monthStartDay);
+      const currentCycleKey = getCurrentCycleMonthKey(t, monthStartDay);
+      const prevCycleKey = shiftMonth(currentCycleKey, -1);
+      return getMonthDateRange(prevCycleKey, monthStartDay);
     }
     case 'this_year': {
       const yr = d.getFullYear();
@@ -159,4 +179,130 @@ export function resolveDateRange(selection: DateFilterSelection, monthStartDay =
     default:
       return ['', ''];
   }
+}
+
+/**
+ * Shifts the current date selection to the contiguous adjacent range (before: -1, after: +1).
+ * Supports monthly cycles (e.g. 25/09 ~ 24/10 -> 25/08 ~ 24/09), quick options, and custom ranges.
+ */
+export function shiftDateSelection(
+  selection: DateFilterSelection,
+  direction: -1 | 1,
+  monthStartDay = 1
+): DateFilterSelection {
+  if (selection.mode === 'month') {
+    const nextKey = shiftMonth(selection.monthKey, direction);
+    const [start, end] = getMonthDateRange(nextKey, monthStartDay);
+    return {
+      mode: 'month',
+      monthKey: nextKey,
+      startDate: start,
+      endDate: end,
+    };
+  }
+
+  if (selection.mode === 'quick') {
+    const t = today();
+    if (selection.quickOption === 'this_month' || selection.quickOption === 'last_month') {
+      const baseKey =
+        selection.quickOption === 'this_month'
+          ? getCurrentCycleMonthKey(t, monthStartDay)
+          : shiftMonth(getCurrentCycleMonthKey(t, monthStartDay), -1);
+      const nextKey = shiftMonth(baseKey, direction);
+      const [start, end] = getMonthDateRange(nextKey, monthStartDay);
+      return {
+        mode: 'month',
+        monthKey: nextKey,
+        startDate: start,
+        endDate: end,
+      };
+    }
+  }
+
+  // Custom or other quick ranges: shift by adjacent contiguous block
+  const [start, end] = resolveDateRange(selection, monthStartDay);
+  if (!start || !end || start === '1970-01-01' || end === '2099-12-31') {
+    const currentKey = getCurrentCycleMonthKey(today(), monthStartDay);
+    const nextKey = shiftMonth(currentKey, direction);
+    const [s, e] = getMonthDateRange(nextKey, monthStartDay);
+    return {
+      mode: 'month',
+      monthKey: nextKey,
+      startDate: s,
+      endDate: e,
+    };
+  }
+
+  // Check if range is an exact 1-month cycle (e.g. 25/09 ~ 24/10)
+  const isMonthCycle = end === addDays(addMonths(start, 1), -1);
+  if (isMonthCycle) {
+    if (direction === -1) {
+      const newStart = addMonths(start, -1);
+      const newEnd = addDays(start, -1);
+      return {
+        mode: 'custom',
+        monthKey: monthKey(newStart),
+        startDate: newStart,
+        endDate: newEnd,
+      };
+    } else {
+      const newStart = addDays(end, 1);
+      const newEnd = addDays(addMonths(newStart, 1), -1);
+      return {
+        mode: 'custom',
+        monthKey: monthKey(newStart),
+        startDate: newStart,
+        endDate: newEnd,
+      };
+    }
+  }
+
+  // Arbitrary custom duration (N days)
+  const duration = daysBetween(start, end) + 1;
+  if (direction === -1) {
+    const newEnd = addDays(start, -1);
+    const newStart = addDays(newEnd, -(duration - 1));
+    return {
+      mode: 'custom',
+      monthKey: monthKey(newStart),
+      startDate: newStart,
+      endDate: newEnd,
+    };
+  } else {
+    const newStart = addDays(end, 1);
+    const newEnd = addDays(newStart, duration - 1);
+    return {
+      mode: 'custom',
+      monthKey: monthKey(newStart),
+      startDate: newStart,
+      endDate: newEnd,
+    };
+  }
+}
+
+/** Formats user-friendly label for the header */
+export function getDisplayRangeLabel(
+  selection: DateFilterSelection,
+  startDate?: string,
+  endDate?: string,
+  monthStartDay = 1
+): string {
+  if (selection.mode === 'month') {
+    if (monthStartDay === 1) {
+      const [y, m] = selection.monthKey.split('-');
+      return `${m}/${y}`;
+    }
+    return formatDateRange(startDate, endDate);
+  }
+
+  if (selection.mode === 'quick') {
+    if (selection.quickOption === 'all') return 'All time';
+    if (monthStartDay !== 1 && (selection.quickOption === 'this_month' || selection.quickOption === 'last_month')) {
+      return formatDateRange(startDate, endDate);
+    }
+    const item = QUICK_RANGE_OPTIONS.find((o) => o.id === selection.quickOption);
+    if (item) return item.label;
+  }
+
+  return formatDateRange(startDate, endDate);
 }

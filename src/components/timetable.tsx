@@ -167,9 +167,9 @@ export function WeekRows({
                 aria-pressed={isSel}
                 aria-current={isToday ? 'date' : undefined}
                 aria-label={`${weekdayName(d)}, ${longDate(d)}: ${entries.length} task${entries.length === 1 ? '' : 's'}`}
-                className={cx('w-11 shrink-0 flex items-center gap-1 rounded-lg min-h-[38px] justify-center transition-colors', isSel ? 'bg-sky' : 'active:bg-soft')}
+                className={cx('shrink-0 px-1.5 flex items-center gap-1 rounded-lg min-h-[38px] justify-center transition-colors', isSel ? 'bg-sky' : 'active:bg-soft')}
               >
-                <span className={cx('text-caption', isSel ? 'text-ink' : i >= 5 ? 'text-ink-sub/70' : 'text-ink-sub')}>{WEEKDAY_SHORT[i].slice(0, 2)}</span>
+                <span className={cx('text-caption font-medium', isSel ? 'text-ink' : i >= 5 ? 'text-ink-sub/70' : 'text-ink-sub')}>{WEEKDAY_SHORT[i]}</span>
                 <span
                   className={cx(
                     'w-6 h-6 rounded-full flex items-center justify-center text-label-sm font-semibold tabular-nums',

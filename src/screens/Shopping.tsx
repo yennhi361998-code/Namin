@@ -3,21 +3,25 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ActionSheet, SwipeRow } from '../components/overlay';
 import { PurchaseRow, ShoppingItemRow } from '../components/rows';
 import { BrandHeader, Fab, PillTabs, ScreenTitle } from '../components/shell';
-import { Card, cx, EmptyState, Icon, ListCard, ProgressBar, SectionHeader } from '../components/ui';
+import { Card, cx, EmptyState, Icon, ListCard, MemberAvatar, ProgressBar, SectionHeader } from '../components/ui';
+import { MoneyDonut, sharePct, type Slice } from '../components/money';
 import {
   type DateFilterSelection,
   formatDateRange,
+  getCurrentCycleMonthKey,
+  getDisplayRangeLabel,
   getSavedMonthStartDay,
-  QUICK_RANGE_OPTIONS,
   resolveDateRange,
   saveMonthStartDay,
+  shiftDateSelection,
 } from '../lib/dateRanges';
-import { formatMonthYear, monthKey, monthName, shiftMonth, today } from '../lib/dates';
+import { monthKey, monthName, shiftMonth, today } from '../lib/dates';
 import { formatVnd } from '../lib/money';
-import type { ShoppingItem } from '../lib/types';
+import { CHART_COLORS } from '../lib/moneyCategories';
+import type { ShoppingItem, TxType } from '../lib/types';
 import { useStore } from '../store';
 import { removeFromList } from '../store/actions';
-import { useMoneyMonth, useRestockMap, useRestockSuggestions } from '../store/selectors';
+import { moneyEntries, useRestockMap, useRestockSuggestions } from '../store/selectors';
 import { openSheet, toast } from '../store/ui';
 
 type Tab = 'tobuy' | 'history';
@@ -26,7 +30,6 @@ export function Shopping() {
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get('tab') === 'tobuy' ? 'tobuy' : 'history';
   const shopping = useStore((s) => s.shopping);
-  const purchases = useStore((s) => s.purchases);
   const toBuy = shopping.filter((x) => !x.completed);
 
   return (
@@ -40,8 +43,8 @@ export function Shopping() {
           value={tab}
           onChange={(v) => setParams(v === 'history' ? {} : { tab: v }, { replace: true })}
           options={[
-            { value: 'history', label: 'History', count: purchases.length },
-            { value: 'tobuy', label: 'To Buy', count: toBuy.length },
+            { value: 'history', label: 'History' },
+            { value: 'tobuy', label: 'To Buy' },
           ]}
         />
         {tab === 'history' ? <History /> : <ToBuy items={toBuy} />}
@@ -164,13 +167,21 @@ function RestockCard() {
 function History() {
   const navigate = useNavigate();
   const purchases = useStore((s) => s.purchases);
-  const currentMonthKey = useMemo(() => monthKey(today()), []);
+  const transactions = useStore((s) => s.transactions);
+  const accounts = useStore((s) => s.accounts ?? []);
+  const members = useStore((s) => s.members ?? []);
+  const moneyCategories = useStore((s) => s.moneyCategories ?? []);
+
+  const [viewMode, setViewMode] = useState<'details' | 'chart'>('details');
+  const [chartType, setChartType] = useState<TxType>('expense');
+  const [chartGroupBy, setChartGroupBy] = useState<'category' | 'account' | 'member'>('category');
 
   const [monthStartDay, setMonthStartDay] = useState<number>(() => getSavedMonthStartDay());
-  const [selection, setSelection] = useState<DateFilterSelection>({
+  const initialCycleKey = useMemo(() => getCurrentCycleMonthKey(today(), monthStartDay), [monthStartDay]);
+  const [selection, setSelection] = useState<DateFilterSelection>(() => ({
     mode: 'month',
-    monthKey: currentMonthKey,
-  });
+    monthKey: initialCycleKey,
+  }));
 
   const [startDate, endDate] = useMemo(() => {
     return resolveDateRange(selection, monthStartDay);
@@ -194,44 +205,30 @@ function History() {
     return [...m.entries()];
   }, [filteredPurchases]);
 
-  const transactions = useStore((s) => s.transactions);
   const totalSpent = useMemo(() => filteredPurchases.reduce((sum, p) => sum + (p.price ?? 0), 0), [filteredPurchases]);
   const totalIncome = useMemo(() => {
     return transactions
-      .filter((t) => t.type === 'income' && (!startDate || t.date >= startDate) && (!endDate || t.date <= endDate))
+      .filter((t) => {
+        if (t.type !== 'income') return false;
+        if (startDate && t.date < startDate) return false;
+        if (endDate && t.date > endDate) return false;
+        return true;
+      })
       .reduce((sum, t) => sum + t.amount, 0);
   }, [transactions, startDate, endDate]);
 
   const currentYear = today().slice(0, 4);
 
-  const displayMonthLabel = useMemo(() => {
-    if (selection.mode === 'month') {
-      return formatMonthYear(selection.monthKey);
-    }
-    if (selection.mode === 'quick') {
-      if (selection.quickOption === 'all') return 'All time';
-      const item = QUICK_RANGE_OPTIONS.find((o) => o.id === selection.quickOption);
-      if (item) return item.label;
-    }
-    return formatDateRange(startDate, endDate);
-  }, [selection, startDate, endDate]);
+  const displayRangeLabel = useMemo(() => {
+    return getDisplayRangeLabel(selection, startDate, endDate, monthStartDay);
+  }, [selection, startDate, endDate, monthStartDay]);
 
-  const handlePrevMonth = () => {
-    const key = selection.monthKey || currentMonthKey;
-    const prev = shiftMonth(key, -1);
-    setSelection({
-      mode: 'month',
-      monthKey: prev,
-    });
+  const handlePrevRange = () => {
+    setSelection((prev) => shiftDateSelection(prev, -1, monthStartDay));
   };
 
-  const handleNextMonth = () => {
-    const key = selection.monthKey || currentMonthKey;
-    const next = shiftMonth(key, 1);
-    setSelection({
-      mode: 'month',
-      monthKey: next,
-    });
+  const handleNextRange = () => {
+    setSelection((prev) => shiftDateSelection(prev, 1, monthStartDay));
   };
 
   const handleOpenDateSheet = () => {
@@ -249,21 +246,116 @@ function History() {
     });
   };
 
-  if (!purchases.length) {
-    return (
-      <EmptyState
-        message="No purchases yet."
-        action={{ label: 'Add expense', onClick: () => openSheet({ type: 'transaction', txType: 'expense' }) }}
-      />
-    );
-  }
+  const prevPeriodTotal = useMemo(() => {
+    if (!startDate || !endDate) return null;
+    const prevSelection = shiftDateSelection(selection, -1, monthStartDay);
+    const [pStart, pEnd] = resolveDateRange(prevSelection, monthStartDay);
+    if (!pStart || !pEnd) return null;
+    return purchases
+      .filter((p) => {
+        if (p.purchaseDate < pStart || p.purchaseDate > pEnd) return false;
+        return true;
+      })
+      .reduce((sum, p) => sum + (p.price ?? 0), 0);
+  }, [selection, startDate, endDate, monthStartDay, purchases]);
 
-  const lastMonthKey = useMemo(() => shiftMonth(selection.monthKey || currentMonthKey, -1), [selection.monthKey, currentMonthKey]);
-  const lastMonthExpenses = useMoneyMonth('expense', lastMonthKey);
+  const prevPeriodLabel = useMemo(() => {
+    if (selection.mode === 'month' && monthStartDay === 1) {
+      return monthName(shiftMonth(selection.monthKey, -1));
+    }
+    const prevSelection = shiftDateSelection(selection, -1, monthStartDay);
+    const [pStart, pEnd] = resolveDateRange(prevSelection, monthStartDay);
+    return formatDateRange(pStart, pEnd);
+  }, [selection, monthStartDay]);
+
   const ratio = useMemo(() => {
-    if (selection.mode !== 'month') return null;
-    return lastMonthExpenses.total ? totalSpent / lastMonthExpenses.total : null;
-  }, [selection.mode, totalSpent, lastMonthExpenses.total]);
+    return prevPeriodTotal ? totalSpent / prevPeriodTotal : null;
+  }, [totalSpent, prevPeriodTotal]);
+
+  // Chart entries calculation
+  const chartEntries = useMemo(() => {
+    return moneyEntries({ transactions, purchases, moneyCategories }, chartType).filter((e) => {
+      if (startDate && e.date < startDate) return false;
+      if (endDate && e.date > endDate) return false;
+      return true;
+    });
+  }, [transactions, purchases, moneyCategories, chartType, startDate, endDate]);
+
+  const chartTotal = useMemo(() => chartEntries.reduce((sum, e) => sum + e.amount, 0), [chartEntries]);
+
+  const chartSlices: (Slice & { count: number })[] = useMemo(() => {
+    if (chartTotal === 0) return [];
+
+    if (chartGroupBy === 'category') {
+      const groups = new Map<string, { total: number; count: number }>();
+      for (const e of chartEntries) {
+        const cur = groups.get(e.categoryId) ?? { total: 0, count: 0 };
+        groups.set(e.categoryId, { total: cur.total + e.amount, count: cur.count + 1 });
+      }
+      return [...groups.entries()]
+        .map(([catId, data]) => {
+          const cat = moneyCategories.find((c) => c.id === catId);
+          return {
+            key: catId,
+            name: cat?.name ?? 'Khác',
+            icon: cat?.icon ?? 'package',
+            color: cat?.color ?? '#94A3B8',
+            total: data.total,
+            count: data.count,
+            share: data.total / chartTotal,
+          };
+        })
+        .sort((a, b) => b.total - a.total);
+    }
+
+    if (chartGroupBy === 'account') {
+      const groups = new Map<string | null, { total: number; count: number }>();
+      for (const e of chartEntries) {
+        const key = e.accountId ?? null;
+        const cur = groups.get(key) ?? { total: 0, count: 0 };
+        groups.set(key, { total: cur.total + e.amount, count: cur.count + 1 });
+      }
+      return [...groups.entries()]
+        .map(([accId, data], idx) => {
+          const acc = accId ? accounts.find((a) => a.id === accId) : undefined;
+          const fallbackColor = CHART_COLORS[idx % CHART_COLORS.length];
+          return {
+            key: accId ?? 'unassigned',
+            name: acc?.name ?? 'Chưa gán ví',
+            icon: acc?.icon ?? 'account_balance_wallet',
+            color: acc?.color ?? fallbackColor,
+            total: data.total,
+            count: data.count,
+            share: data.total / chartTotal,
+          };
+        })
+        .sort((a, b) => b.total - a.total);
+    }
+
+    // Group by Member
+    const groups = new Map<string | null, { total: number; count: number }>();
+    for (const e of chartEntries) {
+      const key = e.memberId ?? null;
+      const cur = groups.get(key) ?? { total: 0, count: 0 };
+      groups.set(key, { total: cur.total + e.amount, count: cur.count + 1 });
+    }
+    return [...groups.entries()]
+      .map(([memId, data], idx) => {
+        const m = memId ? members.find((x) => x.id === memId) : undefined;
+        const color = CHART_COLORS[idx % CHART_COLORS.length];
+        return {
+          key: memId ?? 'shared',
+          name: m?.name ?? 'Chung (Cả nhà)',
+          icon: m ? undefined : 'group',
+          avatar: m ? <MemberAvatar member={m} size={28} /> : undefined,
+          color,
+          total: data.total,
+          count: data.count,
+          share: data.total / chartTotal,
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [chartEntries, chartTotal, chartGroupBy, moneyCategories, accounts, members]);
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -273,8 +365,8 @@ function History() {
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={handlePrevMonth}
-              aria-label="Previous month"
+              onClick={handlePrevRange}
+              aria-label="Previous period"
               className="w-8 h-8 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
             >
               <Icon name="chevron_left" className="text-[18px]" />
@@ -283,16 +375,16 @@ function History() {
             <button
               type="button"
               onClick={handleOpenDateSheet}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-canvas active:bg-soft transition-colors text-label-md font-semibold text-ink"
+              className="relative flex items-center justify-center px-6 py-1 rounded-xl hover:bg-canvas active:bg-soft transition-colors text-label-md font-semibold text-ink"
             >
-              <span>{displayMonthLabel}</span>
-              <Icon name="expand_more" className="text-[16px] text-ink-sub" />
+              <span>{displayRangeLabel}</span>
+              <Icon name="expand_more" className="absolute right-1 text-[16px] text-ink-sub pointer-events-none" />
             </button>
 
             <button
               type="button"
-              onClick={handleNextMonth}
-              aria-label="Next month"
+              onClick={handleNextRange}
+              aria-label="Next period"
               className="w-8 h-8 rounded-full flex items-center justify-center text-ink hover:bg-canvas active:bg-soft transition-colors"
             >
               <Icon name="chevron_right" className="text-[18px]" />
@@ -315,33 +407,166 @@ function History() {
           </div>
         </div>
 
-        {ratio != null && (
+        {ratio != null && prevPeriodTotal != null && (
           <div className="mt-2 pt-2 border-t border-line/60 flex flex-col gap-1">
-            <ProgressBar value={ratio} label={`Compared with ${monthName(lastMonthExpenses.key)}`} />
+            <ProgressBar value={ratio} label={`Compared with ${prevPeriodLabel}`} />
             <span className="text-caption text-ink-sub text-center">
-              {Math.round(ratio * 100)}% of {monthName(lastMonthExpenses.key)} ({formatVnd(lastMonthExpenses.total)})
+              {Math.round(ratio * 100)}% of {prevPeriodLabel} ({formatVnd(prevPeriodTotal)})
             </span>
           </div>
         )}
       </Card>
 
-      {/* History list */}
-      {months.length === 0 ? (
-        <EmptyState message="No purchases found for the selected period." />
-      ) : (
-        months.map(([key, ps]) => (
-          <section key={key} aria-label={monthName(key, true)}>
-            <SectionHeader
-              title={monthName(key, key.slice(0, 4) !== currentYear)}
-              right={<span className="text-body-sm text-ink-sub tabular-nums">{formatVnd(ps.reduce((n, p) => n + (p.price ?? 0), 0))}</span>}
+      {/* Switch between Details and Chart */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex p-1 bg-line/60 rounded-xl" role="tablist" aria-label="View mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'details'}
+            onClick={() => setViewMode('details')}
+            className={cx(
+              'px-4 py-1.5 rounded-lg text-label-md font-medium transition-all',
+              viewMode === 'details' ? 'bg-surface text-ink font-semibold shadow-xs' : 'text-ink-sub hover:text-ink'
+            )}
+          >
+            Details
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === 'chart'}
+            onClick={() => setViewMode('chart')}
+            className={cx(
+              'px-4 py-1.5 rounded-lg text-label-md font-medium transition-all',
+              viewMode === 'chart' ? 'bg-surface text-ink font-semibold shadow-xs' : 'text-ink-sub hover:text-ink'
+            )}
+          >
+            Chart
+          </button>
+        </div>
+      </div>
+
+      {/* Render Chart View */}
+      {viewMode === 'chart' ? (
+        <div className="flex flex-col gap-5">
+          <div className="flex items-center justify-between gap-2">
+            <PillTabs
+              label="Chart type"
+              value={chartType}
+              onChange={setChartType}
+              options={[
+                { value: 'expense', label: 'Expenses' },
+                { value: 'income', label: 'Income' },
+              ]}
             />
-            <ListCard>
-              {ps.map((p) => (
-                <PurchaseRow key={p.id} purchase={p} onOpen={() => navigate(`/items/${p.itemId}`)} />
-              ))}
-            </ListCard>
-          </section>
-        ))
+          </div>
+
+          {/* Floating Segment Control: Category | Account | Member */}
+          <div className="flex justify-center -mt-1">
+            <div className="inline-flex p-1 bg-surface rounded-full shadow-sm border border-line/50" role="tablist">
+              {(['category', 'account', 'member'] as const).map((gb) => {
+                const active = chartGroupBy === gb;
+                return (
+                  <button
+                    key={gb}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setChartGroupBy(gb)}
+                    className={cx(
+                      'min-h-[36px] px-5 rounded-full text-label-md transition-all capitalize',
+                      active
+                        ? 'bg-[#F5ECE8] text-ink font-semibold shadow-xs'
+                        : 'text-ink-sub hover:text-ink'
+                    )}
+                  >
+                    {gb === 'category' ? 'Category' : gb === 'account' ? 'Account' : 'Member'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {chartSlices.length === 0 ? (
+            <EmptyState
+              message={chartType === 'expense' ? 'Không có chi tiêu trong khoảng thời gian này.' : 'Không có thu nhập trong khoảng thời gian này.'}
+              action={{ label: 'Thêm mục', onClick: () => openSheet({ type: 'transaction', txType: chartType }) }}
+            />
+          ) : (
+            <div className="flex flex-col gap-6 pt-1">
+              {/* Donut Chart */}
+              <div className="flex flex-col items-center">
+                <MoneyDonut
+                  key={`${chartType}-${startDate}-${endDate}-${chartGroupBy}`}
+                  type={chartType}
+                  slices={chartSlices}
+                  total={chartTotal}
+                  title={chartType === 'expense' ? 'Total Expenses' : 'Total Income'}
+                />
+                {/* Rotate hint */}
+                <div className="flex items-center justify-center gap-1.5 text-[12px] text-ink-sub/70 mt-3 select-none">
+                  <Icon name="replay" className="text-[14px]" />
+                  <span>Drag the pie chart to rotate</span>
+                </div>
+              </div>
+
+              {/* Breakdown Rows matching reference screenshot */}
+              <div className="flex flex-col divide-y divide-line/40 px-3 bg-surface rounded-2xl shadow-card border border-line/40 overflow-hidden">
+                {chartSlices.map((slice) => (
+                  <div key={slice.key} className="flex items-center py-3.5 px-1">
+                    {/* Left: Dot + Icon/Avatar + Name */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                      {slice.avatar ? (
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0">
+                          {slice.avatar}
+                        </div>
+                      ) : (
+                        <div
+                          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                          style={{ backgroundColor: `${slice.color}20` }}
+                        >
+                          <Icon name={(slice.icon as any) || 'category'} className="text-[20px]" style={{ color: slice.color }} />
+                        </div>
+                      )}
+                      <span className="text-body-md text-ink font-medium truncate">{slice.name}</span>
+                    </div>
+
+                    {/* Center: Percentage */}
+                    <span className="w-16 text-center text-body-md text-ink font-normal tabular-nums">
+                      {sharePct(slice.share)}
+                    </span>
+
+                    {/* Right: Amount */}
+                    <span className="w-32 text-right text-body-md text-ink font-medium tabular-nums">
+                      {formatVnd(slice.total)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Render Details List */
+        months.length === 0 ? (
+          <EmptyState message="No purchases found for the selected period." />
+        ) : (
+          months.map(([key, ps]) => (
+            <section key={key} aria-label={monthName(key, true)}>
+              <SectionHeader
+                title={monthName(key, key.slice(0, 4) !== currentYear)}
+                right={<span className="text-body-sm text-ink-sub tabular-nums">{formatVnd(ps.reduce((n, p) => n + (p.price ?? 0), 0))}</span>}
+              />
+              <ListCard>
+                {ps.map((p) => (
+                  <PurchaseRow key={p.id} purchase={p} onOpen={() => navigate(`/items/${p.itemId}`)} />
+                ))}
+              </ListCard>
+            </section>
+          ))
+        )
       )}
     </div>
   );

@@ -1,5 +1,6 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
 import { CATEGORY_COLOR } from '../lib/categories';
+import { MemberAvatarIcon } from '../lib/members';
 import { roomStyle } from '../lib/rooms';
 import type { Category, Member } from '../lib/types';
 import { CATEGORY_ICONS, UI_ICONS, type CategoryIconName, type IconName } from './icons';
@@ -10,13 +11,14 @@ export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Bool
  * Lucide icon by app name. Sized by font size (text-[18px] etc.), 24px by default.
  * `filled` (active tab) draws a heavier stroke, since Lucide is outline-only.
  */
-export function Icon({ name, className, filled, label }: { name: IconName; className?: string; filled?: boolean; label?: string }) {
-  const Glyph = UI_ICONS[name];
+export function Icon({ name, className, filled, label, style }: { name: IconName; className?: string; filled?: boolean; label?: string; style?: CSSProperties }) {
+  const Glyph = UI_ICONS[name] || UI_ICONS.add;
   return (
     <Glyph
       size="1em"
       strokeWidth={filled ? 2.5 : 2}
       absoluteStrokeWidth={false}
+      style={style}
       className={cx('inline-block shrink-0 select-none', !className?.includes('text-[') && 'text-[24px]', className)}
       aria-hidden={label ? undefined : true}
       aria-label={label}
@@ -210,13 +212,22 @@ export function RoomIcon({ room }: { room: string }) {
 
 export function MemberAvatar({ member, size = 28, ring }: { member?: Member; size?: number; ring?: boolean }) {
   const name = member?.name ?? '?';
+  const avatar = member?.avatar;
+  const iconSize = Math.round(size * 0.62);
+  const hasIcon = avatar && avatar !== 'initial';
+
   return (
     <span
-      className={cx('inline-flex items-center justify-center rounded-full font-semibold text-ink flex-shrink-0', ring && 'ring-2 ring-canvas')}
-      style={{ width: size, height: size, background: member?.color ?? '#CBD5DA', fontSize: Math.round(size * 0.42) }}
+      className={cx('inline-flex items-center justify-center rounded-full font-semibold text-ink flex-shrink-0 select-none leading-none', ring && 'ring-2 ring-canvas')}
+      style={{
+        width: size,
+        height: size,
+        background: member?.color ?? '#CBD5DA',
+        fontSize: Math.round(size * 0.42),
+      }}
       aria-hidden
     >
-      {name.slice(0, 1).toUpperCase()}
+      {hasIcon ? <MemberAvatarIcon id={avatar} size={iconSize} /> : name.slice(0, 1).toUpperCase()}
     </span>
   );
 }

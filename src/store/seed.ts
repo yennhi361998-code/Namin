@@ -1,8 +1,17 @@
 import { addDays, parseDate, today } from '../lib/dates';
 import { uid } from '../lib/id';
-import type { Category, Household, HouseholdItem, Member, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem } from '../lib/types';
+import type { Account, Category, Household, HouseholdItem, Member, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem } from '../lib/types';
 import { defaultMoneyCategories, demoTransactions } from '../lib/moneyCategories';
 import type { Data } from './types';
+
+export function defaultAccounts(householdId: string): Account[] {
+  const now = new Date().toISOString();
+  return [
+    { id: 'acc-cash', householdId, name: 'Tiền mặt', icon: 'wallet', color: '#3FA88B', createdAt: now },
+    { id: 'acc-bank', householdId, name: 'Tài khoản ngân hàng', icon: 'credit_card', color: '#4B7BFF', createdAt: now },
+    { id: 'acc-momo', householdId, name: 'Ví điện tử', icon: 'account_balance_wallet', color: '#D946EF', createdAt: now },
+  ];
+}
 
 /** Demo data dated relative to first launch so the app always feels current. */
 export function createSeed(): Data {
@@ -16,6 +25,7 @@ export function createSeed(): Data {
   const hid = household.id;
   const minh: Member = { id: uid(), householdId: hid, name: 'Minh', color: '#8CC9E8', createdAt: now };
   const lan: Member = { id: uid(), householdId: hid, name: 'Lan', color: '#A9D8C8', createdAt: now };
+  const accounts = defaultAccounts(hid);
 
   const tasks: Task[] = [];
   const checklist: TaskChecklistItem[] = [];
@@ -104,7 +114,7 @@ export function createSeed(): Data {
       notes: '',
     };
     items.push(it);
-    history.forEach(([ago, price, store]) =>
+    history.forEach(([ago, price, store], idx) =>
       purchases.push({
         id: uid(),
         householdId: hid,
@@ -117,6 +127,8 @@ export function createSeed(): Data {
         store,
         purchaseDate: d(-ago),
         notes: '',
+        accountId: ['acc-cash', 'acc-bank', 'acc-momo'][idx % 3],
+        memberId: [minh.id, lan.id][idx % 2],
       }),
     );
     return it;
@@ -171,5 +183,6 @@ export function createSeed(): Data {
     purchases,
     moneyCategories: defaultMoneyCategories(hid),
     transactions: demoTransactions(hid, [minh.id, lan.id], t),
+    accounts,
   };
 }

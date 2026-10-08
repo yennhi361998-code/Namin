@@ -6,8 +6,8 @@ import { uid } from '../lib/id';
 import { nextOccurrence } from '../lib/recurrence';
 import { estimateRestock, statusFromEstimate } from '../lib/restock';
 import { defaultMoneyCategories, demoTransactions, EMOJI_TO_ICON } from '../lib/moneyCategories';
-import type { Category, DateStr, HouseholdItem, MoneyCategory, Recurrence, ShoppingItem, Task, TaskChecklistItem, TxType } from '../lib/types';
-import { createSeed } from './seed';
+import type { Account, Category, DateStr, HouseholdItem, MoneyCategory, Recurrence, ShoppingItem, Task, TaskChecklistItem, TxType } from '../lib/types';
+import { createSeed, defaultAccounts } from './seed';
 import type { Data } from './types';
 import { toast } from './ui';
 
@@ -47,6 +47,8 @@ export interface PurchaseInput {
   notes?: string;
   /** Spending category in Charts; remembered on the item for next time. */
   spendCategoryId?: string | null;
+  accountId?: string | null;
+  memberId?: string | null;
 }
 
 export interface TransactionInput {
@@ -55,6 +57,8 @@ export interface TransactionInput {
   amount: number;
   date: DateStr;
   note: string;
+  memberId?: string | null;
+  accountId?: string | null;
 }
 
 export interface MoneyCategoryInput {
@@ -92,9 +96,14 @@ interface Actions {
   /** Hides it from pickers; past entries keep showing under it. */
   archiveMoneyCategory: (id: string) => Undo;
 
+  addAccount: (name: string, icon?: string, color?: string) => string;
+  updateAccount: (id: string, patch: Partial<Account>) => void;
+  deleteAccount: (id: string) => void;
+
   renameHousehold: (name: string) => void;
-  addMember: (name: string) => void;
+  addMember: (name: string, avatar?: string | null) => void;
   renameMember: (id: string, name: string) => void;
+  setMemberAvatar: (id: string, avatar: string | null) => void;
   setCurrentMember: (id: string) => void;
   resetDemo: () => void;
 }
@@ -371,6 +380,8 @@ export const useStore = create<State>()(
           purchaseDate: input.purchaseDate,
           notes: input.notes?.trim() ?? '',
           spendCategoryId: input.spendCategoryId ?? item.spendCategoryId ?? null,
+          accountId: input.accountId ?? null,
+          memberId: input.memberId ?? s.currentMemberId ?? null,
         };
         // Buying it clears it from the list, wherever the purchase was recorded from.
         const removed = s.shopping.filter((x) => x.id === input.shoppingItemId || (x.itemId === item!.id && !x.completed));
@@ -431,7 +442,8 @@ export const useStore = create<State>()(
               householdId: s.household.id,
               amount: Math.round(input.amount),
               note: input.note.trim(),
-              memberId: s.currentMemberId,
+              memberId: input.memberId ?? s.currentMemberId,
+              accountId: input.accountId ?? null,
               createdAt: new Date().toISOString(),
             },
           ],
@@ -440,7 +452,18 @@ export const useStore = create<State>()(
       },
       updateTransaction: (id, input) =>
         set((s) => ({
-          transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...input, amount: Math.round(input.amount), note: input.note.trim() } : t)),
+          transactions: s.transactions.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  ...input,
+                  amount: Math.round(input.amount),
+                  note: input.note.trim(),
+                  memberId: input.memberId !== undefined ? input.memberId : t.memberId,
+                  accountId: input.accountId !== undefined ? input.accountId : t.accountId,
+                }
+              : t,
+          ),
         })),
       deleteTransaction: (id) => {
         const tx = get().transactions.find((t) => t.id === id);
@@ -475,8 +498,34 @@ export const useStore = create<State>()(
         return () => set((s) => ({ moneyCategories: s.moneyCategories.map((c) => (c.id === id ? { ...c, archived: false } : c)) }));
       },
 
+      addAccount: (name, icon = 'wallet', color = '#3FA88B') => {
+        const id = uid();
+        set((s) => ({
+          accounts: [
+            ...(s.accounts ?? []),
+            {
+              id,
+              householdId: s.household.id,
+              name: name.trim(),
+              icon,
+              color,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }));
+        return id;
+      },
+      updateAccount: (id, patch) =>
+        set((s) => ({
+          accounts: (s.accounts ?? []).map((a) => (a.id === id ? { ...a, ...patch, name: patch.name?.trim() || a.name } : a)),
+        })),
+      deleteAccount: (id) =>
+        set((s) => ({
+          accounts: (s.accounts ?? []).filter((a) => a.id !== id),
+        })),
+
       renameHousehold: (name) => set((s) => ({ household: { ...s.household, name: name.trim() || s.household.name } })),
-      addMember: (name) =>
+      addMember: (name, avatar = null) =>
         set((s) => ({
           members: [
             ...s.members,
@@ -485,18 +534,21 @@ export const useStore = create<State>()(
               householdId: s.household.id,
               name: name.trim(),
               color: MEMBER_COLORS[s.members.length % MEMBER_COLORS.length],
+              avatar,
               createdAt: new Date().toISOString(),
             },
           ],
         })),
       renameMember: (id, name) =>
         set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, name: name.trim() || m.name } : m)) })),
+      setMemberAvatar: (id, avatar) =>
+        set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, avatar } : m)) })),
       setCurrentMember: (id) => set({ currentMemberId: id }),
       resetDemo: () => set(createSeed()),
     }),
     {
       name: 'namin:data',
-      version: 4,
+      version: 5,
       migrate: (persisted, version) => {
         const data = persisted as Data;
         if (version < 2) {
@@ -527,6 +579,10 @@ export const useStore = create<State>()(
             return { ...rest, icon: rest.icon ?? (emoji && EMOJI_TO_ICON[emoji]) ?? 'package' };
           });
         }
+        if (version < 5 || !data.accounts || !data.accounts.length) {
+          const hid = data.household?.id ?? '';
+          data.accounts = defaultAccounts(hid);
+        }
         return data;
       },
       storage: createJSONStorage(() => safeStorage),
@@ -542,6 +598,7 @@ export const useStore = create<State>()(
         purchases: s.purchases,
         moneyCategories: s.moneyCategories,
         transactions: s.transactions,
+        accounts: s.accounts,
       }),
     },
   ),

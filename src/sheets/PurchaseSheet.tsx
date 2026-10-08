@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { FormField, Stepper, TextInput } from '../components/forms';
 import { BottomSheet } from '../components/overlay';
-import { cx, PrimaryButton } from '../components/ui';
+import { cx, Icon, MemberAvatar, PrimaryButton } from '../components/ui';
+import { DatePickerModal } from '../components/DatePickerModal';
 import { addDays, shortDate, today } from '../lib/dates';
 import { formatVnd, parseVnd, priceInputValue } from '../lib/money';
 import type { DateStr } from '../lib/types';
@@ -9,6 +10,7 @@ import { CategoryTile } from '../components/money';
 import { DAILY_CATEGORY_ID } from '../lib/moneyCategories';
 import { useStore } from '../store';
 import { useCategoryChoices } from '../store/selectors';
+import { AccountSheet } from './AccountSheet';
 
 export function PurchaseSheet({ open, onClose, shoppingId, itemId }: { open: boolean; onClose: () => void; shoppingId?: string; itemId?: string }) {
   // Snapshot: saving removes the list entry, and the sheet still renders while it animates out.
@@ -16,6 +18,9 @@ export function PurchaseSheet({ open, onClose, shoppingId, itemId }: { open: boo
   const item = useStore((s) => s.items.find((i) => i.id === (entry?.itemId ?? itemId)));
   const purchases = useStore((s) => s.purchases);
   const recordPurchase = useStore((s) => s.recordPurchase);
+  const accounts = useStore((s) => s.accounts ?? []);
+  const members = useStore((s) => s.members ?? []);
+  const currentMemberId = useStore((s) => s.currentMemberId);
 
   const last = useMemo(
     () => (item ? purchases.filter((p) => p.itemId === item.id).sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate))[0] : undefined),
@@ -26,6 +31,10 @@ export function PurchaseSheet({ open, onClose, shoppingId, itemId }: { open: boo
   const [price, setPrice] = useState(priceInputValue(entry?.estimatedPrice ?? last?.price ?? null));
   const [store, setStore] = useState(entry?.store || last?.store || '');
   const [date, setDate] = useState<DateStr>(today());
+  const [accountId, setAccountId] = useState<string | null>(last?.accountId ?? accounts[0]?.id ?? null);
+  const [memberId, setMemberId] = useState<string | null>(last?.memberId ?? currentMemberId);
+  const [creatingAccount, setCreatingAccount] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [quantity, setQuantity] = useState(entry?.quantity ?? item?.quantity ?? 1);
   const spendChoices = useCategoryChoices('expense');
   // Defaults to what this item was filed under last time, else Daily.
@@ -60,6 +69,8 @@ export function PurchaseSheet({ open, onClose, shoppingId, itemId }: { open: boo
       store,
       purchaseDate: date,
       spendCategoryId,
+      accountId,
+      memberId,
     });
     onClose();
   };
@@ -140,30 +151,94 @@ export function PurchaseSheet({ open, onClose, shoppingId, itemId }: { open: boo
                   {o.label}
                 </button>
               ))}
-              <label
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
                 className={cx(
-                  'relative min-h-[40px] px-3 rounded-full text-label-md border inline-flex items-center',
+                  'min-h-[40px] px-3 rounded-full text-label-md border inline-flex items-center transition-colors',
                   !dateOptions.some((o) => o.value === date) ? 'bg-soft border-sky text-ink font-semibold' : 'bg-surface border-line text-ink-sub',
                 )}
               >
                 {dateOptions.some((o) => o.value === date) ? 'Earlier' : shortDate(date)}
-                <input
-                  type="date"
-                  max={t}
-                  value={date}
-                  onChange={(e) => e.target.value && e.target.value <= t && setDate(e.target.value)}
-                  className="absolute inset-0 opacity-0 w-full h-full"
-                  aria-label="Choose purchase date"
-                />
-              </label>
+              </button>
             </div>
           </FormField>
           <FormField label="Quantity">
             <Stepper label="Quantity" value={quantity} onChange={setQuantity} />
           </FormField>
         </div>
+
+        {/* Account selection */}
+        <FormField label="Ví thanh toán">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 pb-0.5">
+            {accounts.map((acc) => {
+              const active = acc.id === accountId;
+              return (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => setAccountId(active ? null : acc.id)}
+                  className={cx(
+                    'min-h-[38px] px-3 rounded-full text-label-md border inline-flex items-center gap-1.5 shrink-0 transition-all active:scale-95',
+                    active ? 'bg-header border-header-ink text-header-ink font-semibold shadow-xs' : 'bg-surface border-line text-ink hover:bg-soft'
+                  )}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: acc.color || '#3FA88B' }} />
+                  {acc.name}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setCreatingAccount(true)}
+              className="min-h-[38px] px-3 rounded-full text-label-md border border-dashed border-line-strong text-ink-sub hover:text-ink inline-flex items-center gap-1 shrink-0 active:scale-95"
+            >
+              <Icon name="add" className="text-[16px]" />
+              Thêm ví
+            </button>
+          </div>
+        </FormField>
+
+        {/* Member selection */}
+        <FormField label="Người mua">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 pb-0.5">
+            {members.map((m) => {
+              const active = m.id === memberId;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setMemberId(active ? null : m.id)}
+                  className={cx(
+                    'min-h-[38px] px-3 rounded-full text-label-md border inline-flex items-center gap-1.5 shrink-0 transition-all active:scale-95',
+                    active ? 'bg-header border-header-ink text-header-ink font-semibold shadow-xs' : 'bg-surface border-line text-ink hover:bg-soft'
+                  )}
+                >
+                  <MemberAvatar member={m} size={20} />
+                  {m.name}
+                </button>
+              );
+            })}
+          </div>
+        </FormField>
+
         <button type="submit" hidden />
+
+        <DatePickerModal
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          value={date}
+          onChange={setDate}
+          title="Select Purchase Date"
+        />
       </form>
+      {creatingAccount && (
+        <AccountSheet
+          open={creatingAccount}
+          onClose={() => setCreatingAccount(false)}
+          onCreated={(newId) => setAccountId(newId)}
+        />
+      )}
     </BottomSheet>
   );
 }

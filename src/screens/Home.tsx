@@ -1,8 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { TaskRow } from '../components/rows';
 import { AssigneeFilter, BrandHeader, Fab } from '../components/shell';
-import { Card, EmptyState, Icon, ListCard, NotePaper, SectionHeader } from '../components/ui';
+import { Checkbox, cx, EmptyState, Icon, NotePaper, SectionHeader } from '../components/ui';
 import { relativeDay, shortWeekday } from '../lib/dates';
+import { daysLeftLabel } from '../lib/restock';
 import { useStore } from '../store';
 import { toggleTask } from '../store/actions';
 import { useMembers, useRestockMap, useTaskLists } from '../store/selectors';
@@ -24,14 +25,6 @@ export function Home() {
   const today = lists.today.filter((t) => matchesAssignee(t.assigneeId, filter));
   const toBuy = shopping.filter((x) => !x.completed);
   const upNext = lists.upcoming.filter((t) => matchesAssignee(t.assigneeId, filter)).slice(0, UP_NEXT_LIMIT);
-
-  // The most urgent list item with a real estimate drives the quiet hint.
-  const soonest = toBuy
-    .map((x) => ({ x, est: restock.get(x.itemId) }))
-    .filter((r) => r.est && r.est.daysLeft <= 14)
-    .sort((a, b) => a.est!.daysLeft - b.est!.daysLeft)[0];
-  const lowCount = toBuy.filter((x) => (restock.get(x.itemId)?.daysLeft ?? Infinity) <= 7).length;
-
 
   return (
     <>
@@ -73,32 +66,37 @@ export function Home() {
             id="home-next"
             title="Up next"
             right={
-              <Link to="/tasks" className="min-h-[44px] -my-2 flex items-center text-body-sm text-ink-sub">
+              <Link to="/tasks" className="text-body-sm font-medium text-ink-sub hover:text-link transition-colors">
                 See all
               </Link>
             }
           />
-          <ListCard>
+          <div className="divide-y divide-black/[0.06] -mx-1">
             {upNext.map((t) => {
               const who = t.assigneeId ? members.get(t.assigneeId)?.name : 'Anyone';
               return (
-                <button key={t.id} type="button" onClick={() => navigate(`/tasks/${t.id}`)} className="w-full text-left flex items-center justify-between p-space-md active:bg-canvas transition-colors">
-                  <div className="flex items-center gap-space-md min-w-0">
-                    <span className="w-6 h-6 rounded-full bg-soft flex items-center justify-center shrink-0" aria-hidden>
-                      <span className="w-2 h-2 rounded-full bg-sky" />
-                    </span>
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => navigate(`/tasks/${t.id}`)}
+                  className="w-full text-left flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-black/[0.02] active:bg-black/[0.04] transition-colors group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-2 h-2 rounded-full bg-header-ink/40 group-hover:bg-header-ink group-hover:scale-125 transition-all shrink-0" aria-hidden />
                     <div className="flex flex-col min-w-0">
-                      <span className="text-body-md text-ink truncate">{t.title}</span>
-                      <span className="text-body-sm text-ink-sub">
+                      <span className="text-body-md text-ink font-medium truncate">{t.title}</span>
+                      <span className="text-caption text-ink-sub">
                         {relativeDay(t.dueDate)} · {who}
                       </span>
                     </div>
                   </div>
-                  <span className="text-caption text-ink-sub px-2 py-0.5 rounded bg-soft shrink-0">{shortWeekday(t.dueDate)}</span>
+                  <span className="text-caption font-medium text-ink-sub/80 shrink-0">
+                    {shortWeekday(t.dueDate)}
+                  </span>
                 </button>
               );
             })}
-          </ListCard>
+          </div>
         </section>
       )}
 
@@ -106,36 +104,75 @@ export function Home() {
         <SectionHeader
           id="home-shopping"
           title="Shopping"
-          right={lowCount > 0 ? <span className="text-body-sm text-ink-sub">{lowCount} running low</span> : undefined}
+          right={
+            <Link to="/shopping" className="text-body-sm font-medium text-ink-sub hover:text-link transition-colors">
+              See all
+            </Link>
+          }
         />
         {toBuy.length === 0 ? (
-          <EmptyState message="Your shopping list is empty." action={{ label: 'Add item', onClick: () => openSheet({ type: 'shopping' }) }} />
+          <div className="py-2 px-1 flex items-center justify-between text-body-sm text-ink-sub">
+            <span>Your shopping list is empty.</span>
+            <button
+              type="button"
+              onClick={() => openSheet({ type: 'shopping' })}
+              className="text-link font-medium inline-flex items-center gap-1 hover:underline"
+            >
+              <Icon name="add" className="text-[16px]" />
+              Add item
+            </button>
+          </div>
         ) : (
-          <Card className="p-space-md flex flex-col gap-space-md">
-            <div className="flex items-center gap-space-sm flex-wrap">
-              {toBuy.slice(0, SHOPPING_PREVIEW).map((x) => (
-                <span key={x.id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-soft text-ink">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-dark" aria-hidden />
-                  <span className="text-label-md">{x.name}</span>
-                </span>
-              ))}
-              {toBuy.length > SHOPPING_PREVIEW && <span className="text-label-md text-ink-sub px-1">+{toBuy.length - SHOPPING_PREVIEW} more</span>}
-            </div>
-            {soonest?.est && (
-              <div className="flex items-center gap-space-sm p-space-sm bg-soft rounded-lg">
-                <Icon name="hourglass_top" className="text-[18px] text-sky-dark shrink-0" />
-                <span className="text-body-sm text-ink flex-1">
-                  {soonest.est.daysLeft > 0
-                    ? `~${soonest.est.daysLeft} day${soonest.est.daysLeft > 1 ? 's' : ''} until ${soonest.x.name.toLowerCase()} runs out, based on past purchases.`
-                    : `${soonest.x.name} is probably running out, based on past purchases.`}
-                </span>
-              </div>
-            )}
-            <Link to="/shopping" className="flex items-center justify-between min-h-[44px] -mb-1 text-link text-label-md font-medium">
-              <span>View shopping</span>
-              <Icon name="arrow_forward" className="text-[18px]" />
-            </Link>
-          </Card>
+          <div className="divide-y divide-black/[0.06] -mx-1">
+            {toBuy.slice(0, SHOPPING_PREVIEW).map((x) => {
+              const est = restock.get(x.itemId);
+              const qtyStr = x.quantity > 1 ? (x.unit ? `${x.quantity} ${x.unit}` : `×${x.quantity}`) : '';
+              return (
+                <div
+                  key={x.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/items/${x.itemId}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/items/${x.itemId}`);
+                    }
+                  }}
+                  className="w-full text-left flex items-center justify-between py-2 px-2 rounded-lg hover:bg-black/[0.02] active:bg-black/[0.04] transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="shrink-0 flex items-center">
+                      <Checkbox
+                        checked={false}
+                        onChange={() => openSheet({ type: 'purchase', shoppingId: x.id })}
+                        label={`Mark ${x.name} purchased`}
+                        shape="square"
+                      />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-body-md text-ink font-medium truncate">{x.name}</span>
+                      {est != null && (
+                        <span
+                          className={cx(
+                            'text-caption truncate',
+                            est.daysLeft <= 0 ? 'text-err-ink font-medium' : est.daysLeft <= 7 ? 'text-amber-800 font-medium' : 'text-ink-sub'
+                          )}
+                        >
+                          {daysLeftLabel(est.daysLeft)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {qtyStr && (
+                    <span className="text-caption font-medium text-ink-sub/80 px-2 py-0.5 rounded bg-black/[0.04] shrink-0">
+                      {qtyStr}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
     </>
