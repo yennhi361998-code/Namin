@@ -74,7 +74,14 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
       toast({ title: `Signed in as ${res.user.displayName || res.user.email}` });
     } catch (err: any) {
       console.error('Google Sign-In failed:', err);
-      const msg = err.code === 'auth/popup-closed-by-user' ? 'Sign in cancelled' : (err.message || 'Google sign in failed');
+      let msg = err.message || 'Google sign in failed';
+      if (err.code === 'auth/popup-closed-by-user') {
+        msg = 'Sign in cancelled';
+      } else if (err.code === 'auth/operation-not-allowed') {
+        msg = 'Google Sign-In is not enabled in Firebase Console (Authentication > Sign-in method).';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        msg = 'This domain is not authorized in Firebase Console (Authentication > Settings > Authorized domains).';
+      }
       set({ status: 'error', error: msg });
       toast({ title: 'Sign-in failed', subtitle: msg, tone: 'error' });
     }
@@ -96,12 +103,16 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
     } catch (err: any) {
       console.error('Email Auth failed:', err);
       let msg = err.message || 'Authentication failed';
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+      if (err.code === 'auth/operation-not-allowed') {
+        msg = 'Email/Password sign-in is not enabled in Firebase Console (Authentication > Sign-in method).';
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
         msg = 'Incorrect email or password.';
       } else if (err.code === 'auth/email-already-in-use') {
         msg = 'This email is already registered. Please sign in.';
       } else if (err.code === 'auth/weak-password') {
         msg = 'Password should be at least 6 characters.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        msg = 'This domain is not authorized in Firebase Console (Authentication > Settings > Authorized domains).';
       }
       set({ status: 'error', error: msg });
       toast({ title: 'Authentication error', subtitle: msg, tone: 'error' });
