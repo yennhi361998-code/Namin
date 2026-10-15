@@ -78,3 +78,13 @@ describe('ticking ahead', () => {
     expect(out.tasks.map((t) => t.seriesId)).toEqual(['a', 'a', 'a', 'x']);
   });
 });
+
+describe('rangeLabel', () => {
+  it('formats month, week, and today modes correctly', async () => {
+    const { rangeLabel } = await import('../components/calendar');
+    expect(rangeLabel(['2026-10-15'], 'today', '2026-10-15')).toBe('Oct 2026');
+    expect(rangeLabel(['2026-10-15'], 'month', '2026-10-15')).toBe('Oct 2026');
+    expect(rangeLabel(['2026-10-12', '2026-10-18'], 'week', '2026-10-15')).toBe('Oct 2026');
+    expect(rangeLabel(['2026-09-28', '2026-10-04'], 'week', '2026-09-28')).toBe('Sep – Oct 2026');
+  });
+});

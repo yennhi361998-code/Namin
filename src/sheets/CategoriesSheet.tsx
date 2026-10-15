@@ -94,7 +94,7 @@ function CategoryForm({ type, category, siblings, onDone }: { type: TxType; cate
                 setName(e.target.value);
                 setError(null);
               }}
-              placeholder="e.g. Pets"
+              placeholder="Category name"
               invalid={!!error}
               maxLength={24}
               autoComplete="off"

@@ -21,6 +21,7 @@ export function AmountPad({
   accountSlot,
   memberSlot,
   accountName,
+  middleSlot,
 }: {
   expr: string;
   onKey: (k: string) => void;
@@ -37,6 +38,7 @@ export function AmountPad({
   accountSlot?: ReactNode;
   memberSlot?: ReactNode;
   accountName?: string;
+  middleSlot?: ReactNode;
 }) {
   const value = evaluate(expr);
   return (
@@ -79,6 +81,8 @@ export function AmountPad({
           </div>
         </div>
       </div>
+
+      {middleSlot}
 
       <div className="grid grid-cols-4 gap-1.5">
         {memberSlot ? (

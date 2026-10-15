@@ -12,7 +12,7 @@ export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Bool
  * `filled` (active tab) draws a heavier stroke, since Lucide is outline-only.
  */
 export function Icon({ name, className, filled, label, style }: { name: IconName; className?: string; filled?: boolean; label?: string; style?: CSSProperties }) {
-  const Glyph = UI_ICONS[name] || UI_ICONS.add;
+  const Glyph = UI_ICONS[name] || (CATEGORY_ICONS as any)[name] || UI_ICONS.add;
   return (
     <Glyph
       size="1em"
@@ -29,7 +29,7 @@ export function Icon({ name, className, filled, label, style }: { name: IconName
 
 /** Money-category picture (Lucide), drawn in the given colour. */
 export function CategoryIcon({ name, size = 24, label, color, className }: { name: string; size?: number; label?: string; color?: string; className?: string }) {
-  const Glyph = CATEGORY_ICONS[name as CategoryIconName] ?? CATEGORY_ICONS.package;
+  const Glyph = CATEGORY_ICONS[name as CategoryIconName] ?? (UI_ICONS as any)[name] ?? CATEGORY_ICONS.package;
   return (
     <Glyph
       size={size}

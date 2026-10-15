@@ -5,14 +5,14 @@ import type { DateStr } from '../lib/types';
 import type { DayEntry } from '../store/selectors';
 import { cx, Icon } from './ui';
 
-export type CalendarMode = 'week' | 'month';
+export type CalendarMode = 'today' | 'week' | 'month';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** "Sep 2026", or "Sep – Oct 2026" for a week spanning two months. */
 export function rangeLabel(days: DateStr[], mode: CalendarMode, selected: DateStr) {
   const short = (d: Date) => MONTHS[d.getMonth()].slice(0, 3);
-  if (mode === 'month') {
+  if (mode === 'month' || mode === 'today') {
     const d = parseDate(selected);
     return `${short(d)} ${d.getFullYear()}`;
   }

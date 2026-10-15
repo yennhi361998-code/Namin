@@ -1,4 +1,4 @@
-import { addMonths, today } from './dates';
+import { addMonths, monthKey, shiftMonth, today } from './dates';
 import { uid } from './id';
 import type { CategoryIconName } from '../components/icons';
 import type { DateStr, MoneyCategory, Transaction, TxType } from './types';
@@ -37,7 +37,7 @@ const DEFAULTS: { id: string; type: TxType; name: string; icon: CategoryIconName
 ];
 
 export function defaultMoneyCategories(householdId: string): MoneyCategory[] {
-  const counters = { expense: 0, income: 0 };
+  const counters: Record<string, number> = { expense: 0, income: 0, transfer: 0 };
   return DEFAULTS.map((d) => {
     const i = counters[d.type]++;
     return { ...d, householdId, color: CHART_COLORS[i % CHART_COLORS.length], archived: false, order: i };
@@ -144,6 +144,53 @@ export function demoTransactions(householdId: string, memberIds: string[], ref: 
         note,
         memberId: memberIds[i % memberIds.length] ?? null,
         accountId: ['acc-cash', 'acc-bank', 'acc-momo'][i % 3],
+        createdAt: new Date().toISOString(),
+      });
+    }),
+  );
+  return out;
+}
+
+export function demoPersonalTransactions(householdId: string, memberId: string, ref: DateStr = today()): Transaction[] {
+  const current = monthKey(ref);
+  const prev = shiftMonth(current, -1);
+  const months = [prev, current];
+  const plan: [categoryId: string, day: number, amount: number, note: string, accountId: string][] = [
+    ['exp-food', 1, 45_000, 'Morning coffee', 'acc-personal-cash'],
+    ['exp-traffic', 2, 40_000, 'Grab to office', 'acc-personal-bank'],
+    ['exp-food', 3, 75_000, 'Lunch bowl', 'acc-personal-cash'],
+    ['inc-salary', 5, 22_000_000, 'Monthly salary', 'acc-personal-bank'],
+    ['exp-clothes', 6, 350_000, 'Uniqlo polo shirt', 'acc-personal-bank'],
+    ['exp-food', 8, 55_000, 'Coffee with friend', 'acc-personal-cash'],
+    ['exp-entertainment', 9, 120_000, 'Cinema ticket', 'acc-personal-bank'],
+    ['exp-traffic', 11, 65_000, 'Taxi ride', 'acc-personal-bank'],
+    ['exp-beauty', 12, 180_000, 'Haircut', 'acc-personal-cash'],
+    ['inc-bonus', 15, 3_500_000, 'Design freelance', 'acc-personal-bank'],
+    ['exp-food', 16, 95_000, 'Dinner pho', 'acc-personal-cash'],
+    ['exp-social', 18, 250_000, 'Weekend hangout', 'acc-personal-bank'],
+    ['exp-entertainment', 20, 99_000, 'Streaming subscription', 'acc-personal-bank'],
+    ['exp-food', 22, 60_000, 'Bubble tea', 'acc-personal-cash'],
+    ['exp-traffic', 24, 45_000, 'Bus card topup', 'acc-personal-cash'],
+    ['exp-medical', 26, 120_000, 'Vitamin C & skin care', 'acc-personal-bank'],
+    ['exp-food', 28, 85_000, 'Lunch bento', 'acc-personal-cash'],
+  ];
+
+  const out: Transaction[] = [];
+  months.forEach((m, mi) =>
+    plan.forEach(([categoryId, day, amount, note, accountId]) => {
+      const date = `${m}-${String(day).padStart(2, '0')}`;
+      if (date > ref) return;
+      out.push({
+        id: uid(),
+        householdId,
+        scope: 'personal',
+        type: categoryId.startsWith('inc-') ? 'income' : 'expense',
+        categoryId,
+        amount: Math.round((amount * (mi === 0 ? 0.95 : 1)) / 1000) * 1000,
+        date,
+        note,
+        memberId: memberId || null,
+        accountId,
         createdAt: new Date().toISOString(),
       });
     }),

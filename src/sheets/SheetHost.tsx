@@ -7,6 +7,7 @@ import { ShoppingSheet } from './ShoppingSheet';
 import { TaskSheet } from './TaskSheet';
 import { TransactionSheet } from './TransactionSheet';
 import { CategoriesSheet } from './CategoriesSheet';
+import { SyncSheet } from './SyncSheet';
 import { useUi } from '../store/ui';
 
 /** Renders whichever sheet is open. One sheet at a time keeps the modal story simple. */
@@ -27,8 +28,20 @@ export function SheetHost() {
       return <ItemSheet key={sheet.key} {...common} itemId={sheet.itemId} />;
     case 'household':
       return <HouseholdSheet key={sheet.key} {...common} />;
+    case 'sync':
+      return <SyncSheet key={sheet.key} {...common} />;
     case 'transaction':
-      return <TransactionSheet key={sheet.key} {...common} transactionId={sheet.transactionId} txType={sheet.txType} date={sheet.date} />;
+      return (
+        <TransactionSheet
+          key={sheet.key}
+          {...common}
+          transactionId={sheet.transactionId}
+          txType={sheet.txType}
+          date={sheet.date}
+          scope={sheet.scope}
+          initialValues={sheet.initialValues}
+        />
+      );
     case 'categories':
       return <CategoriesSheet key={sheet.key} {...common} type={sheet.txType} />;
     case 'money-category':

@@ -5,8 +5,8 @@ import { today } from '../lib/dates';
 import { uid } from '../lib/id';
 import { nextOccurrence } from '../lib/recurrence';
 import { estimateRestock, statusFromEstimate } from '../lib/restock';
-import { defaultMoneyCategories, demoTransactions, EMOJI_TO_ICON } from '../lib/moneyCategories';
-import type { Account, Category, DateStr, HouseholdItem, MoneyCategory, Recurrence, ShoppingItem, Task, TaskChecklistItem, TxType } from '../lib/types';
+import { defaultMoneyCategories, demoPersonalTransactions, demoTransactions, EMOJI_TO_ICON } from '../lib/moneyCategories';
+import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, TxType } from '../lib/types';
 import { createSeed, defaultAccounts } from './seed';
 import type { Data } from './types';
 import { toast } from './ui';
@@ -21,7 +21,10 @@ export interface TaskInput {
   area: string | null;
   notes: string;
   checklist: { id?: string; title: string; completed?: boolean }[];
+  mappedItemId?: string | null;
+  mappedQuantity?: number | null;
 }
+
 
 export interface ShoppingInput {
   name: string;
@@ -41,6 +44,8 @@ export interface PurchaseInput {
   category: Category;
   quantity: number;
   unit: string;
+  usageUnit?: string;
+  usagePerPurchaseUnit?: number | null;
   price: number | null;
   store: string;
   purchaseDate: DateStr;
@@ -53,12 +58,19 @@ export interface PurchaseInput {
 
 export interface TransactionInput {
   type: TxType;
-  categoryId: string;
+  scope?: FinanceScope;
+  categoryId?: string | null;
   amount: number;
   date: DateStr;
   note: string;
+  quantity?: number | null;
+  unit?: string | null;
+  usageUnit?: string | null;
+  usagePerPurchaseUnit?: number | null;
+  itemId?: string | null;
   memberId?: string | null;
   accountId?: string | null;
+  toAccountId?: string | null;
 }
 
 export interface MoneyCategoryInput {
@@ -86,6 +98,7 @@ interface Actions {
   removeShoppingItem: (id: string) => Undo;
   recordPurchase: (input: PurchaseInput) => Undo;
   deletePurchase: (id: string) => Undo;
+  updatePurchase: (id: string, patch: Partial<Purchase>) => void;
   updateItem: (id: string, patch: Partial<HouseholdItem>) => void;
 
   addTransaction: (input: TransactionInput) => string;
@@ -96,9 +109,10 @@ interface Actions {
   /** Hides it from pickers; past entries keep showing under it. */
   archiveMoneyCategory: (id: string) => Undo;
 
-  addAccount: (name: string, icon?: string, color?: string) => string;
+  addAccount: (name: string, icon?: string, color?: string, scope?: FinanceScope, nature?: AccountNature, initialBalance?: number | null) => string;
   updateAccount: (id: string, patch: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
+  setBudget: (scope: FinanceScope, amount: number | null) => void;
 
   renameHousehold: (name: string) => void;
   addMember: (name: string, avatar?: string | null) => void;
@@ -173,6 +187,8 @@ export const useStore = create<State>()(
           householdId: get().household.id,
           title: input.title.trim(),
           notes: input.notes.trim(),
+          mappedItemId: input.mappedItemId ?? null,
+          mappedQuantity: input.mappedQuantity ?? null,
           completed: false,
           completedAt: null,
           nextOccurrenceId: null,
@@ -186,7 +202,18 @@ export const useStore = create<State>()(
       updateTask: (id, input) => {
         const { checklist, ...rest } = input;
         set((s) => ({
-          tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...rest, title: input.title.trim(), notes: input.notes.trim() } : t)),
+          tasks: s.tasks.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  ...rest,
+                  title: input.title.trim(),
+                  notes: input.notes.trim(),
+                  mappedItemId: input.mappedItemId ?? null,
+                  mappedQuantity: input.mappedQuantity ?? null,
+                }
+              : t,
+          ),
           checklist: [...s.checklist.filter((c) => c.taskId !== id), ...buildChecklist(id, checklist)],
         }));
       },
@@ -195,9 +222,19 @@ export const useStore = create<State>()(
         const s = get();
         const task = s.tasks.find((t) => t.id === id);
         if (!task || task.completed) return;
+        let updatedItems = s.items;
+        if (task.mappedItemId && task.mappedQuantity && task.mappedQuantity > 0) {
+          const it = s.items.find((i) => i.id === task.mappedItemId);
+          if (it) {
+            const ratio = it.usagePerPurchaseUnit && it.usagePerPurchaseUnit > 0 ? it.usagePerPurchaseUnit : 1;
+            const current = it.currentStock != null ? it.currentStock : (it.quantity ?? 1) * ratio;
+            const nextStock = Math.max(0, current - task.mappedQuantity);
+            updatedItems = s.items.map((i) => (i.id === it.id ? { ...i, currentStock: nextStock } : i));
+          }
+        }
         const done: Task = { ...task, completed: true, completedAt: new Date().toISOString() };
         if (!task.recurrence) {
-          set({ tasks: s.tasks.map((t) => (t.id === id ? done : t)) });
+          set({ tasks: s.tasks.map((t) => (t.id === id ? done : t)), items: updatedItems });
           return;
         }
         // Recurring: spawn the next occurrence with the same configuration and a fresh checklist.
@@ -217,6 +254,7 @@ export const useStore = create<State>()(
         set({
           tasks: [...s.tasks.map((t) => (t.id === id ? done : t)), next],
           checklist: [...s.checklist, ...nextChecklist],
+          items: updatedItems,
         });
       },
 
@@ -224,6 +262,18 @@ export const useStore = create<State>()(
         const s = get();
         const anchor = s.tasks.find((t) => t.id === anchorId);
         if (!anchor || seriesDates(s.tasks, anchor).has(date)) return () => {};
+        let updatedItems = s.items;
+        const mappedItemId = anchor.mappedItemId;
+        const mappedQty = anchor.mappedQuantity;
+        if (mappedItemId && mappedQty && mappedQty > 0) {
+          const it = s.items.find((i) => i.id === mappedItemId);
+          if (it) {
+            const ratio = it.usagePerPurchaseUnit && it.usagePerPurchaseUnit > 0 ? it.usagePerPurchaseUnit : 1;
+            const current = it.currentStock != null ? it.currentStock : (it.quantity ?? 1) * ratio;
+            const nextStock = Math.max(0, current - mappedQty);
+            updatedItems = s.items.map((i) => (i.id === it.id ? { ...i, currentStock: nextStock } : i));
+          }
+        }
         // A completed record on that date; the series skips it when it gets there.
         const record: Task = {
           ...anchor,
@@ -238,20 +288,40 @@ export const useStore = create<State>()(
         const items = s.checklist
           .filter((c) => c.taskId === anchorId)
           .map((c) => ({ ...c, id: uid(), taskId: record.id, completed: true }));
-        set({ tasks: [...s.tasks, record], checklist: [...s.checklist, ...items] });
+        set({ tasks: [...s.tasks, record], checklist: [...s.checklist, ...items], items: updatedItems });
         return () =>
-          set((st) => ({ tasks: st.tasks.filter((t) => t.id !== record.id), checklist: st.checklist.filter((c) => c.taskId !== record.id) }));
+          set((st) => {
+            let restoredItems = st.items;
+            if (mappedItemId && mappedQty && mappedQty > 0) {
+              const it = st.items.find((i) => i.id === mappedItemId);
+              if (it && it.currentStock != null) {
+                restoredItems = st.items.map((i) => (i.id === it.id ? { ...i, currentStock: (i.currentStock ?? 0) + mappedQty } : i));
+              }
+            }
+            return {
+              tasks: st.tasks.filter((t) => t.id !== record.id),
+              checklist: st.checklist.filter((c) => c.taskId !== record.id),
+              items: restoredItems,
+            };
+          });
       },
 
       uncompleteTask: (id) => {
         const s = get();
         const task = s.tasks.find((t) => t.id === id);
         if (!task || !task.completed) return;
+        let updatedItems = s.items;
+        if (task.mappedItemId && task.mappedQuantity && task.mappedQuantity > 0) {
+          const it = s.items.find((i) => i.id === task.mappedItemId);
+          if (it && it.currentStock != null) {
+            updatedItems = s.items.map((i) => (i.id === it.id ? { ...i, currentStock: (i.currentStock ?? 0) + task.mappedQuantity! } : i));
+          }
+        }
         // A ticked-ahead record: unticking removes it so the date goes back to "scheduled"
         // instead of leaving the series with two open occurrences.
         const seriesOpen = s.tasks.some((t) => t.id !== id && t.seriesId === task.seriesId && !t.completed);
         if (task.recurrence && !task.nextOccurrenceId && seriesOpen) {
-          set({ tasks: s.tasks.filter((t) => t.id !== id), checklist: s.checklist.filter((c) => c.taskId !== id) });
+          set({ tasks: s.tasks.filter((t) => t.id !== id), checklist: s.checklist.filter((c) => c.taskId !== id), items: updatedItems });
           return;
         }
         // Retract the occurrence this completion spawned, unless it has already been completed itself.
@@ -262,8 +332,10 @@ export const useStore = create<State>()(
             .filter((t) => t.id !== dropId)
             .map((t) => (t.id === id ? { ...t, completed: false, completedAt: null, nextOccurrenceId: null } : t)),
           checklist: dropId ? s.checklist.filter((c) => c.taskId !== dropId) : s.checklist,
+          items: updatedItems,
         });
       },
+
 
       postponeTask: (id, dueDate) => set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, dueDate } : t)) })),
 
@@ -361,6 +433,8 @@ export const useStore = create<State>()(
             category: input.category,
             quantity: input.quantity,
             unit: input.unit,
+            usageUnit: input.usageUnit,
+            usagePerPurchaseUnit: input.usagePerPurchaseUnit,
             currentStock: null,
             status: 'unknown',
             expectedUsageDays: null,
@@ -382,7 +456,12 @@ export const useStore = create<State>()(
           spendCategoryId: input.spendCategoryId ?? item.spendCategoryId ?? null,
           accountId: input.accountId ?? null,
           memberId: input.memberId ?? s.currentMemberId ?? null,
+          createdAt: new Date().toISOString(),
         };
+        const ratio = input.usagePerPurchaseUnit && input.usagePerPurchaseUnit > 0
+          ? input.usagePerPurchaseUnit
+          : (item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 0 ? item.usagePerPurchaseUnit : 1);
+        const inflow = input.quantity * ratio;
         // Buying it clears it from the list, wherever the purchase was recorded from.
         const removed = s.shopping.filter((x) => x.id === input.shoppingItemId || (x.itemId === item!.id && !x.completed));
         const purchases = [...s.purchases, purchase];
@@ -391,31 +470,84 @@ export const useStore = create<State>()(
           purchases,
           shopping: s.shopping.filter((x) => !removed.includes(x)),
           items: refreshStatus(baseItems, purchases, item.id).map((i) =>
-            i.id === item!.id && input.spendCategoryId ? { ...i, spendCategoryId: input.spendCategoryId } : i,
+            i.id === item!.id
+              ? {
+                  ...i,
+                  currentStock: (i.currentStock != null ? i.currentStock : 0) + inflow,
+                  unit: input.unit || i.unit,
+                  ...(input.usageUnit !== undefined ? { usageUnit: input.usageUnit } : {}),
+                  ...(input.usagePerPurchaseUnit !== undefined ? { usagePerPurchaseUnit: input.usagePerPurchaseUnit } : {}),
+                  ...(input.spendCategoryId ? { spendCategoryId: input.spendCategoryId } : {}),
+                }
+              : i,
           ),
         });
         const itemId = item.id;
         return () =>
           set((st) => {
             const ps = st.purchases.filter((p) => p.id !== purchase.id);
-            const items = createdItem ? st.items.filter((i) => i.id !== itemId) : refreshStatus(st.items, ps, itemId);
+            const items = createdItem
+              ? st.items.filter((i) => i.id !== itemId)
+              : refreshStatus(st.items, ps, itemId).map((i) =>
+                  i.id === itemId ? { ...i, currentStock: Math.max(0, (i.currentStock ?? inflow) - inflow) } : i,
+                );
             return { purchases: ps, shopping: [...st.shopping, ...removed], items };
           });
       },
 
       deletePurchase: (id) => {
         const p = get().purchases.find((x) => x.id === id);
+        const it = p ? get().items.find((i) => i.id === p.itemId) : undefined;
+        const ratio = it?.usagePerPurchaseUnit && it.usagePerPurchaseUnit > 0 ? it.usagePerPurchaseUnit : 1;
+        const qty = p ? p.quantity * ratio : 0;
         set((s) => {
           const ps = s.purchases.filter((x) => x.id !== id);
-          return { purchases: ps, items: p ? refreshStatus(s.items, ps, p.itemId) : s.items };
+          const updated = s.items.map((i) =>
+            p && i.id === p.itemId ? { ...i, currentStock: Math.max(0, (i.currentStock ?? qty) - qty) } : i,
+          );
+          return { purchases: ps, items: p ? refreshStatus(updated, ps, p.itemId) : s.items };
         });
         return () => {
           if (p)
             set((s) => {
               const ps = [...s.purchases, p];
-              return { purchases: ps, items: refreshStatus(s.items, ps, p.itemId) };
+              const updated = s.items.map((i) =>
+                i.id === p.itemId ? { ...i, currentStock: (i.currentStock ?? 0) + qty } : i,
+              );
+              return { purchases: ps, items: refreshStatus(updated, ps, p.itemId) };
             });
         };
+      },
+
+      updatePurchase: (id, patch) => {
+        set((s) => {
+          const old = s.purchases.find((x) => x.id === id);
+          if (!old) return s;
+          const purchases = s.purchases.map((p) => (p.id === id ? { ...p, ...patch } : p));
+          const it = old.itemId ? s.items.find((i) => i.id === old.itemId) : undefined;
+          let items = s.items;
+          if (it) {
+            const ratio = it.usagePerPurchaseUnit && it.usagePerPurchaseUnit > 0 ? it.usagePerPurchaseUnit : 1;
+            const oldQty = old.quantity * ratio;
+            const newQty = (patch.quantity ?? old.quantity) * ratio;
+            const diff = newQty - oldQty;
+            items = s.items.map((i) =>
+              i.id === it.id
+                ? {
+                    ...i,
+                    currentStock: i.currentStock != null ? Math.max(0, i.currentStock + diff) : null,
+                    ...(patch.itemName ? { name: patch.itemName } : {}),
+                    ...(patch.unit ? { unit: patch.unit } : {}),
+                    ...(patch.spendCategoryId ? { spendCategoryId: patch.spendCategoryId } : {}),
+                  }
+                : i
+            );
+          }
+          return {
+            purchases,
+            items: old.itemId ? refreshStatus(items, purchases, old.itemId) : items,
+          };
+        });
       },
 
       updateItem: (id, patch) =>
@@ -440,6 +572,7 @@ export const useStore = create<State>()(
               ...input,
               id,
               householdId: s.household.id,
+              scope: input.scope ?? 'household',
               amount: Math.round(input.amount),
               note: input.note.trim(),
               memberId: input.memberId ?? s.currentMemberId,
@@ -458,9 +591,11 @@ export const useStore = create<State>()(
                   ...t,
                   ...input,
                   amount: Math.round(input.amount),
+                  scope: input.scope !== undefined ? input.scope : t.scope,
                   note: input.note.trim(),
                   memberId: input.memberId !== undefined ? input.memberId : t.memberId,
                   accountId: input.accountId !== undefined ? input.accountId : t.accountId,
+                  toAccountId: input.toAccountId !== undefined ? input.toAccountId : t.toAccountId,
                 }
               : t,
           ),
@@ -498,7 +633,7 @@ export const useStore = create<State>()(
         return () => set((s) => ({ moneyCategories: s.moneyCategories.map((c) => (c.id === id ? { ...c, archived: false } : c)) }));
       },
 
-      addAccount: (name, icon = 'wallet', color = '#3FA88B') => {
+      addAccount: (name, icon = 'payments', color = '#3FA88B', scope = 'household', nature = 'asset', initialBalance = 0) => {
         const id = uid();
         set((s) => ({
           accounts: [
@@ -509,6 +644,9 @@ export const useStore = create<State>()(
               name: name.trim(),
               icon,
               color,
+              scope,
+              nature,
+              initialBalance: initialBalance ?? 0,
               createdAt: new Date().toISOString(),
             },
           ],
@@ -523,6 +661,8 @@ export const useStore = create<State>()(
         set((s) => ({
           accounts: (s.accounts ?? []).filter((a) => a.id !== id),
         })),
+      setBudget: (scope, amount) =>
+        set(() => (scope === 'household' ? { householdBudget: amount } : { personalBudget: amount })),
 
       renameHousehold: (name) => set((s) => ({ household: { ...s.household, name: name.trim() || s.household.name } })),
       addMember: (name, avatar = null) =>
@@ -548,7 +688,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'namin:data',
-      version: 5,
+      version: 8,
       migrate: (persisted, version) => {
         const data = persisted as Data;
         if (version < 2) {
@@ -583,6 +723,37 @@ export const useStore = create<State>()(
           const hid = data.household?.id ?? '';
           data.accounts = defaultAccounts(hid);
         }
+        if (version < 7) {
+          const hid = data.household?.id ?? '';
+          if (data.accounts) {
+            data.accounts = data.accounts.map((a) => ({
+              ...a,
+              scope: a.scope ?? 'household',
+            }));
+            if (!data.accounts.some((a) => a.scope === 'personal')) {
+              data.accounts.push(
+                { id: 'acc-personal-cash', householdId: hid, name: 'Personal Cash', icon: 'wallet', color: '#06B6D4', scope: 'personal', createdAt: new Date().toISOString() },
+                { id: 'acc-personal-bank', householdId: hid, name: 'Personal Card', icon: 'credit_card', color: '#8B5CF6', scope: 'personal', createdAt: new Date().toISOString() },
+              );
+            }
+          }
+          const hasPersonalTx = (data.transactions ?? []).some((t) => t.scope === 'personal');
+          if (!hasPersonalTx) {
+            const currentMemId = data.currentMemberId || (data.members?.[0]?.id ?? '');
+            const personalDemos = demoPersonalTransactions(hid, currentMemId);
+            data.transactions = [...(data.transactions ?? []), ...personalDemos];
+          }
+        }
+        if (version < 8) {
+          if (data.accounts) {
+            data.accounts = data.accounts.map((a) => ({
+              ...a,
+              nature: a.nature ?? (a.name.toLowerCase().includes('credit') || a.id === 'acc-personal-bank' ? 'debt' : 'asset'),
+            }));
+          }
+          data.householdBudget = data.householdBudget ?? 30000000;
+          data.personalBudget = data.personalBudget ?? 15000000;
+        }
         return data;
       },
       storage: createJSONStorage(() => safeStorage),
@@ -599,6 +770,8 @@ export const useStore = create<State>()(
         moneyCategories: s.moneyCategories,
         transactions: s.transactions,
         accounts: s.accounts,
+        householdBudget: s.householdBudget,
+        personalBudget: s.personalBudget,
       }),
     },
   ),

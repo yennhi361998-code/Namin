@@ -160,19 +160,24 @@ export function WeekRows({
           const isToday = d === todayStr;
           const isSel = d === selected;
           return (
-            <div key={d} className="flex items-start gap-2 px-2 py-1">
+            <div key={d} className="flex items-start gap-2.5 px-2.5 py-1.5">
               <button
                 type="button"
                 onClick={() => onSelect(d)}
                 aria-pressed={isSel}
                 aria-current={isToday ? 'date' : undefined}
                 aria-label={`${weekdayName(d)}, ${longDate(d)}: ${entries.length} task${entries.length === 1 ? '' : 's'}`}
-                className={cx('shrink-0 px-1.5 flex items-center gap-1 rounded-lg min-h-[38px] justify-center transition-colors', isSel ? 'bg-sky' : 'active:bg-soft')}
+                className={cx(
+                  'w-[74px] shrink-0 px-2 flex items-center justify-between rounded-lg min-h-[36px] transition-colors',
+                  isSel ? 'bg-sky' : 'active:bg-soft',
+                )}
               >
-                <span className={cx('text-caption font-medium', isSel ? 'text-ink' : i >= 5 ? 'text-ink-sub/70' : 'text-ink-sub')}>{WEEKDAY_SHORT[i]}</span>
+                <span className={cx('w-8 text-left text-caption font-semibold', isSel ? 'text-ink' : i >= 5 ? 'text-ink-sub/70' : 'text-ink-sub')}>
+                  {WEEKDAY_SHORT[i]}
+                </span>
                 <span
                   className={cx(
-                    'w-6 h-6 rounded-full flex items-center justify-center text-label-sm font-semibold tabular-nums',
+                    'w-6 h-6 rounded-full flex items-center justify-center text-label-sm font-semibold tabular-nums shrink-0',
                     isToday && !isSel ? 'ring-2 ring-sky-dark text-link' : 'text-ink',
                   )}
                 >
@@ -180,8 +185,12 @@ export function WeekRows({
                 </span>
               </button>
 
-              <div className="flex-1 min-w-0 flex flex-wrap gap-1 py-1">
-                {entries.length === 0 && <span className="text-caption text-ink-sub/70 self-center min-h-[30px] flex items-center">No tasks</span>}
+              <div className="flex-1 min-w-0 flex flex-col gap-1 py-0.5">
+                {entries.length === 0 && (
+                  <span className="text-caption text-ink-sub/50 min-h-[32px] flex items-center px-1">
+                    No tasks
+                  </span>
+                )}
                 {entries.map((e) => {
                   const task = e.task;
                   const room = task.area ? roomStyle(task.area) : null;
@@ -189,7 +198,10 @@ export function WeekRows({
                     <span
                       key={task.id}
                       title={task.title}
-                      className={cx('inline-flex items-center max-w-[calc(50%-2px)] rounded-full h-[30px] pr-2.5 border border-black/[0.04]', task.completed && 'opacity-60')}
+                      className={cx(
+                        'inline-flex items-center w-full rounded-full h-[32px] pr-2.5 border border-black/[0.04]',
+                        task.completed && 'opacity-60',
+                      )}
                       style={{ background: room?.bg ?? '#E8F5FA' }}
                     >
                       <button
@@ -198,7 +210,7 @@ export function WeekRows({
                         aria-checked={task.completed}
                         aria-label={task.completed ? `Mark ${task.title} not done` : `Complete ${task.title}${e.projected ? ` for ${weekdayName(d)}` : ''}`}
                         onClick={() => onToggle(e, d)}
-                        className="w-8 h-[30px] shrink-0 flex items-center justify-center rounded-full"
+                        className="w-8 h-[32px] shrink-0 flex items-center justify-center rounded-full"
                       >
                         <span className={cx('w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center', task.completed ? 'bg-sky border-sky' : 'bg-surface border-line-strong')}>
                           {task.completed && <Icon name="check" className="text-[11px] text-ink" />}
@@ -208,11 +220,13 @@ export function WeekRows({
                         type="button"
                         onClick={() => onOpen(e)}
                         aria-label={`${task.title}${task.completed ? ', completed' : e.overdue ? ', overdue' : e.projected ? ', scheduled' : ''}. Open details`}
-                        className="min-w-0 flex items-center gap-1 text-left"
+                        className="min-w-0 flex-1 flex items-center gap-1.5 text-left"
                       >
                         {/* Before the title so truncation can't hide it. */}
                         {e.overdue && <span className="w-1.5 h-1.5 rounded-full bg-err-ink shrink-0" aria-hidden />}
-                        <span className={cx('min-w-0 text-[12px] leading-4 font-medium truncate', task.completed ? 'line-through text-ink-sub' : 'text-ink')}>{task.title}</span>
+                        <span className={cx('min-w-0 text-[12px] leading-4 font-medium truncate', task.completed ? 'line-through text-ink-sub' : 'text-ink')}>
+                          {task.title}
+                        </span>
                       </button>
                     </span>
                   );

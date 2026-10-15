@@ -56,6 +56,32 @@ export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea rows={2} className={cx(inputBase, 'py-3 border-line-strong resize-none')} {...props} />;
 }
 
+export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean }>(
+  function Select({ invalid, className, children, ...rest }, ref) {
+    return (
+      <div className="relative">
+        <select
+          ref={ref}
+          className={cx(
+            inputBase,
+            'appearance-none pr-10 cursor-pointer bg-surface',
+            invalid ? 'border-err-ink' : 'border-line-strong',
+            className,
+          )}
+          aria-invalid={invalid || undefined}
+          {...rest}
+        >
+          {children}
+        </select>
+        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-ink-sub flex items-center">
+          <Icon name="expand_more" className="text-[20px]" />
+        </span>
+      </div>
+    );
+  },
+);
+
+
 /** Quick date chips plus the native picker for anything else. */
 export function DatePicker({ value, onChange, label }: { value: DateStr; onChange: (d: DateStr) => void; label: string }) {
   const [pickerOpen, setPickerOpen] = useState(false);

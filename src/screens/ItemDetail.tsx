@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { SwipeRow } from '../components/overlay';
 import { quantityLabel } from '../components/rows';
 import { HeaderButton, PageHeader } from '../components/shell';
@@ -26,6 +26,7 @@ export function ItemDetail() {
   const { id } = useParams();
   const item = useStore((s) => s.items.find((i) => i.id === id));
   const allPurchases = useStore((s) => s.purchases);
+  const allTasks = useStore((s) => s.tasks);
   const onList = useStore((s) => s.shopping.find((x) => x.itemId === id && !x.completed));
   const addToShopping = useStore((s) => s.addToShopping);
   const deletePurchase = useStore((s) => s.deletePurchase);
@@ -41,12 +42,29 @@ export function ItemDetail() {
     );
   }
 
-  const purchases = allPurchases.filter((p) => p.itemId === item.id).sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate));
+  const purchases = allPurchases
+    .filter((p) => p.itemId === item.id)
+    .sort((a, b) => {
+      const dateCmp = b.purchaseDate.localeCompare(a.purchaseDate);
+      if (dateCmp !== 0) return dateCmp;
+      if (a.createdAt && b.createdAt) return b.createdAt.localeCompare(a.createdAt);
+      return allPurchases.indexOf(b) - allPurchases.indexOf(a);
+    });
+  const linkedTasks = allTasks.filter((t) => t.mappedItemId === item.id && !t.completed);
   const est = restock.get(item.id) ?? null;
   const status = statusFromEstimate(est);
   const last = purchases[0];
   const priced = purchases.filter((p) => p.price != null);
-  const avgPrice = priced.length > 1 ? priced.reduce((n, p) => n + p.price!, 0) / priced.length : null;
+
+  // Average price per purchase unit (e.g. 50k / 2 rolls = 25k/roll)
+  const totalPrice = priced.reduce((sum, p) => sum + p.price!, 0);
+  const totalQty = priced.reduce((sum, p) => sum + (p.quantity || 1), 0);
+  const avgPrice = totalQty > 0 ? totalPrice / totalQty : null;
+
+  const usageUnit = item.usageUnit?.trim() || item.unit;
+  const hasConversion = !!(item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1);
+  const costPerUsage = hasConversion && avgPrice != null ? Math.round(avgPrice / item.usagePerPurchaseUnit!) : null;
+
   const stores = new Map<string, number>();
   purchases.forEach((p) => p.store && stores.set(p.store, (stores.get(p.store) ?? 0) + 1));
   const usualStore = [...stores.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -86,22 +104,74 @@ export function ItemDetail() {
       <div className="flex flex-col gap-space-lg">
         <Card className="p-3.5 flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <span className="text-label-md text-ink-sub font-medium">Current status</span>
+            <span className="text-label-md text-ink-sub font-medium">Current stock</span>
+            <span className="text-headline-md font-bold text-sky-dark">
+              {item.currentStock != null ? `${item.currentStock} ${usageUnit}` : 'Not set'}
+            </span>
+          </div>
+          {hasConversion && item.currentStock != null && item.unit && (
+            <span className="text-caption text-ink-sub">
+              (Packaging: 1 {item.unit} = {item.usagePerPurchaseUnit} {usageUnit} · ~{(item.currentStock / item.usagePerPurchaseUnit!).toFixed(1)} {item.unit} left)
+            </span>
+          )}
+          <div className="flex items-center justify-between pt-1 border-t border-line/40">
+            <span className="text-caption text-ink-sub font-medium">Restock status</span>
             <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
           </div>
-          <p className="text-body-md text-ink">{summary}</p>
+          <p className="text-body-sm text-ink">{summary}</p>
         </Card>
 
-        {(last || est) && (
-          <ListCard>
-            {last && <Row label="Last purchased">{longDate(last.purchaseDate)}</Row>}
-            {last?.price != null && <Row label="Last price">{formatVnd(last.price)}</Row>}
-            {avgPrice != null && <Row label="Average price">{formatVnd(avgPrice)}</Row>}
-            {est && <Row label="Typical usage">~{est.cycleDays} days</Row>}
-            {est && <Row label="Next purchase">Around {shortDate(est.nextPurchase)}</Row>}
-            {usualStore && <Row label="Usually from">{usualStore}</Row>}
-          </ListCard>
+        <ListCard>
+          {last && <Row label="Last purchased">{longDate(last.purchaseDate)}</Row>}
+          {last?.price != null && (
+            <Row label="Last price">
+              {formatVnd(last.price)} {last.quantity > 1 ? `(${formatVnd(Math.round(last.price / last.quantity))}/${item.unit})` : ''}
+            </Row>
+          )}
+          {avgPrice != null && (
+            <Row label="Average price">
+              <span className="font-medium text-ink">
+                {formatVnd(Math.round(avgPrice))} / {item.unit}
+                {costPerUsage != null && (
+                  <span className="block text-caption text-ink-sub font-normal">
+                    ~{formatVnd(costPerUsage)} / {usageUnit}
+                  </span>
+                )}
+              </span>
+            </Row>
+          )}
+          {hasConversion && <Row label="Packaging size">1 {item.unit} = {item.usagePerPurchaseUnit} {usageUnit}</Row>}
+          {est && <Row label="Typical usage">~{est.cycleDays} days</Row>}
+          {est && <Row label="Next purchase">Around {shortDate(est.nextPurchase)}</Row>}
+          {usualStore && <Row label="Usually from">{usualStore}</Row>}
+        </ListCard>
+
+        {linkedTasks.length > 0 && (
+          <section aria-labelledby="linked-tasks-title">
+            <div className="flex items-center justify-between mb-space-sm px-0.5">
+              <h2 id="linked-tasks-title" className="text-label-md uppercase tracking-wider font-semibold text-ink-sub">
+                Linked tasks
+              </h2>
+              <span className="text-body-sm text-ink-sub">{linkedTasks.length} {linkedTasks.length === 1 ? 'task' : 'tasks'}</span>
+            </div>
+            <ListCard>
+              {linkedTasks.map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-3 px-3.5 min-h-[48px] py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Icon name="checklist" className="text-[18px] text-sky-dark shrink-0" />
+                    <Link to={`/tasks/${t.id}`} className="text-body-md text-ink font-medium hover:text-link truncate">
+                      {t.title}
+                    </Link>
+                  </div>
+                  <span className="text-caption font-semibold text-sky-dark shrink-0">
+                    -{t.mappedQuantity ?? 1} {usageUnit}/task
+                  </span>
+                </div>
+              ))}
+            </ListCard>
+          </section>
         )}
+
 
         {onList && (
           <button

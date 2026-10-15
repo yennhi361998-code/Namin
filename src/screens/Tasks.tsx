@@ -1,18 +1,19 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Calendar, rangeLabel, type CalendarMode } from '../components/calendar';
 import { WeekRows, WeekTimetable } from '../components/timetable';
 import { ActionSheet, SwipeRow, type SheetAction } from '../components/overlay';
 import { TaskRow } from '../components/rows';
 import { AssigneeFilter, BrandHeader, Fab, PillTabs, ScreenTitle } from '../components/shell';
-import { EmptyState, Icon, NotePaper, paperRowBg, SectionHeader } from '../components/ui';
+import { EmptyState, NotePaper, paperRowBg, SectionHeader } from '../components/ui';
 import { monthGrid, weekDays } from '../lib/calendar';
-import { addDays, addMonths, monthKey, shortDate, today, weekdayName } from '../lib/dates';
+import { addDays, addMonths, monthKey, relativeDay, shortDate, shortWeekday, today, weekdayName } from '../lib/dates';
 import type { DateStr, Task } from '../lib/types';
 import { useStore } from '../store';
 import { completeOccurrence, deleteTask, postponeTask, toggleTask } from '../store/actions';
-import { useMembers, useTasksByDay, type DayEntry } from '../store/selectors';
-import { matchesAssignee, openSheet, toast, useUi } from '../store/ui';
+import { useMembers, useTaskLists, useTasksByDay, type DayEntry } from '../store/selectors';
+import { matchesAssignee, openSheet, useUi } from '../store/ui';
+import { ToBuySection } from '../components/ToBuySection';
 
 const MODE_KEY = 'namin:calendar-view';
 /** Week view layout: seven rows with task pills, or seven columns (timetable). */
@@ -21,7 +22,8 @@ const WEEK_LAYOUT: 'rows' | 'columns' = 'rows';
 // Per-device preference; falls back to week when storage is unavailable.
 function readMode(): CalendarMode {
   try {
-    return localStorage.getItem(MODE_KEY) === 'month' ? 'month' : 'week';
+    const saved = localStorage.getItem(MODE_KEY);
+    return saved === 'today' || saved === 'month' || saved === 'week' ? saved : 'week';
   } catch {
     return 'week';
   }
@@ -42,6 +44,7 @@ export function Tasks() {
   const [mode, setModeState] = useState<CalendarMode>(readMode);
   const setMode = (m: CalendarMode) => {
     setModeState(m);
+    if (m === 'today') select(t);
     try {
       localStorage.setItem(MODE_KEY, m);
     } catch {
@@ -49,24 +52,28 @@ export function Tasks() {
     }
   };
 
-  const days = mode === 'week' ? weekDays(selected) : monthGrid(monthKey(selected));
+  const days =
+    mode === 'today'
+      ? [t]
+      : mode === 'week'
+      ? weekDays(selected)
+      : monthGrid(monthKey(selected));
   const allByDay = useTasksByDay(days[0], days[days.length - 1]);
   const assignee = useUi((s) => s.assignee);
-  const tasks = useStore((s) => s.tasks);
   const members = useMembers();
+  const lists = useTaskLists();
   const filter = assignee && members.has(assignee) ? assignee : null;
+  const upNext = lists.upcoming.filter((item) => matchesAssignee(item.assigneeId, filter)).slice(0, 3);
   const byDay = useMemo(() => {
     if (!filter) return allByDay;
     const m = new Map<DateStr, DayEntry[]>();
     for (const [d, list] of allByDay) m.set(d, list.filter((e) => matchesAssignee(e.task.assigneeId, filter)));
     return m;
   }, [allByDay, filter]);
-  const entries = byDay.get(selected) ?? [];
-  const openCount = tasks.filter((x) => !x.completed && matchesAssignee(x.assigneeId, filter)).length;
+  const entries = byDay.get(mode === 'today' ? t : selected) ?? [];
   const [menuFor, setMenuFor] = useState<Task | null>(null);
-  const addDate = selected < t ? t : selected;
+  const addDate = mode === 'today' ? t : selected < t ? t : selected;
   const navigate = useNavigate();
-  const quickLabel = selected === t ? 'today' : dayTitle(selected, t).split(' · ')[0];
 
   return (
     <>
@@ -74,13 +81,13 @@ export function Tasks() {
       <Fab label="New task" onClick={() => openSheet({ type: 'task', dueDate: addDate })} />
       <ScreenTitle
         title="Tasks"
-        subtitle={`${openCount} open task${openCount === 1 ? '' : 's'}`}
         action={
           <PillTabs
             label="Calendar view"
             value={mode}
             onChange={setMode}
             options={[
+              { value: 'today', label: 'Today' },
               { value: 'week', label: 'Week' },
               { value: 'month', label: 'Month' },
             ]}
@@ -91,7 +98,52 @@ export function Tasks() {
         <AssigneeFilter />
       </div>
 
-      {mode === 'week' ? (
+      {mode === 'today' ? (
+        <section className="flex flex-col gap-space-lg" aria-labelledby="today-title">
+          <div>
+            <SectionHeader id="today-title" title={dayTitle(t, t)} />
+            {entries.length ? (
+              <DayList entries={entries} date={t} onMenu={setMenuFor} />
+            ) : (
+              <EmptyState
+                message="No tasks for today."
+                action={{ label: 'Add task', onClick: () => openSheet({ type: 'task', dueDate: t }) }}
+              />
+            )}
+          </div>
+          {upNext.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <SectionHeader id="today-upnext" title="Up next" />
+              <div className="divide-y divide-black/[0.06] -mx-1 bg-surface rounded-2xl shadow-card border border-line/40 px-3 py-1">
+                {upNext.map((task) => {
+                  const who = task.assigneeId ? members.get(task.assigneeId)?.name : 'Anyone';
+                  return (
+                    <button
+                      key={task.id}
+                      type="button"
+                      onClick={() => navigate(`/tasks/${task.id}`)}
+                      className="w-full text-left flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-black/[0.02] active:bg-black/[0.04] transition-colors group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-header-ink/40 group-hover:bg-header-ink group-hover:scale-125 transition-all shrink-0" aria-hidden />
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-body-md text-ink font-medium truncate">{task.title}</span>
+                          <span className="text-caption text-ink-sub">
+                            {relativeDay(task.dueDate)} · {who}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-caption font-medium text-ink-sub/80 shrink-0">
+                        {shortWeekday(task.dueDate)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </section>
+      ) : mode === 'week' ? (
         <section className="flex flex-col gap-space-lg">
           {WEEK_LAYOUT === 'rows' ? (
             <WeekRows
@@ -120,7 +172,9 @@ export function Tasks() {
               onOpen={(e) => navigate(`/tasks/${e.anchorId}`)}
             />
           )}
-          {selected >= t && <QuickAdd date={selected} label={quickLabel} />}
+          <div className="pt-2 border-t border-line/60">
+            <ToBuySection />
+          </div>
         </section>
       ) : (
         <>
@@ -154,7 +208,9 @@ export function Tasks() {
                 <EmptyState message="Nothing planned for this day." action={{ label: 'Add task', onClick: () => openSheet({ type: 'task', dueDate: addDate }) }} />
               )}
             </div>
-            {selected >= t && <QuickAdd date={selected} label={quickLabel} />}
+            <div className="pt-2 border-t border-line/60">
+              <ToBuySection />
+            </div>
           </section>
         </>
       )}
@@ -200,51 +256,6 @@ function DayList({ entries, date, onMenu }: { entries: DayEntry[]; date: DateStr
         );
       })}
     </NotePaper>
-  );
-}
-
-/** Stitch's quick-add bar: type, press return, it's on the selected day for you. */
-function QuickAdd({ date, label }: { date: DateStr; label: string }) {
-  const [value, setValue] = useState('');
-  const addTask = useStore((s) => s.addTask);
-  const me = useStore((s) => s.currentMemberId);
-  const input = useRef<HTMLInputElement>(null);
-  const submit = () => {
-    const title = value.trim();
-    if (!title) {
-      input.current?.focus();
-      return;
-    }
-    addTask({ title, assigneeId: me, dueDate: date, recurrence: null, estimatedDuration: null, reminder: null, area: null, notes: '', checklist: [] });
-    setValue('');
-    toast({ title: `Added to ${label}`, subtitle: title });
-  };
-  return (
-    <div>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-        className="flex items-center gap-2 p-1.5 pl-3.5 bg-surface rounded-xl border border-line shadow-card focus-within:border-sky focus-within:ring-2 focus-within:ring-sky/20 transition-all"
-      >
-        <Icon name="add_task" className="text-[20px] text-ink-sub shrink-0" />
-        <input
-          ref={input}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={`Quick task for ${label}`}
-          aria-label={`Quick task for ${label}`}
-          enterKeyHint="done"
-          maxLength={120}
-          className="w-full min-h-[40px] bg-transparent text-body-md text-ink placeholder:text-ink-sub/80 focus:outline-none"
-        />
-        <button type="submit" aria-label="Add quick task" className="w-10 h-10 flex items-center justify-center rounded-lg bg-sky text-ink active:scale-95 transition-all shrink-0 shadow-sm">
-          <Icon name="arrow_upward" className="text-[18px]" />
-        </button>
-      </form>
-      <p className="px-2 pt-1.5 text-center text-caption text-ink-sub">Press return to add it to {label}</p>
-    </div>
   );
 }
 

@@ -46,6 +46,8 @@ export function BottomSheet({
   header,
   bodyClassName,
   footerClassName,
+  centered,
+  zIndex,
 }: {
   open: boolean;
   onClose: () => void;
@@ -56,6 +58,8 @@ export function BottomSheet({
   header?: ReactNode;
   bodyClassName?: string;
   footerClassName?: string;
+  centered?: boolean;
+  zIndex?: string;
 }) {
   const [mounted, setMounted] = useState(open);
   const [shown, setShown] = useState(false);
@@ -97,9 +101,16 @@ export function BottomSheet({
 
   const maxH = viewport ? `${viewport - 24}px` : '90dvh';
   return createPortal(
-    <div className="fixed inset-0 z-[60]" role="presentation">
+    <div
+      className={cx(
+        'fixed inset-0',
+        zIndex || 'z-[60]',
+        centered ? 'flex items-center justify-center p-3 sm:p-4 overflow-hidden' : ''
+      )}
+      role="presentation"
+    >
       <div
-        className={cx('absolute inset-0 bg-ink/30 transition-opacity duration-200', shown ? 'opacity-100' : 'opacity-0')}
+        className={cx('absolute inset-0 bg-ink/40 transition-opacity duration-200', shown ? 'opacity-100' : 'opacity-0')}
         onClick={onClose}
         aria-hidden
       />
@@ -110,46 +121,66 @@ export function BottomSheet({
         aria-label={title}
         tabIndex={-1}
         className={cx(
-          'absolute left-0 right-0 mx-auto max-w-[560px] bg-surface rounded-t-[20px] shadow-float flex flex-col outline-none',
-          'transition-transform duration-200 ease-out',
+          centered
+            ? 'relative w-full max-w-[540px] mx-auto bg-surface rounded-[24px] shadow-float flex flex-col outline-none overflow-hidden my-auto'
+            : 'absolute inset-x-0 mx-auto w-full max-w-[560px] bg-surface rounded-t-[20px] shadow-float flex flex-col outline-none overflow-hidden',
+          'transition-all duration-200 ease-out',
         )}
         style={{
-          bottom: inset,
-          maxHeight: maxH,
-          transform: shown ? `translateY(${drag}px)` : 'translateY(100%)',
-          transitionDuration: dragStart.current != null ? '0ms' : undefined,
+          ...(centered
+            ? {
+                maxHeight: viewport ? `${Math.min(viewport - 24, window.innerHeight * 0.88)}px` : '88dvh',
+                transform: shown ? 'scale(1)' : 'scale(0.95)',
+                opacity: shown ? 1 : 0,
+              }
+            : {
+                bottom: inset,
+                maxHeight: maxH,
+                transform: shown ? `translateY(${drag}px)` : 'translateY(100%)',
+                transitionDuration: dragStart.current != null ? '0ms' : undefined,
+              }),
         }}
       >
-        <div
-          className="pt-2 pb-1 flex flex-col items-center touch-none cursor-grab"
-          onPointerDown={(e) => {
-            dragStart.current = e.clientY;
-            (e.target as HTMLElement).setPointerCapture(e.pointerId);
-          }}
-          onPointerMove={(e) => dragStart.current != null && setDrag(Math.max(0, e.clientY - dragStart.current))}
-          onPointerUp={() => {
-            dragStart.current = null;
-            if (drag > 80) onClose();
-            setDrag(0);
-          }}
-          onPointerCancel={() => {
-            dragStart.current = null;
-            setDrag(0);
-          }}
-        >
-          <span className="w-9 h-1 rounded-full bg-line-strong" aria-hidden />
-        </div>
-        {header ?? (
-        <div className="flex items-center justify-between px-4 pb-2">
-          <h2 className="text-title-sm text-ink">{title}</h2>
-          <button type="button" onClick={onClose} className="w-11 h-11 -mr-2 flex items-center justify-center rounded-full text-ink-sub active:bg-soft" aria-label="Close">
-            <Icon name="close" className="text-[22px]" />
-          </button>
-        </div>
+        {!centered && (
+          <div
+            className="pt-2 pb-1 flex flex-col items-center touch-none cursor-grab"
+            onPointerDown={(e) => {
+              dragStart.current = e.clientY;
+              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => dragStart.current != null && setDrag(Math.max(0, e.clientY - dragStart.current))}
+            onPointerUp={() => {
+              dragStart.current = null;
+              if (drag > 80) onClose();
+              setDrag(0);
+            }}
+            onPointerCancel={() => {
+              dragStart.current = null;
+              setDrag(0);
+            }}
+          >
+            <span className="w-9 h-1 rounded-full bg-line-strong" aria-hidden />
+          </div>
         )}
-        <div className={cx('flex-1 overflow-y-auto overscroll-contain px-4 pb-4', bodyClassName)}>{children}</div>
+        {header ?? (
+          <div className={cx('flex items-center justify-between px-4 pb-2 min-w-0', centered && 'pt-3.5')}>
+            <h2 className="text-title-sm text-ink truncate pr-2 flex-1 min-w-0">{title}</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-11 h-11 -mr-2 flex items-center justify-center rounded-full text-ink-sub active:bg-soft shrink-0"
+              aria-label="Close"
+            >
+              <Icon name="close" className="text-[22px]" />
+            </button>
+          </div>
+        )}
+        <div className={cx('flex-1 overflow-y-auto overflow-x-hidden min-w-0 w-full overscroll-contain px-4 pb-4', bodyClassName)}>{children}</div>
         {footer && (
-          <div className={cx('px-4 pt-3 border-t border-line bg-surface', footerClassName)} style={{ paddingBottom: inset ? 12 : 'max(12px, env(safe-area-inset-bottom))' }}>
+          <div
+            className={cx('px-4 pt-3 border-t border-line bg-surface', footerClassName)}
+            style={{ paddingBottom: centered ? 16 : inset ? 12 : 'max(12px, env(safe-area-inset-bottom))' }}
+          >
             {footer}
           </div>
         )}

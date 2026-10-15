@@ -13,4 +13,6 @@ export interface Data {
   moneyCategories: MoneyCategory[];
   transactions: Transaction[];
   accounts: Account[];
+  householdBudget?: number | null;
+  personalBudget?: number | null;
 }

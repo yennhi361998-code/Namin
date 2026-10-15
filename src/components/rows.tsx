@@ -3,8 +3,10 @@ import { formatTime, relativeDay, shortDate, toDateStr, today } from '../lib/dat
 import { formatVnd } from '../lib/money';
 import { recurrenceLabel } from '../lib/recurrence';
 import { daysLeftLabel, LOW_THRESHOLD_DAYS, type RestockEstimate } from '../lib/restock';
-import type { Member, Purchase, ShoppingItem, Task } from '../lib/types';
-import { CategoryDot, Checkbox, cx, Icon, RoomIcon } from './ui';
+import type { LedgerEntry, Member, MoneyCategory, Purchase, ShoppingItem, Task } from '../lib/types';
+import { DAILY_CATEGORY_ID } from '../lib/moneyCategories';
+import { useStore } from '../store';
+import { CategoryIcon, Checkbox, cx, Icon, RoomIcon } from './ui';
 
 const Dot = () => <span aria-hidden>·</span>;
 
@@ -92,8 +94,7 @@ export function TaskRow({
             {overdue && <span className="w-2 h-2 rounded-full bg-err-ink shrink-0" title="Overdue" aria-hidden />}
           </span>
           <div className="flex items-center gap-1.5 shrink-0">
-            {task.area && !task.completed && <RoomIcon room={task.area} />}
-            {task.completed && <Icon name="spa" filled className="text-[18px] text-sky-dark" />}
+            {task.area && <RoomIcon room={task.area} />}
           </div>
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 text-ink-sub text-body-sm flex-wrap">
@@ -162,17 +163,9 @@ export function ShoppingItemRow({
           <span className="text-body-md text-ink truncate">{item.name}</span>
           {item.estimatedPrice != null && <span className="text-label-md text-ink font-semibold shrink-0 tabular-nums">{formatVnd(item.estimatedPrice)}</span>}
         </div>
-        {(qty || item.store || est) && (
+        {(qty || est) && (
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap text-body-sm text-ink-sub">
-            {joinMeta([
-              qty && <span>{qty}</span>,
-              item.store && (
-                <span className="flex items-center gap-0.5">
-                  <Icon name="storefront" className="text-[13px]" />
-                  {item.store}
-                </span>
-              ),
-            ])}
+            {qty && <span>{qty}</span>}
             {est && <RestockChip est={est} />}
           </div>
         )}
@@ -183,17 +176,111 @@ export function ShoppingItemRow({
 }
 
 export function PurchaseRow({ purchase, onOpen }: { purchase: Purchase; onOpen: () => void }) {
+  const moneyCategories = useStore((s) => s.moneyCategories ?? []);
+  const spendCatId = purchase.spendCategoryId || DAILY_CATEGORY_ID;
+  const moneyCat = moneyCategories.find((c) => c.id === spendCatId);
+  const color = moneyCat?.color || '#3E97C8';
+  const iconName = moneyCat?.icon || 'basket';
+  const catName = moneyCat?.name || purchase.category;
+
   return (
     <button type="button" onClick={onOpen} className="w-full text-left p-3.5 flex items-center gap-3 active:bg-canvas transition-colors">
-      <CategoryDot category={purchase.category} size={10} />
+      <span
+        className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+        style={{ backgroundColor: `${color}26` }}
+        aria-hidden
+      >
+        <CategoryIcon name={iconName} size={18} color={color} />
+      </span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span className="text-body-md text-ink truncate">{purchase.itemName}</span>
           <span className="text-label-md text-ink font-semibold shrink-0 tabular-nums">{purchase.price != null ? formatVnd(purchase.price) : '—'}</span>
         </div>
         <div className="text-body-sm text-ink-sub mt-0.5 flex items-center gap-1.5">
-          {joinMeta([<span>{shortDate(purchase.purchaseDate)}</span>, purchase.store && <span>{purchase.store}</span>, <span>{purchase.category}</span>])}
+          {joinMeta([<span>{shortDate(purchase.purchaseDate)}</span>, purchase.store && <span>{purchase.store}</span>, <span>{catName}</span>])}
         </div>
+      </div>
+    </button>
+  );
+}
+
+export function LedgerRow({
+  entry,
+  moneyCategory,
+  accountName,
+  memberName,
+  onOpen,
+}: {
+  entry: LedgerEntry;
+  moneyCategory?: MoneyCategory;
+  accountName?: string;
+  memberName?: string;
+  onOpen: () => void;
+}) {
+  const color =
+    moneyCategory?.color ||
+    (entry.type === 'income' ? '#3FA88B' : entry.type === 'transfer' ? '#3E97C8' : '#8A72C4');
+  const iconName =
+    moneyCategory?.icon ||
+    (entry.type === 'income' ? 'money-bag' : entry.type === 'transfer' ? 'swap_horiz' : 'basket');
+
+  // Subtitle format: Category - Member
+  const catName =
+    moneyCategory?.name ||
+    (entry.type === 'income' ? 'Income' : entry.type === 'transfer' ? 'Transfer' : 'Other');
+  const subtitle = memberName ? `${catName} - ${memberName}` : catName;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full min-w-0 text-left p-3.5 flex items-center gap-3 active:bg-canvas transition-colors"
+    >
+      {/* Left: Category Icon */}
+      <span
+        className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+        style={{ backgroundColor: `${color}20` }}
+        aria-hidden
+      >
+        {entry.type === 'transfer' ? (
+          <Icon name="swap_horiz" className="text-[20px]" style={{ color }} />
+        ) : (
+          <CategoryIcon name={iconName} size={20} color={color} />
+        )}
+      </span>
+
+      {/* Center: Item name with subtitle Category - Member */}
+      <div className="flex-1 min-w-0 pr-2">
+        <div className="text-body-md font-semibold text-ink truncate leading-tight">
+          {entry.itemName}
+        </div>
+        <div className="text-body-sm text-ink-sub mt-0.5 truncate">
+          {subtitle}
+        </div>
+      </div>
+
+      {/* Right: Formatted amount + Account/Wallet name below */}
+      <div className="text-right shrink-0 flex flex-col items-end min-w-0">
+        <span
+          className={cx(
+            'text-body-md font-bold tabular-nums leading-tight whitespace-nowrap',
+            entry.type === 'expense'
+              ? 'text-err-ink'
+              : entry.type === 'income'
+              ? 'text-done-ink'
+              : 'text-ink'
+          )}
+        >
+          {entry.type === 'expense'
+            ? `-${formatVnd(entry.amount)}`
+            : entry.type === 'income'
+            ? `+${formatVnd(entry.amount)}`
+            : formatVnd(entry.amount)}
+        </span>
+        <span className="text-caption text-ink-sub mt-0.5 max-w-[120px] truncate">
+          {accountName || 'Account'}
+        </span>
       </div>
     </button>
   );

@@ -158,7 +158,7 @@ export function ShoppingSheet({ open, onClose, shoppingId }: { open: boolean; on
           onKey={(k) => setExpr((e) => press(e, k))}
           note={note}
           onNote={setNote}
-          notePlaceholder="Note (e.g. refill pouch)"
+          notePlaceholder="Note"
           hint={lastPurchase?.price != null && !expr ? 'Last price' : 'Estimated price'}
           placeholderAmount={lastPurchase?.price ?? null}
           onSave={submit}
@@ -191,7 +191,7 @@ export function ShoppingSheet({ open, onClose, shoppingId }: { open: boolean; on
                 e.currentTarget.blur();
               }
             }}
-            placeholder="What do you need? e.g. Detergent"
+            placeholder="Item name"
             aria-label="Item name"
             aria-invalid={!!nameError || undefined}
             enterKeyHint="done"
@@ -250,7 +250,7 @@ export function ShoppingSheet({ open, onClose, shoppingId }: { open: boolean; on
           <input
             value={unit}
             onChange={(e) => setUnit(e.target.value)}
-            placeholder={known?.unit || 'unit (bottle, pack…)'}
+            placeholder={known?.unit || 'Unit'}
             aria-label="Unit"
             maxLength={20}
             autoComplete="off"

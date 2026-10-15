@@ -63,6 +63,23 @@ function toSlices(month: MoneyMonth): Slice[] {
   return slices;
 }
 
+/** Converts a saturated hex color into a pastel tint corresponding to category icon background. */
+export function toPastelColor(hex: string, weight = 0.42): string {
+  if (!hex || !hex.startsWith('#')) return hex;
+  const clean = hex.slice(1);
+  if (clean.length !== 6 && clean.length !== 3) return hex;
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const r = parseInt(full.substring(0, 2), 16);
+  const g = parseInt(full.substring(2, 4), 16);
+  const b = parseInt(full.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return hex;
+
+  const pr = Math.round(r * weight + 255 * (1 - weight));
+  const pg = Math.round(g * weight + 255 * (1 - weight));
+  const pb = Math.round(b * weight + 255 * (1 - weight));
+  return `#${pr.toString(16).padStart(2, '0')}${pg.toString(16).padStart(2, '0')}${pb.toString(16).padStart(2, '0')}`;
+}
+
 const SIZE = 248;
 const OUTER = 112;
 const INNER = 70;
@@ -104,7 +121,7 @@ export function MoneyDonut({
   return (
     <div className="relative mx-auto" style={{ width: SIZE + 32, height: SIZE + 32 }}>
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="absolute left-4 top-4 -rotate-0" role="img" aria-label={`${type === 'expense' ? 'Expenses' : 'Income'} chart`}>
-        <circle cx={SIZE / 2} cy={SIZE / 2} r={MID} fill="none" stroke="#E5EEF2" strokeWidth={WIDTH} />
+        <circle cx={SIZE / 2} cy={SIZE / 2} r={MID} fill="none" stroke="#EDF2F5" strokeWidth={WIDTH} />
         {arcs.map((a) => (
           <circle
             key={a.key}
@@ -112,7 +129,7 @@ export function MoneyDonut({
             cy={SIZE / 2}
             r={MID}
             fill="none"
-            stroke={a.color}
+            stroke={toPastelColor(a.color, 0.42)}
             strokeWidth={WIDTH}
             strokeDasharray={`${Math.max(0.1, a.len - (multi ? GAP : 0))} ${CIRC}`}
             strokeDashoffset={-a.start}

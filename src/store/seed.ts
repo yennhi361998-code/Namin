@@ -1,15 +1,17 @@
 import { addDays, parseDate, today } from '../lib/dates';
 import { uid } from '../lib/id';
 import type { Account, Category, Household, HouseholdItem, Member, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem } from '../lib/types';
-import { defaultMoneyCategories, demoTransactions } from '../lib/moneyCategories';
+import { defaultMoneyCategories, demoPersonalTransactions, demoTransactions } from '../lib/moneyCategories';
 import type { Data } from './types';
 
 export function defaultAccounts(householdId: string): Account[] {
   const now = new Date().toISOString();
   return [
-    { id: 'acc-cash', householdId, name: 'Tiền mặt', icon: 'wallet', color: '#3FA88B', createdAt: now },
-    { id: 'acc-bank', householdId, name: 'Tài khoản ngân hàng', icon: 'credit_card', color: '#4B7BFF', createdAt: now },
-    { id: 'acc-momo', householdId, name: 'Ví điện tử', icon: 'account_balance_wallet', color: '#D946EF', createdAt: now },
+    { id: 'acc-cash', householdId, name: 'Cash', icon: 'payments', color: '#3FA88B', scope: 'household', nature: 'asset', createdAt: now },
+    { id: 'acc-bank', householdId, name: 'Bank Account', icon: 'account_balance', color: '#4B7BFF', scope: 'household', nature: 'asset', createdAt: now },
+    { id: 'acc-momo', householdId, name: 'E-Wallet', icon: 'account_balance_wallet', color: '#D946EF', scope: 'household', nature: 'asset', createdAt: now },
+    { id: 'acc-personal-cash', householdId, name: 'Personal Cash', icon: 'payments', color: '#06B6D4', scope: 'personal', nature: 'asset', createdAt: now },
+    { id: 'acc-personal-bank', householdId, name: 'Personal Credit Card', icon: 'credit_card', color: '#8B5CF6', scope: 'personal', nature: 'debt', createdAt: now },
   ];
 }
 
@@ -26,6 +28,69 @@ export function createSeed(): Data {
   const minh: Member = { id: uid(), householdId: hid, name: 'Minh', color: '#8CC9E8', createdAt: now };
   const lan: Member = { id: uid(), householdId: hid, name: 'Lan', color: '#A9D8C8', createdAt: now };
   const accounts = defaultAccounts(hid);
+
+  const items: HouseholdItem[] = [];
+  const purchases: Purchase[] = [];
+  const item = (
+    name: string,
+    category: Category,
+    quantity: number,
+    unit: string,
+    history: [daysAgo: number, price: number, store: string][],
+    extra: Partial<HouseholdItem> = {},
+  ) => {
+    const it: HouseholdItem = {
+      id: uid(),
+      householdId: hid,
+      name,
+      category,
+      quantity,
+      unit,
+      currentStock: null,
+      status: 'unknown',
+      expectedUsageDays: null,
+      notes: '',
+      ...extra,
+    };
+    items.push(it);
+    history.forEach(([ago, price, store], idx) =>
+      purchases.push({
+        id: uid(),
+        householdId: hid,
+        itemId: it.id,
+        itemName: name,
+        category,
+        quantity,
+        unit,
+        price,
+        store,
+        purchaseDate: d(-ago),
+        notes: '',
+        accountId: ['acc-cash', 'acc-bank', 'acc-momo'][idx % 3],
+        memberId: [minh.id, lan.id][idx % 2],
+      }),
+    );
+    return it;
+  };
+
+  const detergent = item('Detergent', 'Cleaning', 1, 'bottle', [[123, 179000, 'WinMart'], [80, 195000, 'WinMart'], [37, 189000, 'WinMart']], { currentStock: 1 });
+  const dishSoap = item('Dish soap', 'Cleaning', 2, 'bottles', [[50, 45000, 'WinMart'], [24, 46000, 'WinMart']], { currentStock: 2 });
+  const toiletPaper = item('Toilet paper', 'Bathroom', 2, 'packs', [[82, 85000, 'Guardian'], [52, 89000, 'Guardian'], [22, 89000, 'WinMart']], { currentStock: 8, usageUnit: 'rolls', usagePerPurchaseUnit: 10 });
+  const trashBags = item('Trash bags (50L)', 'Kitchen', 1, 'roll', [[20, 42000, 'WinMart']], {
+    usageUnit: 'bags',
+    usagePerPurchaseUnit: 50,
+    currentStock: 100,
+  });
+  item('Hand soap', 'Bathroom', 1, 'bottle', [[58, 39000, 'Guardian'], [29, 39000, 'Guardian']], { currentStock: 1 });
+  item('Eggs', 'Groceries', 10, 'eggs', [[25, 35000, 'Supermarket'], [18, 35000, 'Supermarket'], [11, 36000, 'Supermarket'], [4, 35000, 'Supermarket']], { currentStock: 8 });
+  item('Sponges', 'Kitchen', 1, 'pack', [[45, 25000, 'WinMart'], [13, 25000, 'WinMart']], { currentStock: 3, usageUnit: 'sponges', usagePerPurchaseUnit: 4 });
+  item('Rice (5kg)', 'Groceries', 1, 'bag', [[40, 165000, 'Supermarket'], [10, 170000, 'Supermarket']], { currentStock: 1 });
+  item('Shampoo', 'Bathroom', 1, 'bottle', [[41, 159000, 'Guardian'], [6, 159000, 'Guardian']], { currentStock: 1 });
+  item('Fabric softener', 'Cleaning', 1, 'bottle', [[15, 145000, 'WinMart']], { currentStock: 1 });
+  item('Mop refill', 'Cleaning', 1, 'pad', [[8, 155000, 'WinMart']], { currentStock: 2 });
+  item('Cooking oil', 'Groceries', 1, 'bottle', [[3, 68000, 'WinMart']], { currentStock: 1 });
+  item('Light bulbs', 'Maintenance', 2, 'bulbs', [[16, 120000, 'Appliance Store']], { currentStock: 2 });
+  item('Water filter cartridge', 'Maintenance', 1, 'cartridge', [[35, 450000, 'Appliance Store']], { currentStock: 1 });
 
   const tasks: Task[] = [];
   const checklist: TaskChecklistItem[] = [];
@@ -49,6 +114,8 @@ export function createSeed(): Data {
       reminder: null,
       area: null,
       notes: '',
+      mappedItemId: null,
+      mappedQuantity: null,
       completed: false,
       completedAt: null,
       nextOccurrenceId: null,
@@ -61,7 +128,13 @@ export function createSeed(): Data {
     return tk;
   };
 
-  task('Take out trash', minh, 0, { unit: 'day', interval: 1 }, { area: 'Kitchen', reminder: '20:00', estimatedDuration: 5 });
+  task('Take out trash', minh, 0, { unit: 'day', interval: 1 }, {
+    area: 'Kitchen',
+    reminder: '20:00',
+    estimatedDuration: 5,
+    mappedItemId: trashBags.id,
+    mappedQuantity: 2,
+  });
   task(
     'Clean bathroom',
     lan,
@@ -92,62 +165,6 @@ export function createSeed(): Data {
   task('Mop kitchen floors', lan, 3, { unit: 'week', interval: 1 }, { area: 'Kitchen', estimatedDuration: 15 });
   task('Replace AC filter', minh, 12, { unit: 'month', interval: 3 }, { area: 'Living', estimatedDuration: 15 });
 
-  const items: HouseholdItem[] = [];
-  const purchases: Purchase[] = [];
-  const item = (
-    name: string,
-    category: Category,
-    quantity: number,
-    unit: string,
-    history: [daysAgo: number, price: number, store: string][],
-  ) => {
-    const it: HouseholdItem = {
-      id: uid(),
-      householdId: hid,
-      name,
-      category,
-      quantity,
-      unit,
-      currentStock: null,
-      status: 'unknown',
-      expectedUsageDays: null,
-      notes: '',
-    };
-    items.push(it);
-    history.forEach(([ago, price, store], idx) =>
-      purchases.push({
-        id: uid(),
-        householdId: hid,
-        itemId: it.id,
-        itemName: name,
-        category,
-        quantity,
-        unit,
-        price,
-        store,
-        purchaseDate: d(-ago),
-        notes: '',
-        accountId: ['acc-cash', 'acc-bank', 'acc-momo'][idx % 3],
-        memberId: [minh.id, lan.id][idx % 2],
-      }),
-    );
-    return it;
-  };
-
-  const detergent = item('Detergent', 'Cleaning', 1, 'bottle', [[123, 179000, 'WinMart'], [80, 195000, 'WinMart'], [37, 189000, 'WinMart']]);
-  const dishSoap = item('Dish soap', 'Cleaning', 2, 'bottles', [[50, 45000, 'WinMart'], [24, 46000, 'WinMart']]);
-  const toiletPaper = item('Toilet paper', 'Bathroom', 2, 'packs', [[82, 85000, 'Guardian'], [52, 89000, 'Guardian'], [22, 89000, 'WinMart']]);
-  const trashBags = item('Trash bags (50L)', 'Kitchen', 1, 'roll', [[20, 42000, 'WinMart']]);
-  item('Hand soap', 'Bathroom', 1, 'bottle', [[58, 39000, 'Guardian'], [29, 39000, 'Guardian']]);
-  item('Eggs', 'Groceries', 10, 'eggs', [[25, 35000, 'Bách Hóa Xanh'], [18, 35000, 'Bách Hóa Xanh'], [11, 36000, 'Bách Hóa Xanh'], [4, 35000, 'Bách Hóa Xanh']]);
-  item('Sponges', 'Kitchen', 1, 'pack', [[45, 25000, 'WinMart'], [13, 25000, 'WinMart']]);
-  item('Rice (5kg)', 'Groceries', 1, 'bag', [[40, 165000, 'Bách Hóa Xanh'], [10, 170000, 'Bách Hóa Xanh']]);
-  item('Shampoo', 'Bathroom', 1, 'bottle', [[41, 159000, 'Guardian'], [6, 159000, 'Guardian']]);
-  item('Fabric softener', 'Cleaning', 1, 'bottle', [[15, 145000, 'WinMart']]);
-  item('Mop refill', 'Cleaning', 1, 'pad', [[8, 155000, 'WinMart']]);
-  item('Cooking oil', 'Groceries', 1, 'bottle', [[3, 68000, 'WinMart']]);
-  item('Light bulbs', 'Maintenance', 2, 'bulbs', [[16, 120000, 'Điện Máy Xanh']]);
-  item('Water filter cartridge', 'Maintenance', 1, 'cartridge', [[35, 450000, 'Điện Máy Xanh']]);
 
   const shopping: ShoppingItem[] = [
     [detergent, 189000, 'WinMart', 'Refill pouch preferred'],
@@ -182,7 +199,12 @@ export function createSeed(): Data {
     items,
     purchases,
     moneyCategories: defaultMoneyCategories(hid),
-    transactions: demoTransactions(hid, [minh.id, lan.id], t),
+    transactions: [
+      ...demoTransactions(hid, [minh.id, lan.id], t),
+      ...demoPersonalTransactions(hid, minh.id, t),
+    ],
     accounts,
+    householdBudget: 30000000,
+    personalBudget: 15000000,
   };
 }

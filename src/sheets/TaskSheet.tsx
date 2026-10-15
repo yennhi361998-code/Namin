@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { DatePicker, FormField, TextArea, TextInput } from '../components/forms';
+import { DatePicker, FormField, Select, Stepper, TextArea, TextInput } from '../components/forms';
 import { BottomSheet } from '../components/overlay';
 import { ChipGroup, cx, Icon, PrimaryButton } from '../components/ui';
 import { formatDuration, today } from '../lib/dates';
@@ -15,6 +15,7 @@ const DURATIONS = [5, 15, 30, 45, 60];
 export function TaskSheet({ open, onClose, taskId, dueDate }: { open: boolean; onClose: () => void; taskId?: string; dueDate?: DateStr }) {
   const existing = useStore((s) => (taskId ? s.tasks.find((t) => t.id === taskId) : undefined));
   const existingChecklist = useStore((s) => s.checklist);
+  const items = useStore((s) => s.items);
   const members = useStore((s) => s.members);
   const currentMemberId = useStore((s) => s.currentMemberId);
   const addTask = useStore((s) => s.addTask);
@@ -24,10 +25,13 @@ export function TaskSheet({ open, onClose, taskId, dueDate }: { open: boolean; o
   const [assigneeId, setAssigneeId] = useState<string | null>(existing ? existing.assigneeId : currentMemberId);
   const [due, setDue] = useState<DateStr>(existing?.dueDate ?? dueDate ?? today());
   const [recurrence, setRecurrence] = useState<Recurrence | null>(existing?.recurrence ?? null);
+  const [mappedItemId, setMappedItemId] = useState<string | null>(existing?.mappedItemId ?? null);
+  const [mappedQuantity, setMappedQuantity] = useState<number>(existing?.mappedQuantity ?? 1);
   const [reminder, setReminder] = useState<string | null>(existing?.reminder ?? null);
   const [duration, setDuration] = useState<number | null>(existing?.estimatedDuration ?? null);
   const [area, setArea] = useState<string | null>(existing?.area ?? null);
   const [notes, setNotes] = useState(existing?.notes ?? '');
+
   const [checklist, setChecklist] = useState(() =>
     existing ? existingChecklist.filter((c) => c.taskId === existing.id).map((c) => ({ id: c.id, title: c.title, completed: c.completed })) : [],
   );
@@ -68,6 +72,8 @@ export function TaskSheet({ open, onClose, taskId, dueDate }: { open: boolean; o
       area,
       notes,
       checklist: all,
+      mappedItemId: mappedItemId || null,
+      mappedQuantity: mappedItemId ? Math.max(1, mappedQuantity || 1) : null,
     };
     if (existing) {
       updateTask(existing.id, input);
@@ -78,6 +84,9 @@ export function TaskSheet({ open, onClose, taskId, dueDate }: { open: boolean; o
     }
     onClose();
   };
+
+  const selectedItem = mappedItemId ? items.find((i) => i.id === mappedItemId) : undefined;
+  const usageUnit = selectedItem ? (selectedItem.usageUnit?.trim() || selectedItem.unit || 'unit') : '';
 
   return (
     <BottomSheet
@@ -106,7 +115,7 @@ export function TaskSheet({ open, onClose, taskId, dueDate }: { open: boolean; o
               setTitle(e.target.value);
               if (error) setError(null);
             }}
-            placeholder="e.g. Take out trash"
+            placeholder="Task title"
             invalid={!!error}
             enterKeyHint="done"
             autoComplete="off"
@@ -139,6 +148,54 @@ export function TaskSheet({ open, onClose, taskId, dueDate }: { open: boolean; o
             options={[{ label: 'None', value: null as string | null }, ...ROOMS.map((r) => ({ label: r.name, value: r.name as string | null, icon: r.icon, iconColor: r.fg }))]}
           />
         </FormField>
+
+        {items.length > 0 && (
+          <FormField
+            label="Consumable item"
+            hint={
+              selectedItem
+                ? `Current stock: ${selectedItem.currentStock ?? 0} ${usageUnit}`
+                : 'Automatically deduct from stock when task is completed'
+            }
+          >
+            <Select
+              value={mappedItemId ?? ''}
+              onChange={(e) => {
+                const val = e.target.value || null;
+                setMappedItemId(val);
+                if (val && (!mappedQuantity || mappedQuantity <= 0)) setMappedQuantity(1);
+              }}
+            >
+              <option value="">None</option>
+              {items.map((it) => {
+                const uUnit = it.usageUnit?.trim() || it.unit || '';
+                const stockLabel = it.currentStock != null ? `(${it.currentStock} ${uUnit} in stock)` : '';
+                return (
+                  <option key={it.id} value={it.id}>
+                    {it.name} {stockLabel}
+                  </option>
+                );
+              })}
+            </Select>
+            {selectedItem && (
+              <div className="flex items-center justify-between gap-3 p-3 mt-1.5 rounded-lg bg-soft border border-line">
+                <div className="flex flex-col">
+                  <span className="text-label-md text-ink font-medium">Used per task</span>
+                  <span className="text-caption text-ink-sub">
+                    Deduct {mappedQuantity} {usageUnit} when completed
+                  </span>
+                </div>
+                <Stepper
+                  value={mappedQuantity}
+                  onChange={setMappedQuantity}
+                  label="Used per task"
+                  min={1}
+                />
+              </div>
+            )}
+          </FormField>
+        )}
+
 
         <button
           type="button"

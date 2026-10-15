@@ -9,13 +9,18 @@ import { Logo } from './Logo';
 import { cx, Icon, MemberAvatar } from './ui';
 
 const TABS: { to: string; label: string; icon: IconName; match: (p: string) => boolean }[] = [
-  { to: '/', label: 'Home', icon: 'roofing', match: (p: string) => p === '/' },
   { to: '/tasks', label: 'Tasks', icon: 'check_circle', match: (p: string) => p.startsWith('/tasks') },
   {
-    to: '/shopping',
-    label: 'Shopping',
-    icon: 'shopping_bag',
-    match: (p: string) => p.startsWith('/shopping') || p.startsWith('/items') || p.startsWith('/spending') || p.startsWith('/charts'),
+    to: '/our-wallet',
+    label: 'Our Wallet',
+    icon: 'roofing',
+    match: (p: string) => p.startsWith('/our-wallet') || p.startsWith('/shopping') || p.startsWith('/items') || p.startsWith('/spending') || p.startsWith('/charts'),
+  },
+  {
+    to: '/my-wallet',
+    label: 'My Wallet',
+    icon: 'person',
+    match: (p: string) => p.startsWith('/my-wallet'),
   },
 ];
 
@@ -118,15 +123,17 @@ export function PillTabs<T extends string>({
   options,
   label,
   tone = 'page',
+  size = 'md',
 }: {
   value: T;
   onChange: (v: T) => void;
   options: { value: T; label: string; count?: number }[];
   label: string;
   tone?: 'page' | 'header';
+  size?: 'sm' | 'md';
 }) {
   return (
-    <div className="flex items-center gap-2" role="tablist" aria-label={label}>
+    <div className="flex items-center gap-1 sm:gap-1.5" role="tablist" aria-label={label}>
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -137,7 +144,9 @@ export function PillTabs<T extends string>({
             aria-selected={active}
             onClick={() => onChange(o.value)}
             className={cx(
-              'min-h-[38px] px-4 rounded-full text-label-md transition-colors inline-flex items-center',
+              size === 'sm'
+                ? 'min-h-[32px] sm:min-h-[36px] px-2.5 sm:px-3 rounded-full text-caption sm:text-label-md transition-colors inline-flex items-center whitespace-nowrap'
+                : 'min-h-[36px] sm:min-h-[38px] px-3 sm:px-4 rounded-full text-label-md transition-colors inline-flex items-center whitespace-nowrap',
               tone === 'header'
                 ? active
                   ? 'bg-header text-header-ink font-semibold shadow-sm border border-header-ink/20'
@@ -202,12 +211,12 @@ export function PageHeader({ title, back, right, children }: { title: string; ba
 /** Screen title + primary action, on the page under the brand header. */
 export function ScreenTitle({ title, subtitle, action }: { title: string; subtitle?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 pt-space-lg pb-space-md">
+    <div className="flex items-center justify-between gap-2 sm:gap-3 pt-space-lg pb-space-md">
       <div className="flex flex-col min-w-0">
-        <h1 className="text-headline-lg text-ink tracking-tight">{title}</h1>
+        <h1 className="text-[22px] sm:text-headline-lg text-ink tracking-tight font-bold truncate">{title}</h1>
         {subtitle && <div className="text-body-sm text-ink-sub mt-0.5">{subtitle}</div>}
       </div>
-      {action}
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }

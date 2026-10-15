@@ -3,7 +3,7 @@ import { monthKey, toDateStr, today } from '../lib/dates';
 import { projectOccurrences } from '../lib/calendar';
 import { estimateRestock, LOW_THRESHOLD_DAYS, type RestockEstimate } from '../lib/restock';
 import { DAILY_CATEGORY_ID, OTHER_COLOR } from '../lib/moneyCategories';
-import type { Account, DateStr, Member, MoneyCategory, Purchase, Task, TxType } from '../lib/types';
+import type { Account, DateStr, Member, MoneyCategory, Purchase, Task, Transaction, TxType } from '../lib/types';
 import { useStore } from './index';
 import type { Data } from './types';
 
@@ -83,13 +83,15 @@ export interface MoneyEntry {
   /** A manual transaction, or a Shopping purchase counted as an expense. */
   kind: 'transaction' | 'purchase';
   id: string;
-  categoryId: string;
+  categoryId?: string | null;
   amount: number;
   date: DateStr;
   title: string;
   note: string;
   memberId?: string | null;
   accountId?: string | null;
+  /** Destination account when type === 'transfer'. */
+  toAccountId?: string | null;
   /** For purchases: the household item, to open its detail. */
   itemId?: string;
 }
@@ -116,17 +118,18 @@ export function moneyEntries(data: Pick<Data, 'transactions' | 'purchases' | 'mo
   const out: MoneyEntry[] = data.transactions
     .filter((t) => t.type === type)
     .map((t) => {
-      const cat = data.moneyCategories.find((c) => c.id === t.categoryId);
+      const cat = t.categoryId ? data.moneyCategories.find((c) => c.id === t.categoryId) : undefined;
       return {
         kind: 'transaction',
         id: t.id,
-        categoryId: t.categoryId,
+        categoryId: t.categoryId ?? null,
         amount: t.amount,
         date: t.date,
-        title: t.note || cat?.name || 'Entry',
+        title: t.note || (type === 'transfer' ? 'Transfer' : (cat?.name || 'Entry')),
         note: t.note,
         memberId: t.memberId,
         accountId: t.accountId,
+        toAccountId: t.toAccountId,
       };
     });
   if (type === 'expense')
@@ -154,8 +157,9 @@ export function moneyForMonth(data: Pick<Data, 'transactions' | 'purchases' | 'm
   const total = entries.reduce((n, e) => n + e.amount, 0);
   const byCat = new Map<string, { total: number; count: number }>();
   for (const e of entries) {
-    const r = byCat.get(e.categoryId) ?? { total: 0, count: 0 };
-    byCat.set(e.categoryId, { total: r.total + e.amount, count: r.count + 1 });
+    const catId = e.categoryId ?? 'unassigned';
+    const r = byCat.get(catId) ?? { total: 0, count: 0 };
+    byCat.set(catId, { total: r.total + e.amount, count: r.count + 1 });
   }
   const rows: MoneyRow[] = [];
   for (const [id, r] of byCat) {
@@ -186,7 +190,9 @@ export function useCategoryChoices(type: TxType) {
   const moneyCategories = useStore((s) => s.moneyCategories);
   return useMemo(() => {
     const uses = new Map<string, number>();
-    for (const e of moneyEntries({ transactions, purchases, moneyCategories }, type)) uses.set(e.categoryId, (uses.get(e.categoryId) ?? 0) + 1);
+    for (const e of moneyEntries({ transactions, purchases, moneyCategories }, type)) {
+      if (e.categoryId) uses.set(e.categoryId, (uses.get(e.categoryId) ?? 0) + 1);
+    }
     return moneyCategories
       .filter((c) => c.type === type && !c.archived)
       .sort((a, b) => (uses.get(b.id) ?? 0) - (uses.get(a.id) ?? 0) || a.order - b.order);
@@ -245,3 +251,48 @@ export function useTasksByDay(from: DateStr, to: DateStr) {
     return map;
   }, [tasks, from, to]);
 }
+
+/**
+ * Calculates current balance for every account based on:
+ * - Income transactions (+amount to accountId)
+ * - Expense transactions (-amount from accountId)
+ * - Purchases (-price from accountId)
+ * - Transfers (-amount from accountId, +amount to toAccountId)
+ */
+export function calculateAccountBalances(data: {
+  accounts?: Account[];
+  transactions: Array<Pick<Transaction, 'type' | 'amount' | 'accountId' | 'toAccountId'>>;
+  purchases: Array<Pick<Purchase, 'price' | 'accountId'>>;
+}): Record<string, number> {
+  const balances: Record<string, number> = {};
+  for (const acc of data.accounts ?? []) {
+    balances[acc.id] = (acc as any).initialBalance ?? 0;
+  }
+  for (const t of data.transactions) {
+    if (t.type === 'income' && t.accountId) {
+      balances[t.accountId] = (balances[t.accountId] ?? 0) + t.amount;
+    } else if (t.type === 'expense' && t.accountId) {
+      balances[t.accountId] = (balances[t.accountId] ?? 0) - t.amount;
+    } else if (t.type === 'transfer') {
+      if (t.accountId) balances[t.accountId] = (balances[t.accountId] ?? 0) - t.amount;
+      if (t.toAccountId) balances[t.toAccountId] = (balances[t.toAccountId] ?? 0) + t.amount;
+    }
+  }
+  for (const p of data.purchases) {
+    if (p.price != null && p.accountId) {
+      balances[p.accountId] = (balances[p.accountId] ?? 0) - p.price;
+    }
+  }
+  return balances;
+}
+
+export function useAccountBalances(): Record<string, number> {
+  const accounts = useStore((s) => s.accounts ?? []);
+  const transactions = useStore((s) => s.transactions);
+  const purchases = useStore((s) => s.purchases);
+  return useMemo(
+    () => calculateAccountBalances({ accounts, transactions, purchases }),
+    [accounts, transactions, purchases]
+  );
+}
+

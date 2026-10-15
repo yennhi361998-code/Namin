@@ -52,6 +52,10 @@ export interface Task {
   nextOccurrenceId: string | null;
   /** Shared by every occurrence of the same recurring task (equals the first occurrence's id). */
   seriesId: string;
+  /** Optional linked shopping/household item to consume on completion. */
+  mappedItemId?: string | null;
+  /** Quantity of the item to consume per completion (in usage units). */
+  mappedQuantity?: number | null;
   createdAt: string;
 }
 
@@ -78,7 +82,13 @@ export interface HouseholdItem {
   name: string;
   category: Category;
   quantity: number;
+  /** Purchase/package unit, e.g. "roll", "box", "pack". */
   unit: string;
+  /** Usage/consumable unit, e.g. "bags", "tablets", "pieces". Defaults to `unit` if not specified. */
+  usageUnit?: string;
+  /** How many usage units are contained in one purchase unit (e.g. 50 bags per roll). Defaults to 1. */
+  usagePerPurchaseUnit?: number | null;
+  /** Current in-stock quantity (tracked in usage units). */
   currentStock: number | null;
   status: ItemStatus;
   /** Manual override for how long one purchase lasts, used when history is too thin. */
@@ -88,12 +98,27 @@ export interface HouseholdItem {
   spendCategoryId?: string | null;
 }
 
+export function getUsageUnit(item: Pick<HouseholdItem, 'unit'> & { usageUnit?: string }): string {
+  return item.usageUnit?.trim() || item.unit;
+}
+
+export function getUsageRatio(item: { usagePerPurchaseUnit?: number | null }): number {
+  return item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 0 ? item.usagePerPurchaseUnit : 1;
+}
+
+
+export type FinanceScope = 'household' | 'personal';
+export type AccountNature = 'asset' | 'debt';
+
 export interface Account {
   id: string;
   householdId: string;
   name: string;
   icon?: string;
   color?: string;
+  scope?: FinanceScope;
+  nature?: AccountNature;
+  initialBalance?: number | null;
   archived?: boolean;
   createdAt?: string;
 }
@@ -114,9 +139,10 @@ export interface Purchase {
   spendCategoryId?: string | null;
   accountId?: string | null;
   memberId?: string | null;
+  createdAt?: string;
 }
 
-export type TxType = 'expense' | 'income';
+export type TxType = 'expense' | 'income' | 'transfer';
 
 /** A user-editable spending or income category (Food, Salary…). */
 export interface MoneyCategory {
@@ -133,16 +159,43 @@ export interface MoneyCategory {
   order: number;
 }
 
-/** A manually entered expense or income. Shopping purchases count as expenses on their own. */
+/** A manually entered expense, income, or transfer. Shopping purchases count as expenses on their own. */
 export interface Transaction {
   id: string;
   householdId: string;
   type: TxType;
-  categoryId: string;
+  scope?: FinanceScope;
+  categoryId?: string | null;
   amount: number;
   date: DateStr;
   note: string;
+  quantity?: number | null;
+  unit?: string | null;
+  usageUnit?: string | null;
+  usagePerPurchaseUnit?: number | null;
+  itemId?: string | null;
   memberId: string | null;
   accountId?: string | null;
+  /** Destination account when type === 'transfer'. */
+  toAccountId?: string | null;
   createdAt: string;
+}
+
+export interface LedgerEntry {
+  id: string;
+  kind: 'purchase' | 'transaction';
+  type: TxType;
+  scope?: FinanceScope;
+  amount: number;
+  date: DateStr;
+  itemName: string;
+  categoryId?: string | null;
+  accountId?: string | null;
+  toAccountId?: string | null;
+  memberId?: string | null;
+  notes?: string;
+  itemId?: string;
+  createdAt?: string;
+  rawPurchase?: Purchase;
+  rawTransaction?: Transaction;
 }

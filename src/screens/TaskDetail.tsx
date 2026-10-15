@@ -26,6 +26,7 @@ export function TaskDetail() {
   const back = useBack('/tasks');
   const task = useStore((s) => s.tasks.find((t) => t.id === id));
   const allChecklist = useStore((s) => s.checklist);
+  const items = useStore((s) => s.items);
   const toggleChecklistItem = useStore((s) => s.toggleChecklistItem);
   const members = useMembers();
 
@@ -42,6 +43,8 @@ export function TaskDetail() {
   const checklist = allChecklist.filter((c) => c.taskId === task.id);
   const done = checklist.filter((c) => c.completed).length;
   const assignee = task.assigneeId ? members.get(task.assigneeId) : undefined;
+  const mappedItem = task.mappedItemId ? items.find((i) => i.id === task.mappedItemId) : undefined;
+  const mappedItemUnit = mappedItem ? (mappedItem.usageUnit?.trim() || mappedItem.unit || 'unit') : '';
   const t = today();
   const overdue = !task.completed && task.dueDate < t;
   const rel = relativeDay(task.dueDate, t);
@@ -96,7 +99,21 @@ export function TaskDetail() {
               {formatTime(task.reminder)}
             </InfoRow>
           )}
+          {mappedItem && (
+            <InfoRow icon="shopping_bag" label="Consumable item">
+              <Link
+                to={`/items/${mappedItem.id}`}
+                className="text-link hover:underline inline-flex items-center gap-1 font-medium"
+              >
+                {task.mappedQuantity ?? 1} {mappedItemUnit} {mappedItem.name}
+                <span className="text-caption text-ink-sub font-normal">
+                  ({mappedItem.currentStock ?? 0} in stock)
+                </span>
+              </Link>
+            </InfoRow>
+          )}
         </ListCard>
+
 
         {checklist.length > 0 && (
           <section aria-labelledby="checklist-title">

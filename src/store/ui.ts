@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { DateFilterSelection } from '../lib/dateRanges';
-import type { DateStr, TxType } from '../lib/types';
+import type { DateStr, FinanceScope, TxType } from '../lib/types';
 
 export interface Toast {
   id: number;
@@ -16,9 +16,23 @@ export type Sheet =
   | { type: 'purchase'; shoppingId?: string; itemId?: string }
   | { type: 'item'; itemId: string }
   | { type: 'household' }
-  | { type: 'transaction'; transactionId?: string; txType?: TxType; date?: DateStr }
+  | {
+      type: 'transaction';
+      transactionId?: string;
+      txType?: TxType;
+      date?: DateStr;
+      scope?: FinanceScope;
+      initialValues?: {
+        amount?: number;
+        note?: string;
+        categoryId?: string;
+        quantity?: number;
+        unit?: string;
+      };
+    }
   | { type: 'categories'; txType: TxType }
   | { type: 'money-category'; categoryId: string; month: string; txType: TxType }
+  | { type: 'sync' }
   | {
       type: 'date-filter';
       initialSelection: DateFilterSelection;

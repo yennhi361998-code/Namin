@@ -1,17 +1,19 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FormField, TextInput } from '../components/forms';
 import { BottomSheet } from '../components/overlay';
-import { cx, GhostButton, Icon, MemberAvatar } from '../components/ui';
+import { cx, Icon, MemberAvatar } from '../components/ui';
 import { MEMBER_AVATARS, MemberAvatarIcon } from '../lib/members';
 import type { Member } from '../lib/types';
 import { useStore } from '../store';
-import { toast } from '../store/ui';
 
 export function HouseholdSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const navigate = useNavigate();
   const household = useStore((s) => s.household);
   const members = useStore((s) => s.members);
   const currentMemberId = useStore((s) => s.currentMemberId);
-  const { renameHousehold, addMember, renameMember, setMemberAvatar, setCurrentMember, resetDemo } = useStore.getState();
+
+  const { renameHousehold, addMember, renameMember, setMemberAvatar, setCurrentMember } = useStore.getState();
   const [homeName, setHomeName] = useState(household.name);
   const [newMember, setNewMember] = useState('');
   const [newMemberAvatar, setNewMemberAvatar] = useState<string | null>(null);
@@ -19,7 +21,6 @@ export function HouseholdSheet({ open, onClose }: { open: boolean; onClose: () =
   const [editName, setEditName] = useState('');
   const [avatarMember, setAvatarMember] = useState<Member | null>(null);
   const [pickingNewMemberAvatar, setPickingNewMemberAvatar] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
 
   const add = () => {
     const n = newMember.trim();
@@ -53,7 +54,7 @@ export function HouseholdSheet({ open, onClose }: { open: boolean; onClose: () =
                 <button
                   type="button"
                   onClick={() => setAvatarMember(m)}
-                  title="Chọn icon thành viên"
+                  title="Choose member icon"
                   className="relative group rounded-full active:scale-95 transition-transform shrink-0"
                 >
                   <MemberAvatar member={m} size={36} />
@@ -94,8 +95,8 @@ export function HouseholdSheet({ open, onClose }: { open: boolean; onClose: () =
                   type="button"
                   onClick={() => setAvatarMember(m)}
                   className="w-9 h-9 rounded-full border border-line bg-surface text-ink hover:bg-soft active:scale-95 transition-all flex items-center justify-center shrink-0"
-                  title="Chọn icon"
-                  aria-label="Chọn icon"
+                  title="Choose icon"
+                  aria-label="Choose icon"
                 >
                   {m.avatar && m.avatar !== 'initial' ? (
                     <MemberAvatarIcon id={m.avatar} size={18} />
@@ -125,7 +126,7 @@ export function HouseholdSheet({ open, onClose }: { open: boolean; onClose: () =
                 type="button"
                 onClick={() => setPickingNewMemberAvatar(true)}
                 className="w-9 h-9 rounded-full bg-soft text-ink flex items-center justify-center hover:bg-soft/80 shrink-0"
-                title="Chọn icon"
+                title="Choose icon"
               >
                 {newMemberAvatar && newMemberAvatar !== 'initial' ? (
                   <MemberAvatarIcon id={newMemberAvatar} size={18} />
@@ -150,31 +151,31 @@ export function HouseholdSheet({ open, onClose }: { open: boolean; onClose: () =
           </div>
         </div>
 
-        {confirmReset ? (
-          <div className="rounded-xl bg-err p-3.5 flex flex-col gap-3">
-            <p className="text-body-sm text-err-ink">This replaces everything with the demo household. It can't be undone.</p>
-            <div className="flex gap-2">
-              <GhostButton className="bg-surface" onClick={() => setConfirmReset(false)}>
-                Cancel
-              </GhostButton>
-              <button
-                type="button"
-                className="min-h-[48px] w-full rounded-xl bg-err-ink text-white font-medium"
-                onClick={() => {
-                  resetDemo();
-                  onClose();
-                  toast({ title: 'Demo data restored' });
-                }}
-              >
-                Reset
-              </button>
+        {/* Settings Navigation */}
+        <div className="flex flex-col gap-2 pt-1">
+          <span className="text-label-md text-ink-sub font-semibold">Preferences</span>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              navigate('/settings');
+            }}
+            className="w-full flex items-center justify-between p-3.5 bg-surface rounded-2xl border border-line/60 hover:bg-canvas active:bg-soft transition-colors text-left group shadow-2xs cursor-pointer"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <span className="w-10 h-10 rounded-full bg-soft text-ink flex items-center justify-center shrink-0 shadow-2xs">
+                <Icon name="settings" className="text-[20px] text-ink" />
+              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-body-md font-semibold text-ink">Settings</span>
+                <span className="text-caption text-ink-sub">
+                  Budgets & preferences
+                </span>
+              </div>
             </div>
-          </div>
-        ) : (
-          <GhostButton icon="restart_alt" onClick={() => setConfirmReset(true)}>
-            Reset demo data
-          </GhostButton>
-        )}
+            <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
+          </button>
+        </div>
       </div>
     </BottomSheet>
 
@@ -182,7 +183,7 @@ export function HouseholdSheet({ open, onClose }: { open: boolean; onClose: () =
       <BottomSheet
         open={!!avatarMember}
         onClose={() => setAvatarMember(null)}
-        title={`Chọn icon cho ${avatarMember.name}`}
+        title={`Choose icon for ${avatarMember.name}`}
       >
         <div className="pb-6 pt-1">
           <div className="grid grid-cols-5 sm:grid-cols-6 gap-2.5 py-2 max-h-[52vh] overflow-y-auto pr-0.5">
@@ -224,7 +225,7 @@ export function HouseholdSheet({ open, onClose }: { open: boolean; onClose: () =
       <BottomSheet
         open={pickingNewMemberAvatar}
         onClose={() => setPickingNewMemberAvatar(false)}
-        title="Chọn icon cho thành viên mới"
+        title="Choose icon for new member"
       >
         <div className="pb-6 pt-1">
           <div className="grid grid-cols-5 sm:grid-cols-6 gap-2.5 py-2 max-h-[52vh] overflow-y-auto pr-0.5">
