@@ -2,7 +2,8 @@ import * as XLSX from 'xlsx';
 import { useStore } from '../store';
 import { today } from './dates';
 import { uid } from './id';
-import type { HouseholdItem, ShoppingItem, Task, Transaction, TxType } from './types';
+import { CHART_COLORS } from './moneyCategories';
+import type { Account, AccountNature, FinanceScope, HouseholdItem, MoneyCategory, ShoppingItem, Task, Transaction, TxType } from './types';
 
 export interface ImportPreviewData {
   filename: string;
@@ -11,6 +12,8 @@ export interface ImportPreviewData {
   tasks: Task[];
   shoppingItems: ShoppingItem[];
   inventoryItems: HouseholdItem[];
+  newAccounts?: Account[];
+  newCategories?: MoneyCategory[];
 }
 
 /**
@@ -155,12 +158,86 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
   const categoriesByName = new Map(state.moneyCategories.map((c) => [c.name.toLowerCase().trim(), c.id]));
   const membersByName = new Map(state.members.map((m) => [m.name.toLowerCase().trim(), m.id]));
 
+  const newAccounts: Account[] = [];
+  const newCategories: MoneyCategory[] = [];
+
+  const ensureAccount = (rawName: string, defaultScope: FinanceScope = 'personal', defaultNature?: AccountNature): string | null => {
+    const trimmed = rawName.trim();
+    if (!trimmed) return null;
+    const lower = trimmed.toLowerCase();
+    if (accountsByName.has(lower)) {
+      return accountsByName.get(lower)!;
+    }
+    const isDebt = defaultNature ? defaultNature === 'debt' : /tín dụng|credit/i.test(trimmed);
+    const isHousehold = defaultScope === 'household' || /quỹ|chung|household/i.test(trimmed);
+    const newAcc: Account = {
+      id: uid(),
+      householdId: state.household.id,
+      name: trimmed,
+      icon: isDebt ? 'credit_card' : /momo|zalopay|ví/i.test(trimmed) ? 'account_balance_wallet' : /tiền mặt|cash/i.test(trimmed) ? 'payments' : 'account_balance',
+      color: isDebt ? '#8B5CF6' : /momo/i.test(trimmed) ? '#D946EF' : '#4B7BFF',
+      scope: isHousehold ? 'household' : 'personal',
+      nature: isDebt ? 'debt' : 'asset',
+      initialBalance: 0,
+      createdAt: new Date().toISOString(),
+    };
+    newAccounts.push(newAcc);
+    accountsByName.set(lower, newAcc.id);
+    return newAcc.id;
+  };
+
+  const ensureCategory = (rawName: string, type: TxType = 'expense'): string | null => {
+    const trimmed = rawName.trim();
+    if (!trimmed) return null;
+    const lower = trimmed.toLowerCase();
+    if (categoriesByName.has(lower)) {
+      return categoriesByName.get(lower)!;
+    }
+    const icon = /travel|du lịch/i.test(trimmed) ? 'airplane'
+      : /education|học/i.test(trimmed) ? 'books'
+      : /sport|thể thao/i.test(trimmed) ? 'person-lifting-weights'
+      : /thui|người yêu/i.test(trimmed) ? 'red-heart'
+      : /wedding|cưới/i.test(trimmed) ? 'ring'
+      : type === 'income' ? 'money-bag' : 'basket';
+
+    const newCat: MoneyCategory = {
+      id: uid(),
+      householdId: state.household.id,
+      type,
+      name: trimmed,
+      icon,
+      color: CHART_COLORS[newCategories.length % CHART_COLORS.length],
+      archived: false,
+      order: state.moneyCategories.length + newCategories.length,
+    };
+    newCategories.push(newCat);
+    categoriesByName.set(lower, newCat.id);
+    return newCat.id;
+  };
+
+  // Pass 1: Parse Accounts sheet if present
+  for (const sheetName of wb.SheetNames) {
+    const lowerSheet = sheetName.toLowerCase().trim();
+    if (lowerSheet.includes('account') || lowerSheet.includes('tài khoản')) {
+      const ws = wb.Sheets[sheetName];
+      const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      for (const row of rawRows) {
+        const name = String(row['Account Name'] || row['Tên tài khoản'] || row['Name'] || '').trim();
+        if (!name) continue;
+        const scope: FinanceScope = /house|chung/i.test(String(row['Scope'] || '')) ? 'household' : 'personal';
+        const nature: AccountNature = /debt|nợ|credit|tín dụng/i.test(String(row['Nature'] || '')) ? 'debt' : 'asset';
+        ensureAccount(name, scope, nature);
+      }
+    }
+  }
+
   const ourWalletTxs: Transaction[] = [];
   const myWalletTxs: Transaction[] = [];
   const tasks: Task[] = [];
   const shoppingItems: ShoppingItem[] = [];
   const inventoryItems: HouseholdItem[] = [];
 
+  // Pass 2: Parse Transactions and other sheets
   for (const sheetName of wb.SheetNames) {
     const lowerSheet = sheetName.toLowerCase().trim();
     const ws = wb.Sheets[sheetName];
@@ -179,22 +256,26 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
         const rawType = String(row['Type'] || row['Loại'] || 'EXPENSE').toLowerCase();
         const type: TxType = rawType.includes('income') || rawType.includes('thu') ? 'income' : rawType.includes('transfer') || rawType.includes('chuyển') ? 'transfer' : 'expense';
 
-        const catName = String(row['Category'] || row['Danh mục'] || '').toLowerCase().trim();
-        const accName = String(row['Account'] || row['Tài khoản'] || '').toLowerCase().trim();
-        const toAccName = String(row['To Account'] || row['Đến tài khoản'] || '').toLowerCase().trim();
+        const catName = String(row['Category'] || row['Danh mục'] || '').trim();
+        const accName = String(row['Account'] || row['Tài khoản'] || '').trim();
+        const toAccName = String(row['To Account'] || row['Đến tài khoản'] || '').trim();
         const memName = String(row['Member'] || row['Thành viên'] || '').toLowerCase().trim();
+
+        const catId = ensureCategory(catName, type);
+        const accId = ensureAccount(accName, 'household');
+        const toAccId = ensureAccount(toAccName, 'household');
 
         ourWalletTxs.push({
           id: uid(),
           householdId: state.household.id,
           type,
           scope: 'household',
-          categoryId: categoriesByName.get(catName) || null,
+          categoryId: catId,
           amount,
           date: dateStr,
           note: title,
-          accountId: accountsByName.get(accName) || null,
-          toAccountId: accountsByName.get(toAccName) || null,
+          accountId: accId,
+          toAccountId: toAccId,
           memberId: membersByName.get(memName) || null,
           createdAt: new Date().toISOString(),
         });
@@ -206,25 +287,32 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
       for (const row of rawRows) {
         const dateStr = cleanDate(row['Date'] || row['Ngày'] || row['Ngay']);
         const amount = cleanNumber(row['Amount'] || row['Số tiền'] || row['So tien']);
-        const title = String(row['Item / Title'] || row['Tên'] || row['Ghi chú'] || row['Note'] || '').trim();
+        const catName = String(row['Category'] || row['Danh mục'] || '').trim();
+        const rawTitle = String(row['Item / Title'] || row['Tên'] || row['Ghi chú'] || row['Note'] || '').trim();
+        const title = rawTitle || String(row['Category'] || row['Danh mục'] || 'Transaction').trim();
         if (!dateStr || amount <= 0 || !title) continue;
 
         const rawType = String(row['Type'] || row['Loại'] || 'EXPENSE').toLowerCase();
         const type: TxType = rawType.includes('income') || rawType.includes('thu') ? 'income' : rawType.includes('transfer') || rawType.includes('chuyển') ? 'transfer' : 'expense';
 
-        const catName = String(row['Category'] || row['Danh mục'] || '').toLowerCase().trim();
-        const accName = String(row['Account'] || row['Tài khoản'] || '').toLowerCase().trim();
+        const accName = String(row['Account'] || row['Tài khoản'] || '').trim();
+        const toAccName = String(row['To Account'] || row['Đến tài khoản'] || '').trim();
+
+        const catId = ensureCategory(catName, type);
+        const accId = ensureAccount(accName, 'personal');
+        const toAccId = ensureAccount(toAccName, /quỹ/i.test(toAccName) ? 'household' : 'personal');
 
         myWalletTxs.push({
           id: uid(),
           householdId: state.household.id,
           type,
           scope: 'personal',
-          categoryId: categoriesByName.get(catName) || null,
+          categoryId: catId,
           amount,
           date: dateStr,
           note: title,
-          accountId: accountsByName.get(accName) || null,
+          accountId: accId,
+          toAccountId: toAccId,
           memberId: state.currentMemberId,
           createdAt: new Date().toISOString(),
         });
@@ -272,6 +360,8 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
     tasks,
     shoppingItems,
     inventoryItems,
+    newAccounts,
+    newCategories,
   };
 }
 
@@ -300,7 +390,12 @@ export function commitImport(data: ImportPreviewData): { addedTxs: number; added
   const existingTaskKey = new Set(state.tasks.map((t) => `${t.title.trim().toLowerCase()}_${t.dueDate}`));
   const newTasks = data.tasks.filter((t) => !existingTaskKey.has(`${t.title.trim().toLowerCase()}_${t.dueDate}`));
 
+  const newAccounts = data.newAccounts || [];
+  const newCategories = data.newCategories || [];
+
   useStore.setState((s) => ({
+    accounts: [...s.accounts, ...newAccounts],
+    moneyCategories: [...s.moneyCategories, ...newCategories],
     transactions: [...s.transactions, ...allNewTxs],
     tasks: [...s.tasks, ...newTasks],
   }));
@@ -320,7 +415,7 @@ function cleanDate(val: any): string | null {
     return `${y}-${m}-${d}`;
   }
   const s = String(val).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
 
   // DD/MM/YYYY
   const match1 = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
