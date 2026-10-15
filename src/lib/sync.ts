@@ -208,8 +208,12 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
       return code;
     } catch (err: any) {
       console.error('Failed to create cloud household:', err);
-      set({ status: 'error', error: err.message });
-      toast({ title: 'Sync setup failed', subtitle: err.message, tone: 'error' });
+      let msg = err.message || 'Sync setup failed';
+      if (err.code === 'permission-denied' || msg.includes('permission')) {
+        msg = 'Firestore Security Rules must be published in Firebase Console. Please update rules in Firestore Database > Rules.';
+      }
+      set({ status: 'error', error: msg });
+      toast({ title: 'Sync setup failed', subtitle: msg, tone: 'error' });
       throw err;
     }
   },
@@ -262,8 +266,12 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
       toast({ title: `Joined ${hData.name}!`, subtitle: 'Syncing shared tasks and wallet...' });
     } catch (err: any) {
       console.error('Failed to join cloud household:', err);
-      set({ status: 'error', error: err.message });
-      toast({ title: 'Failed to join household', subtitle: err.message, tone: 'error' });
+      let msg = err.message || 'Failed to join household';
+      if (err.code === 'permission-denied' || msg.includes('permission')) {
+        msg = 'Firestore Security Rules must be published in Firebase Console.';
+      }
+      set({ status: 'error', error: msg });
+      toast({ title: 'Failed to join household', subtitle: msg, tone: 'error' });
       throw err;
     }
   },

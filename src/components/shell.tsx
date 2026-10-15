@@ -213,7 +213,7 @@ export function ScreenTitle({ title, subtitle, action }: { title: string; subtit
   return (
     <div className="flex items-center justify-between gap-2 sm:gap-3 pt-space-lg pb-space-md">
       <div className="flex flex-col min-w-0">
-        <h1 className="text-[22px] sm:text-headline-lg text-ink tracking-tight font-bold truncate">{title}</h1>
+        <h1 className="text-[22px] sm:text-headline-lg leading-[32px] sm:leading-[36px] pb-1 pr-1 text-ink tracking-tight font-bold truncate">{title}</h1>
         {subtitle && <div className="text-body-sm text-ink-sub mt-0.5">{subtitle}</div>}
       </div>
       {action && <div className="shrink-0">{action}</div>}

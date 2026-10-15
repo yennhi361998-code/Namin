@@ -20,77 +20,34 @@ service cloud.firestore {
     // =========================================================================
     // 1. USER PROFILES & PRIVATE PERSONAL WALLETS (100% PRIVATE TO EACH PERSON)
     // =========================================================================
-    // Minh cannot read or write Lan's personal wallet data under any circumstances.
-    // Lan cannot read or write Minh's personal wallet data under any circumstances.
     match /users/{userId} {
       allow read, write: if isOwner(userId);
 
-      // Personal accounts (My Wallet accounts)
-      match /personalAccounts/{accountId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      // Personal transactions (My Wallet transactions)
-      match /personalTransactions/{txId} {
+      // All private subcollections (personalAccounts, personalTransactions, etc.)
+      match /{subcollection}/{docId} {
         allow read, write: if isOwner(userId);
       }
     }
 
     // =========================================================================
-    // 2. HOUSEHOLDS & SHARED DATA (TASKS & OUR WALLET)
+    // 2. HOUSEHOLDS & SHARED DATA (MEMBERS, TASKS, SHOPPING & OUR WALLET)
     // =========================================================================
     match /households/{householdId} {
-      // Anyone authenticated can read household metadata to join via invite code,
-      // or if they are already a member
+      // Anyone authenticated can read household metadata to join via invite code
       allow read: if isAuthenticated();
       
-      // Creating a new household requires the creator's uid to be in memberUids
+      // Creating a new household requires creator uid to be in memberUids
       allow create: if isAuthenticated() && request.auth.uid in request.resource.data.memberUids;
       
-      // Updating household: existing members can update details, or a new user joining can add their uid to memberUids
+      // Updating household: existing members can update, or a new user joining adds their uid
       allow update: if isHouseholdMember(householdId) || (
         isAuthenticated() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids']) &&
         request.auth.uid in request.resource.data.memberUids
       );
 
-      // Tasks: shared with all members in this household
-      match /tasks/{taskId} {
-        allow read, write: if isHouseholdMember(householdId);
-      }
-
-      // Checklist: shared with all members in this household
-      match /checklist/{checklistItemId} {
-        allow read, write: if isHouseholdMember(householdId);
-      }
-
-      // Shopping list: shared with all members in this household
-      match /shopping/{shoppingId} {
-        allow read, write: if isHouseholdMember(householdId);
-      }
-
-      // Household inventory items: shared with all members in this household
-      match /items/{itemId} {
-        allow read, write: if isHouseholdMember(householdId);
-      }
-
-      // Purchases: shared with all members in this household
-      match /purchases/{purchaseId} {
-        allow read, write: if isHouseholdMember(householdId);
-      }
-
-      // Shared money categories: shared with all members in this household
-      match /moneyCategories/{categoryId} {
-        allow read, write: if isHouseholdMember(householdId);
-      }
-
-      // Shared accounts (Our Wallet accounts): shared with all members in this household
-      match /accounts/{accountId} {
-        allow read, write: if isHouseholdMember(householdId);
-      }
-
-      // Shared transactions (Our Wallet transactions): shared with all members in this household
-      match /transactions/{txId} {
+      // All shared subcollections (members, tasks, checklist, shopping, items, purchases, moneyCategories, accounts, transactions)
+      match /{subcollection}/{docId} {
         allow read, write: if isHouseholdMember(householdId);
       }
     }
