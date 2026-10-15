@@ -688,7 +688,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'namin:data',
-      version: 8,
+      version: 9,
       migrate: (persisted, version) => {
         const data = persisted as Data;
         if (version < 2) {
@@ -753,6 +753,23 @@ export const useStore = create<State>()(
           }
           data.householdBudget = data.householdBudget ?? 30000000;
           data.personalBudget = data.personalBudget ?? 15000000;
+        }
+        if (version < 9) {
+          // If state contains the old demo dataset, wipe for a completely clean slate
+          const hasOldDemoData =
+            (data.tasks ?? []).some((t) => t.title === 'Take out trash' || t.title === 'Clean bathroom') ||
+            (data.items ?? []).some((i) => i.name === 'Detergent' || i.name === 'Trash bags (50L)') ||
+            (data.transactions ?? []).some((t) => t.note?.includes('Highlands') || t.note?.includes('EVN'));
+          if (hasOldDemoData) {
+            data.tasks = [];
+            data.checklist = [];
+            data.shopping = [];
+            data.items = [];
+            data.purchases = [];
+            data.transactions = [];
+            data.householdBudget = null;
+            data.personalBudget = null;
+          }
         }
         return data;
       },

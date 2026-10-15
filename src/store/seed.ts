@@ -15,8 +15,34 @@ export function defaultAccounts(householdId: string): Account[] {
   ];
 }
 
-/** Demo data dated relative to first launch so the app always feels current. */
+/** Fresh, clean initial data with no test / demo data. */
 export function createSeed(): Data {
+  const now = new Date().toISOString();
+  const household: Household = { id: uid(), name: 'Our Home', createdAt: now };
+  const hid = household.id;
+  const minh: Member = { id: uid(), householdId: hid, name: 'Minh', color: '#8CC9E8', createdAt: now };
+  const lan: Member = { id: uid(), householdId: hid, name: 'Lan', color: '#A9D8C8', createdAt: now };
+  const accounts = defaultAccounts(hid);
+
+  return {
+    household,
+    members: [minh, lan],
+    currentMemberId: minh.id,
+    tasks: [],
+    checklist: [],
+    shopping: [],
+    items: [],
+    purchases: [],
+    moneyCategories: defaultMoneyCategories(hid),
+    transactions: [],
+    accounts,
+    householdBudget: null,
+    personalBudget: null,
+  };
+}
+
+/** Demo / mock dataset used for automated tests and fixture testing. */
+export function createDemoSeed(): Data {
   const t = today();
   const now = new Date().toISOString();
   const d = (n: number) => addDays(t, n);
@@ -164,7 +190,6 @@ export function createSeed(): Data {
   ]);
   task('Mop kitchen floors', lan, 3, { unit: 'week', interval: 1 }, { area: 'Kitchen', estimatedDuration: 15 });
   task('Replace AC filter', minh, 12, { unit: 'month', interval: 3 }, { area: 'Living', estimatedDuration: 15 });
-
 
   const shopping: ShoppingItem[] = [
     [detergent, 189000, 'WinMart', 'Refill pouch preferred'],

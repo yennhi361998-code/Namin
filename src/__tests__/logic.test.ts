@@ -81,7 +81,8 @@ describe('store flows', () => {
   let useStore: typeof import('../store').useStore;
   beforeEach(async () => {
     ({ useStore } = await import('../store'));
-    useStore.getState().resetDemo();
+    const { createDemoSeed } = await import('../store/seed');
+    useStore.setState(createDemoSeed());
   });
 
   it('completing a recurring task spawns the next occurrence, undo retracts it', () => {
@@ -416,19 +417,15 @@ describe('date cycle and range navigation', () => {
     expect(sorted.map((p) => p.id)).toEqual(['p4', 'p3', 'p1', 'p2']);
   });
 
-  it('populates personal demo transactions and accounts in createSeed', async () => {
+  it('initializes createSeed with a clean slate and default accounts', async () => {
     const { createSeed } = await import('../store/seed');
     const data = createSeed();
     const personalAccounts = data.accounts.filter((a) => a.scope === 'personal');
     expect(personalAccounts.length).toBeGreaterThanOrEqual(2);
-
-    const personalTx = data.transactions.filter((t) => t.scope === 'personal');
-    expect(personalTx.length).toBeGreaterThan(0);
-
-    const personalExpenses = personalTx.filter((t) => t.type === 'expense');
-    const personalIncomes = personalTx.filter((t) => t.type === 'income');
-    expect(personalExpenses.length).toBeGreaterThan(0);
-    expect(personalIncomes.length).toBeGreaterThan(0);
+    expect(data.tasks.length).toBe(0);
+    expect(data.transactions.length).toBe(0);
+    expect(data.items.length).toBe(0);
+    expect(data.shopping.length).toBe(0);
   });
 
   it('calculates Net Worth correctly based on Asset and Debt account natures', async () => {

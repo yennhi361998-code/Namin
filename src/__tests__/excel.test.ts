@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { commitImport, type ImportPreviewData } from '../lib/excel';
 import { useStore } from '../store';
 
+import { createDemoSeed } from '../store/seed';
+
 describe('Excel Import & Export Logic', () => {
   beforeEach(() => {
-    // Reset store with a fresh seed
-    useStore.getState().resetDemo();
+    // Reset store with demo seed fixtures
+    useStore.setState(createDemoSeed());
   });
 
   it('correctly deduplicates imported transactions and tasks', () => {

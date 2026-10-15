@@ -25,6 +25,7 @@ export function SettingsScreen() {
   const [apiKeySheetOpen, setApiKeySheetOpen] = useState(false);
   const [geminiApiKeyInput, setGeminiApiKeyInput] = useState(() => getGeminiApiKey());
   const [backTapGuideOpen, setBackTapGuideOpen] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
   const handleOpenBudget = (scope: FinanceScope) => {
     setEditingBudgetScope(scope);
@@ -231,6 +232,22 @@ export function SettingsScreen() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-body-sm text-link font-medium">Guide</span>
+              <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
+            </div>
+          </button>
+
+          {/* Reset All Data */}
+          <button
+            type="button"
+            onClick={() => setConfirmResetOpen(true)}
+            className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <Icon name="delete" className="text-[20px] text-err-ink shrink-0" />
+              <span className="text-body-md font-medium text-err-ink">Reset All Data</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-body-sm text-ink-sub">Clear</span>
               <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
             </div>
           </button>
@@ -481,6 +498,39 @@ export function SettingsScreen() {
               <span>Test Pre-filled Form</span>
             </button>
           </div>
+        </div>
+      </BottomSheet>
+
+      {/* Confirm Reset All Data BottomSheet */}
+      <BottomSheet
+        open={confirmResetOpen}
+        onClose={() => setConfirmResetOpen(false)}
+        title="Reset All Data?"
+        footer={
+          <div className="flex items-center gap-2">
+            <GhostButton className="flex-1" onClick={() => setConfirmResetOpen(false)}>
+              Cancel
+            </GhostButton>
+            <PrimaryButton
+              className="flex-1 !bg-err !text-white"
+              onClick={() => {
+                useStore.getState().resetDemo();
+                setConfirmResetOpen(false);
+                toast({ title: 'All data has been reset to empty.' });
+              }}
+            >
+              Reset Everything
+            </PrimaryButton>
+          </div>
+        }
+      >
+        <div className="p-4 flex flex-col gap-3">
+          <p className="text-body-sm text-ink-sub leading-relaxed">
+            This will permanently remove all transactions, tasks, shopping items, and inventory, giving you a fresh, clean slate.
+          </p>
+          <p className="text-caption text-err-ink font-medium">
+            This action cannot be undone.
+          </p>
         </div>
       </BottomSheet>
     </div>

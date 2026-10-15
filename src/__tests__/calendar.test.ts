@@ -41,7 +41,8 @@ describe('ticking ahead', () => {
   let useStore: typeof import('../store').useStore;
   beforeEach(async () => {
     ({ useStore } = await import('../store'));
-    useStore.getState().resetDemo();
+    const { createDemoSeed } = await import('../store/seed');
+    useStore.setState(createDemoSeed());
   });
 
   it('ticks one future date; the series skips it; unticking restores it', () => {
