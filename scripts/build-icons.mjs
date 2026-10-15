@@ -26,14 +26,14 @@ function iconSvg(size, { fill, radius = 0, weight = 1 }) {
 
 const png = (svg) => new Resvg(svg).render().asPng();
 
-// Browser tab: rounded square, mark large and strokes heavier so it stays readable at 16–32px.
-writeFileSync('public/favicon.svg', iconSvg(64, { fill: 0.84, radius: 14, weight: 1.3 }));
-writeFileSync('public/favicon-32.png', png(iconSvg(32, { fill: 0.86, radius: 7, weight: 1.4 })));
-// iOS home screen: full-bleed square (iOS rounds the corners itself).
-writeFileSync('public/apple-touch-icon.png', png(iconSvg(180, { fill: 0.72 })));
+// Browser tab: rounded square, mark clear and readable at 16–32px.
+writeFileSync('public/favicon.svg', iconSvg(64, { fill: 0.68, radius: 14, weight: 1.25 }));
+writeFileSync('public/favicon-32.png', png(iconSvg(32, { fill: 0.70, radius: 7, weight: 1.3 })));
+// iOS home screen: full-bleed square matching Embé icon scale (~53% mark width).
+writeFileSync('public/apple-touch-icon.png', png(iconSvg(180, { fill: 0.53, weight: 1.05 })));
 // Android / installed PWA.
-writeFileSync('public/icon-192.png', png(iconSvg(192, { fill: 0.72 })));
-writeFileSync('public/icon-512.png', png(iconSvg(512, { fill: 0.72 })));
-// Maskable: launchers crop to circles/squircles, so keep the mark inside the 80% safe zone.
-writeFileSync('public/icon-maskable-512.png', png(iconSvg(512, { fill: 0.56 })));
+writeFileSync('public/icon-192.png', png(iconSvg(192, { fill: 0.53, weight: 1.05 })));
+writeFileSync('public/icon-512.png', png(iconSvg(512, { fill: 0.53, weight: 1.05 })));
+// Maskable: launchers crop to circles/squircles, so keep the mark inside safe zone.
+writeFileSync('public/icon-maskable-512.png', png(iconSvg(512, { fill: 0.45, weight: 1.05 })));
 console.log('Icons written to public/');
