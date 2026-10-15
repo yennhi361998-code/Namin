@@ -426,6 +426,9 @@ describe('date cycle and range navigation', () => {
     expect(data.transactions.length).toBe(0);
     expect(data.items.length).toBe(0);
     expect(data.shopping.length).toBe(0);
+    expect(data.members.length).toBe(1);
+    expect(data.members[0].name).toBe('Me');
+    expect(data.currentMemberId).toBe(data.members[0].id);
   });
 
   it('calculates Net Worth correctly based on Asset and Debt account natures', async () => {

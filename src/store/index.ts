@@ -6,7 +6,7 @@ import { uid } from '../lib/id';
 import { nextOccurrence } from '../lib/recurrence';
 import { estimateRestock, statusFromEstimate } from '../lib/restock';
 import { defaultMoneyCategories, demoPersonalTransactions, demoTransactions, EMOJI_TO_ICON } from '../lib/moneyCategories';
-import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, TxType } from '../lib/types';
+import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, Member, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, TxType } from '../lib/types';
 import { createSeed, defaultAccounts } from './seed';
 import type { Data } from './types';
 import { toast } from './ui';
@@ -688,7 +688,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'namin:data',
-      version: 9,
+      version: 10,
       migrate: (persisted, version) => {
         const data = persisted as Data;
         if (version < 2) {
@@ -769,6 +769,17 @@ export const useStore = create<State>()(
             data.transactions = [];
             data.householdBudget = null;
             data.personalBudget = null;
+          }
+        }
+        if (version < 10) {
+          // Reset members to default: 1 member named 'Me'
+          const hasOldMembers = (data.members ?? []).some((m) => m.name === 'Minh' || m.name === 'Lan');
+          if (hasOldMembers || !data.members || data.members.length === 0) {
+            const now = new Date().toISOString();
+            const hid = data.household?.id || 'h-home';
+            const me: Member = { id: uid(), householdId: hid, name: 'Me', color: '#8CC9E8', createdAt: now };
+            data.members = [me];
+            data.currentMemberId = me.id;
           }
         }
         return data;

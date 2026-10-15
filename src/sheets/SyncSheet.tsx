@@ -171,12 +171,12 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
 
               {authMode === 'signup' && (
                 <div className="flex flex-col gap-1">
-                  <label className="text-caption font-semibold text-ink-sub">Your Name (e.g. Minh or Lan)</label>
+                  <label className="text-caption font-semibold text-ink-sub">Your Name (e.g. Alex)</label>
                   <input
                     type="text"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Minh"
+                    placeholder="Your name"
                     className="w-full min-h-[44px] px-3 rounded-xl bg-surface border border-line text-body-md text-ink focus:outline-none focus:border-sky-dark"
                   />
                 </div>
@@ -273,7 +273,7 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
                         Household Invite Code
                       </span>
                       <span className="text-caption text-ink-muted mt-0.5">
-                        Share this code with your spouse (Minh / Lan) so they can join on their phone:
+                        Share this code with your partner or family member so they can join on their phone:
                       </span>
                     </div>
 

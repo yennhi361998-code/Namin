@@ -20,14 +20,13 @@ export function createSeed(): Data {
   const now = new Date().toISOString();
   const household: Household = { id: uid(), name: 'Our Home', createdAt: now };
   const hid = household.id;
-  const minh: Member = { id: uid(), householdId: hid, name: 'Minh', color: '#8CC9E8', createdAt: now };
-  const lan: Member = { id: uid(), householdId: hid, name: 'Lan', color: '#A9D8C8', createdAt: now };
+  const me: Member = { id: uid(), householdId: hid, name: 'Me', color: '#8CC9E8', createdAt: now };
   const accounts = defaultAccounts(hid);
 
   return {
     household,
-    members: [minh, lan],
-    currentMemberId: minh.id,
+    members: [me],
+    currentMemberId: me.id,
     tasks: [],
     checklist: [],
     shopping: [],
