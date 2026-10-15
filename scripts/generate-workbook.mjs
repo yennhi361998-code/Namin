@@ -36,6 +36,7 @@ const categoryMap = {
   'Transport': 'Traffic',
   'Communication': 'Bill',
   'Gifts': 'Gift',
+  'Thui': 'Family',
 };
 
 function normalizeTitle(rawNote, category, type, toAcc) {
@@ -139,13 +140,18 @@ function normalizeTitle(rawNote, category, type, toAcc) {
     return exactMap[lower];
   }
 
+  // Phrase replacements
+  s = s.replace(/\bqà\s+sn\b/gi, 'quà sinh nhật');
+  s = s.replace(/\bquà\s+sn\b/gi, 'quà sinh nhật');
+  s = s.replace(/\bqà\b/gi, 'quà');
+
   // Regex prefix / phrase replacements
   if (/^cf\s+/i.test(s)) {
     s = 'Cà phê ' + s.slice(3).trim();
   } else if (/^ts\s+/i.test(s)) {
     s = 'Trà sữa ' + s.slice(3).trim();
-  } else if (/^qà\s+/i.test(s)) {
-    s = 'Quà ' + s.slice(3).trim();
+  } else if (/^qà\s+/i.test(s) || /^quà\s+/i.test(s)) {
+    s = 'Quà ' + s.slice(s.indexOf(' ') + 1).trim();
   } else if (/^thanh toán thẻ\s+t(\d+)/i.test(s)) {
     s = s.replace(/^thanh toán thẻ\s+t(\d+)/i, 'Thanh toán thẻ tín dụng T$1');
   } else if (/^tt thẻ\s+t(\d+)/i.test(s)) {
@@ -186,7 +192,7 @@ dataLines.forEach((line) => {
 
   // Register accounts
   if (acc) {
-    const isDebt = /tín dụng|credit/i.test(acc);
+    const isDebt = /tín dụng|tin dung|credit/i.test(acc);
     accountsSet.set(acc, {
       name: acc,
       scope: 'Personal',
@@ -195,7 +201,7 @@ dataLines.forEach((line) => {
   }
   if (toAcc) {
     const isJoint = /quỹ vợ chồng|household/i.test(toAcc);
-    const isDebt = /tín dụng|credit/i.test(toAcc);
+    const isDebt = /tín dụng|tin dung|credit/i.test(toAcc);
     accountsSet.set(toAcc, {
       name: toAcc,
       scope: isJoint ? 'Household' : 'Personal',

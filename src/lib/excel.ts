@@ -168,7 +168,7 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
     if (accountsByName.has(lower)) {
       return accountsByName.get(lower)!;
     }
-    const isDebt = defaultNature ? defaultNature === 'debt' : /tín dụng|credit/i.test(trimmed);
+    const isDebt = defaultNature ? defaultNature === 'debt' : /tín dụng|tin dung|credit/i.test(trimmed);
     const isHousehold = defaultScope === 'household' || /quỹ|chung|household/i.test(trimmed);
     const newAcc: Account = {
       id: uid(),
