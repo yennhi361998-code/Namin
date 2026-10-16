@@ -405,7 +405,7 @@ export function SettingsScreen() {
                     Refresh personal wallet (Recommended)
                   </span>
                   <span className="text-[12px] text-ink-sub leading-snug mt-0.5">
-                    Replaces and accurately links all transaction sources & balances from your workbook to match Money Lover.
+                    Replaces and accurately links all transaction sources & balances from your workbook.
                   </span>
                 </div>
               </label>

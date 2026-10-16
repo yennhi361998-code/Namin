@@ -187,7 +187,7 @@ describe('Excel Import & Export Logic', () => {
     expect(postCash?.initialBalance).toBe(-418000);
   });
 
-  it('correctly imports Namin_Import_Nhi_Wallet.xlsx and calculates exact Money Lover balances', async () => {
+  it('correctly imports Namin_Import_Nhi_Wallet.xlsx and calculates exact workbook balances', async () => {
     const fs = await import('fs');
     const { parseExcelFile, commitImport } = await import('../lib/excel');
     const { calculateAccountBalances } = await import('../store/selectors');
@@ -220,7 +220,7 @@ describe('Excel Import & Export Logic', () => {
       purchases: state.purchases,
     });
 
-    // Check exact target balances matching Money Lover
+    // Check exact target balances matching imported workbook
     expect(balances[vpbank!.id]).toBe(16554591);
 
     const gold = state.accounts.find((a) => a.name.includes('Gold'));

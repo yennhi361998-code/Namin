@@ -8,14 +8,10 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
+import { initCacheAndServiceWorker } from './lib/cacheManager';
 
-if (import.meta.env.DEV && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const registration of registrations) {
-      registration.unregister();
-    }
-  });
-}
+// Auto-clean stale caches on new builds and manage service worker updates
+initCacheAndServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
