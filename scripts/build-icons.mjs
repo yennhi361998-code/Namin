@@ -18,7 +18,7 @@ function iconSvg(size, { fill, radius = 0, weight = 1 }) {
   <rect width="${size}" height="${size}" rx="${radius}" fill="${BG}"/>
   <g transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${scale.toFixed(5)})" fill="none">
     <g stroke="${FG}" stroke-width="${mark.stroke * weight}" stroke-linecap="round" stroke-linejoin="round">${mark.strokes.map((d) => `<path d="${d}"/>`).join('')}</g>
-    <circle cx="${mark.dot.cx}" cy="${mark.dot.cy}" r="${mark.dot.r}" fill="${FG}"/>
+    <circle cx="${mark.dot.cx}" cy="${mark.dot.cy}" r="${mark.dot.r * weight}" fill="${FG}"/>
     <path d="${mark.heart}" fill="${FG}"/>
   </g>
 </svg>`;
@@ -27,13 +27,13 @@ function iconSvg(size, { fill, radius = 0, weight = 1 }) {
 const png = (svg) => new Resvg(svg).render().asPng();
 
 // Browser tab: rounded square, mark clear and readable at 16–32px.
-writeFileSync('public/favicon.svg', iconSvg(64, { fill: 0.68, radius: 14, weight: 1.25 }));
-writeFileSync('public/favicon-32.png', png(iconSvg(32, { fill: 0.70, radius: 7, weight: 1.3 })));
+writeFileSync('public/favicon.svg', iconSvg(64, { fill: 0.68, radius: 14, weight: 1.0 }));
+writeFileSync('public/favicon-32.png', png(iconSvg(32, { fill: 0.70, radius: 7, weight: 1.0 })));
 // iOS home screen: full-bleed square matching Embé icon scale (~53% mark width).
-writeFileSync('public/apple-touch-icon.png', png(iconSvg(180, { fill: 0.53, weight: 1.05 })));
+writeFileSync('public/apple-touch-icon.png', png(iconSvg(180, { fill: 0.53, weight: 1.0 })));
 // Android / installed PWA.
-writeFileSync('public/icon-192.png', png(iconSvg(192, { fill: 0.53, weight: 1.05 })));
-writeFileSync('public/icon-512.png', png(iconSvg(512, { fill: 0.53, weight: 1.05 })));
+writeFileSync('public/icon-192.png', png(iconSvg(192, { fill: 0.53, weight: 1.0 })));
+writeFileSync('public/icon-512.png', png(iconSvg(512, { fill: 0.53, weight: 1.0 })));
 // Maskable: launchers crop to circles/squircles, so keep the mark inside safe zone.
-writeFileSync('public/icon-maskable-512.png', png(iconSvg(512, { fill: 0.45, weight: 1.05 })));
+writeFileSync('public/icon-maskable-512.png', png(iconSvg(512, { fill: 0.45, weight: 1.0 })));
 console.log('Icons written to public/');

@@ -24,16 +24,20 @@ const TABS: { to: string; label: string; icon: IconName; match: (p: string) => b
   },
 ];
 
-/** Floating, icon-only tab bar. Labels stay available to screen readers. */
+/** Facebook-style bottom navigation bar docked flush to the bottom of the screen. */
 export function BottomNavigation() {
   const { pathname } = useLocation();
   return (
     <nav
-      className="fixed inset-x-4 mx-auto max-w-[608px] z-40 bg-surface/90 backdrop-blur-xl border border-line rounded-full shadow-float"
-      style={{ bottom: 'calc(12px + env(safe-area-inset-bottom))' }}
+      className="fixed bottom-0 inset-x-0 z-40 bg-surface/95 dark:bg-surface/95 backdrop-blur-md border-t border-line/60"
+      style={{
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)',
+      }}
       aria-label="Main"
     >
-      <div className="flex items-center p-1.5">
+      <div className="max-w-[640px] mx-auto h-[48px] flex items-center px-4 justify-around">
         {TABS.map((t) => {
           const active = t.match(pathname);
           return (
@@ -45,12 +49,13 @@ export function BottomNavigation() {
               aria-current={active ? 'page' : undefined}
               title={t.label}
               className={cx(
-                'flex-1 h-11 rounded-full flex items-center justify-center transition-colors',
-                // Selected: aqua pill + deep aqua icon. Others: same hue, lighter (pill shape marks the state too).
-                active ? 'bg-header text-header-ink' : 'text-header-ink/55 active:bg-header/50',
+                'flex items-center justify-center h-8 px-5 rounded-full transition-all duration-150',
+                active
+                  ? 'bg-header/40 text-header-ink shadow-2xs font-semibold'
+                  : 'text-ink-sub/70 hover:text-ink active:scale-95'
               )}
             >
-              <Icon name={t.icon} filled={active} className="text-[24px]" />
+              <Icon name={t.icon} filled={active} className={cx('text-[22px]', active ? 'text-header-ink' : 'text-ink-sub')} />
             </NavLink>
           );
         })}
@@ -280,10 +285,15 @@ export function Fab({ label, onClick }: { label: string; onClick: () => void }) 
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="fixed z-40 w-14 h-14 rounded-full bg-surface text-header-ink ring-2 ring-header shadow-float flex items-center justify-center active:scale-95 active:bg-header transition-all"
-      style={{ right: 'max(16px, calc((100vw - 640px) / 2 + 16px))', bottom: 'calc(56px + 12px + env(safe-area-inset-bottom) + 14px)' }}
+      className="fixed z-40 w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-surface text-header-ink ring-2 ring-header shadow-float flex items-center justify-center active:scale-95 active:bg-header transition-all"
+      style={{
+        right: 'max(16px, calc((100vw - 640px) / 2 + 16px))',
+        bottom: 'calc(48px + env(safe-area-inset-bottom, 0px) + 12px)',
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)',
+      }}
     >
-      <Icon name="add" className="text-[30px]" filled />
+      <Icon name="add" className="text-[26px] sm:text-[28px]" filled />
     </button>
   );
 }
@@ -291,7 +301,7 @@ export function Fab({ label, onClick }: { label: string; onClick: () => void }) 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-canvas">
-      <main className="pb-[calc(56px+12px+env(safe-area-inset-bottom)+88px)] px-margin max-w-[640px] mx-auto">{children}</main>
+      <main className="pb-[calc(48px+env(safe-area-inset-bottom,0px)+32px)] px-margin max-w-[640px] mx-auto">{children}</main>
       <BottomNavigation />
     </div>
   );
