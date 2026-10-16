@@ -961,7 +961,7 @@ export function TransactionSheet({
               type="password"
               value={tempApiKey}
               onChange={(e) => setTempApiKey(e.target.value)}
-              placeholder="Paste API Key (starts with AIzaSy...)"
+              placeholder="Paste API Key (e.g. AQ... or AIzaSy...)"
               className="w-full px-3.5 py-2.5 rounded-xl border border-line bg-surface text-body-md text-ink placeholder:text-ink-sub/60 focus:outline-none focus:border-sky-dark"
             />
           </div>
