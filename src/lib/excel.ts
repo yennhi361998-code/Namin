@@ -88,9 +88,10 @@ export function exportToExcel() {
     'Scope': a.scope === 'personal' ? 'Personal' : 'Household',
     'Nature': a.nature === 'debt' ? 'Debt' : 'Asset',
     'Initial Balance': a.initialBalance ?? 0,
+    'Exclude From Total': a.excludeFromTotal ? 'Yes' : 'No',
   }));
   const accountsWs = XLSX.utils.json_to_sheet(accountsRows);
-  accountsWs['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 16 }];
+  accountsWs['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 20 }];
   XLSX.utils.book_append_sheet(wb, accountsWs, 'Accounts');
 
   // 4. Sheet: Tasks
@@ -161,19 +162,32 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
   const newAccounts: Account[] = [];
   const newCategories: MoneyCategory[] = [];
 
-  const ensureAccount = (rawName: string, defaultScope: FinanceScope = 'personal', defaultNature?: AccountNature, initialBalance: number = 0): string | null => {
+  const ensureAccount = (
+    rawName: string,
+    defaultScope: FinanceScope = 'personal',
+    defaultNature?: AccountNature,
+    initialBalance: number = 0,
+    excludeFromTotal?: boolean
+  ): string | null => {
     const trimmed = rawName.trim();
     if (!trimmed) return null;
     const lower = trimmed.toLowerCase();
     if (accountsByName.has(lower)) {
       const existingNew = newAccounts.find((a) => a.id === accountsByName.get(lower));
-      if (existingNew && initialBalance !== 0 && (!existingNew.initialBalance || existingNew.initialBalance === 0)) {
-        existingNew.initialBalance = initialBalance;
+      if (existingNew) {
+        if (initialBalance !== 0 && (!existingNew.initialBalance || existingNew.initialBalance === 0)) {
+          existingNew.initialBalance = initialBalance;
+        }
+        if (excludeFromTotal !== undefined) {
+          existingNew.excludeFromTotal = excludeFromTotal;
+        }
       }
       return accountsByName.get(lower)!;
     }
     const isDebt = defaultNature ? defaultNature === 'debt' : /tín dụng|tin dung|credit/i.test(trimmed);
     const isHousehold = defaultScope === 'household' || /quỹ|chung|household/i.test(trimmed);
+    const isExcluded = excludeFromTotal ?? false;
+
     const newAcc: Account = {
       id: uid(),
       householdId: state.household.id,
@@ -183,6 +197,7 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
       scope: isHousehold ? 'household' : 'personal',
       nature: isDebt ? 'debt' : 'asset',
       initialBalance,
+      excludeFromTotal: isExcluded,
       createdAt: new Date().toISOString(),
     };
     newAccounts.push(newAcc);
@@ -232,7 +247,11 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
         const nature: AccountNature = /debt|nợ|credit|tín dụng|tin dung/i.test(String(row['Nature'] || '')) ? 'debt' : 'asset';
         const rawBal = row['Initial Balance'] ?? row['Số dư ban đầu'] ?? row['Initial balance'] ?? row['Balance'];
         const initialBalance = rawBal !== undefined && rawBal !== '' ? Number(String(rawBal).replace(/[^\d.-]/g, '')) || 0 : 0;
-        ensureAccount(name, scope, nature, initialBalance);
+        const rawExclude = row['Exclude From Total'] ?? row['Không tính vào tổng'] ?? row['Exclude from total'] ?? row['Exclude'];
+        const excludeFromTotal = rawExclude !== undefined && rawExclude !== ''
+          ? /yes|có|true|1|y/i.test(String(rawExclude).trim())
+          : undefined;
+        ensureAccount(name, scope, nature, initialBalance, excludeFromTotal);
       }
     }
   }

@@ -446,6 +446,7 @@ export function FinanceScreen({
     let assets = 0;
     let debts = 0;
     for (const acc of scopedAccounts) {
+      if (acc.excludeFromTotal) continue;
       const bal = accountBalances[acc.id] ?? 0;
       if (acc.nature === 'debt') {
         debts += bal < 0 ? Math.abs(bal) : bal;
@@ -964,6 +965,11 @@ export function FinanceScreen({
                         )}>
                           {selectedWallet.nature === 'debt' ? 'Debt' : 'Asset'}
                         </span>
+                        {selectedWallet.excludeFromTotal && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                            Excluded from total
+                          </span>
+                        )}
                       </div>
                       <span className="text-caption text-ink-sub">Current balance</span>
                     </div>
@@ -1138,7 +1144,14 @@ export function FinanceScreen({
                               </span>
                               <div className="flex flex-col min-w-0">
                                 <span className="text-body-sm font-bold text-ink truncate">{acc.name}</span>
-                                <span className="text-[12px] text-ink-sub font-medium">Asset</span>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[12px] text-ink-sub font-medium">Asset</span>
+                                  {acc.excludeFromTotal && (
+                                    <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded leading-none">
+                                      Excluded from total
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
@@ -1188,7 +1201,14 @@ export function FinanceScreen({
                               </span>
                               <div className="flex flex-col min-w-0">
                                 <span className="text-body-sm font-bold text-ink truncate">{acc.name}</span>
-                                <span className="text-[12px] text-ink-sub font-medium">Debt</span>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[12px] text-ink-sub font-medium">Debt</span>
+                                  {acc.excludeFromTotal && (
+                                    <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded leading-none">
+                                      Excluded from total
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
 

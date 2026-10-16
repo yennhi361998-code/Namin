@@ -109,7 +109,7 @@ interface Actions {
   /** Hides it from pickers; past entries keep showing under it. */
   archiveMoneyCategory: (id: string) => Undo;
 
-  addAccount: (name: string, icon?: string, color?: string, scope?: FinanceScope, nature?: AccountNature, initialBalance?: number | null) => string;
+  addAccount: (name: string, icon?: string, color?: string, scope?: FinanceScope, nature?: AccountNature, initialBalance?: number | null, excludeFromTotal?: boolean) => string;
   updateAccount: (id: string, patch: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
   setBudget: (scope: FinanceScope, amount: number | null) => void;
@@ -633,7 +633,7 @@ export const useStore = create<State>()(
         return () => set((s) => ({ moneyCategories: s.moneyCategories.map((c) => (c.id === id ? { ...c, archived: false } : c)) }));
       },
 
-      addAccount: (name, icon = 'payments', color = '#3FA88B', scope = 'household', nature = 'asset', initialBalance = 0) => {
+      addAccount: (name, icon = 'payments', color = '#3FA88B', scope = 'household', nature = 'asset', initialBalance = 0, excludeFromTotal = false) => {
         const id = uid();
         set((s) => ({
           accounts: [
@@ -647,6 +647,7 @@ export const useStore = create<State>()(
               scope,
               nature,
               initialBalance: initialBalance ?? 0,
+              excludeFromTotal: excludeFromTotal ?? false,
               createdAt: new Date().toISOString(),
             },
           ],

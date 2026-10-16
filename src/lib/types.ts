@@ -119,6 +119,7 @@ export interface Account {
   scope?: FinanceScope;
   nature?: AccountNature;
   initialBalance?: number | null;
+  excludeFromTotal?: boolean;
   archived?: boolean;
   createdAt?: string;
 }

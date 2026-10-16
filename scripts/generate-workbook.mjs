@@ -176,6 +176,10 @@ function normalizeTitle(rawNote, category, type, toAcc) {
 const myWalletRows = [];
 const accountsSet = new Map();
 
+const accountRenameMap = {
+  'Tiền iphone': 'Tiền iphone ngọc',
+};
+
 dataLines.forEach((line) => {
   const [dateStr, rawCat, amountStr, rawType, rawAcc, rawMember, curr, ledger, rawNote, rawToAcc] = parseCSVLine(line);
 
@@ -183,8 +187,10 @@ dataLines.forEach((line) => {
   const type = (rawType || 'Expense').toUpperCase();
   const cat = categoryMap[rawCat] || rawCat || (type === 'TRANSFER' ? '' : 'Others');
   const amount = parseFloat(amountStr) || 0;
-  const acc = (rawAcc || '').trim();
-  const toAcc = (rawToAcc || '').trim();
+  const rawAccClean = (rawAcc || '').trim();
+  const acc = accountRenameMap[rawAccClean] || rawAccClean;
+  const rawToAccClean = (rawToAcc || '').trim();
+  const toAcc = accountRenameMap[rawToAccClean] || rawToAccClean;
   const member = (rawMember || 'Me').trim();
   const note = (rawNote || '').trim();
 
@@ -256,24 +262,31 @@ const targetCurrentBalances = {
   'Gold 44 chỉ 🏅': 530850000,
   'Tikop': 192000000,
   'Quỹ vợ chồng': 120500000,
-  'Tiền iphone': 2000000,
-  'Stock': 10000000,
+  'Tiền iphone ngọc': 2000000,
+  'Stock': 0,
   'Woori': 0,
   'Woori 12T 250126': 0,
   'Woori 24T 19Dec25': 0,
 };
+
+const accountsToExcludeFromTotal = new Set([
+  'Quỹ vợ chồng',
+  'Tiền iphone ngọc',
+]);
 
 // Create Accounts rows with calibrated Initial Balance and Current Balance
 const accountsRows = Array.from(accountsSet.values()).map(a => {
   const target = targetCurrentBalances[a.name] !== undefined ? targetCurrentBalances[a.name] : (flows[a.name] || 0);
   const flow = flows[a.name] || 0;
   const initial = target - flow;
+  const isExcluded = accountsToExcludeFromTotal.has(a.name);
   return {
     'Account Name': a.name,
     'Scope': a.scope,
     'Nature': a.nature,
     'Initial Balance': Math.round(initial),
     'Current Balance': target,
+    'Exclude From Total': isExcluded ? 'Yes' : 'No',
   };
 });
 
@@ -303,6 +316,7 @@ wsAccounts['!cols'] = [
   { wch: 12 }, // Nature
   { wch: 18 }, // Initial Balance
   { wch: 18 }, // Current Balance
+  { wch: 20 }, // Exclude From Total
 ];
 XLSX.utils.book_append_sheet(wb, wsAccounts, 'Accounts');
 

@@ -4,6 +4,7 @@ import { parseVnd, formatVnd } from '../lib/money';
 import { nextOccurrence, recurrenceLabel } from '../lib/recurrence';
 import { estimateRestock, statusFromEstimate } from '../lib/restock';
 import { guessCategory } from '../lib/categories';
+import type { Account } from '../lib/types';
 
 describe('recurrence', () => {
   it('steps from the due date', () => {
@@ -433,10 +434,10 @@ describe('date cycle and range navigation', () => {
 
   it('calculates Net Worth correctly based on Asset and Debt account natures', async () => {
     const { calculateAccountBalances } = await import('../store/selectors');
-    const accounts = [
-      { id: 'acc-asset-1', householdId: 'h1', name: 'Cash', scope: 'personal' as const, nature: 'asset' as const },
-      { id: 'acc-asset-2', householdId: 'h1', name: 'Savings', scope: 'personal' as const, nature: 'asset' as const },
-      { id: 'acc-debt-1', householdId: 'h1', name: 'Credit Card', scope: 'personal' as const, nature: 'debt' as const },
+    const accounts: Account[] = [
+      { id: 'acc-asset-1', householdId: 'h1', name: 'Cash', scope: 'personal', nature: 'asset' },
+      { id: 'acc-asset-2', householdId: 'h1', name: 'Savings', scope: 'personal', nature: 'asset' },
+      { id: 'acc-debt-1', householdId: 'h1', name: 'Credit Card', scope: 'personal', nature: 'debt' },
     ];
 
     const transactions = [
@@ -456,6 +457,7 @@ describe('date cycle and range navigation', () => {
     let assets = 0;
     let debts = 0;
     for (const acc of accounts) {
+      if (acc.excludeFromTotal) continue;
       const bal = balances[acc.id] ?? 0;
       if (acc.nature === 'debt') {
         debts += bal < 0 ? Math.abs(bal) : bal;
@@ -467,6 +469,22 @@ describe('date cycle and range navigation', () => {
     expect(assets).toBe(20_000_000);
     expect(debts).toBe(4_000_000);
     expect(assets - debts).toBe(16_000_000);
+
+    // If an account has excludeFromTotal = true, it should not be counted in total assets
+    const accountsWithExclusion: Account[] = [
+      ...accounts,
+      { id: 'acc-lent-1', householdId: 'h1', name: 'Quỹ vợ chồng', nature: 'asset', initialBalance: 120_500_000, excludeFromTotal: true },
+    ];
+    const balancesWithLent = calculateAccountBalances({ accounts: accountsWithExclusion, transactions, purchases: [] });
+    expect(balancesWithLent['acc-lent-1']).toBe(120_500_000);
+
+    let assetsFiltered = 0;
+    for (const acc of accountsWithExclusion) {
+      if (acc.excludeFromTotal) continue;
+      const bal = balancesWithLent[acc.id] ?? 0;
+      if (acc.nature !== 'debt') assetsFiltered += bal;
+    }
+    expect(assetsFiltered).toBe(20_000_000);
   });
 
   it('manages household and personal budget via store actions', async () => {

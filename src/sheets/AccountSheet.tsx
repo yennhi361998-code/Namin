@@ -62,6 +62,7 @@ export function AccountSheet({
   const [nature, setNature] = useState<AccountNature>(
     existing?.nature ?? (existing?.name.toLowerCase().includes('credit') ? 'debt' : 'asset')
   );
+  const [excludeFromTotal, setExcludeFromTotal] = useState<boolean>(existing?.excludeFromTotal ?? false);
   const [color, setColor] = useState(existing?.color ?? ACCOUNT_COLORS[0]);
   const [icon, setIcon] = useState(existing?.icon ?? 'payments');
   const [error, setError] = useState<string | null>(null);
@@ -77,11 +78,19 @@ export function AccountSheet({
     const finalInitialBalance = Number.isNaN(parsedInit) ? 0 : parsedInit;
 
     if (existing) {
-      updateAccount(existing.id, { name: trimmed, color, icon, scope, nature, initialBalance: finalInitialBalance });
+      updateAccount(existing.id, {
+        name: trimmed,
+        color,
+        icon,
+        scope,
+        nature,
+        initialBalance: finalInitialBalance,
+        excludeFromTotal,
+      });
       toast({ title: 'Account updated', subtitle: trimmed });
       onClose();
     } else {
-      const id = addAccount(trimmed, icon, color, scope, nature, finalInitialBalance);
+      const id = addAccount(trimmed, icon, color, scope, nature, finalInitialBalance, excludeFromTotal);
       toast({ title: 'New account created', subtitle: trimmed });
       onCreated?.(id);
       onClose();
@@ -179,6 +188,20 @@ export function AccountSheet({
             </button>
           </div>
         </div>
+
+        {/* Exclude From Total Toggle */}
+        <label className="flex items-center justify-between p-3.5 bg-canvas rounded-xl border border-line/60 cursor-pointer hover:bg-soft transition-colors select-none">
+          <div className="flex flex-col pr-3">
+            <span className="text-label-md font-semibold text-ink">Exclude from total</span>
+            <span className="text-caption text-ink-sub">Do not count towards Total Assets or Net Worth</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={excludeFromTotal}
+            onChange={(e) => setExcludeFromTotal(e.target.checked)}
+            className="w-5 h-5 rounded border-line text-header focus:ring-header accent-[#3FA88B] cursor-pointer"
+          />
+        </label>
 
         {/* Color Palette */}
         <div className="flex flex-col gap-2">
