@@ -22,23 +22,30 @@ export interface ParsedReceipt {
 }
 
 const API_KEY_STORAGE_KEY = 'namin:gemini_api_key';
+let inMemoryApiKey = '';
 
 export function getGeminiApiKey(): string {
   try {
-    const saved = localStorage.getItem(API_KEY_STORAGE_KEY);
-    if (saved && saved.trim()) return saved.trim();
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem(API_KEY_STORAGE_KEY);
+      if (saved && saved.trim()) return saved.trim();
+    }
   } catch {
     /* ignore */
   }
+  if (inMemoryApiKey) return inMemoryApiKey;
   return (import.meta.env.VITE_GEMINI_API_KEY as string | undefined)?.trim() || '';
 }
 
 export function setGeminiApiKey(key: string): void {
+  inMemoryApiKey = key.trim();
   try {
-    if (key.trim()) {
-      localStorage.setItem(API_KEY_STORAGE_KEY, key.trim());
-    } else {
-      localStorage.removeItem(API_KEY_STORAGE_KEY);
+    if (typeof localStorage !== 'undefined') {
+      if (key.trim()) {
+        localStorage.setItem(API_KEY_STORAGE_KEY, key.trim());
+      } else {
+        localStorage.removeItem(API_KEY_STORAGE_KEY);
+      }
     }
   } catch {
     /* ignore */
@@ -49,18 +56,31 @@ export function setGeminiApiKey(key: string): void {
  * Converts a File or Blob into base64 and its mime type.
  */
 export async function fileToBase64(file: Blob): Promise<{ base64: string; mimeType: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      const [header, base64] = dataUrl.split(',');
-      const mimeMatch = header.match(/:(.*?);/);
-      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-      resolve({ base64, mimeType });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  if (typeof FileReader !== 'undefined') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        const [header, base64] = dataUrl.split(',');
+        const mimeMatch = header.match(/:(.*?);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        resolve({ base64, mimeType });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Fallback using arrayBuffer
+  const buffer = await file.arrayBuffer();
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = typeof btoa === 'function' ? btoa(binary) : Buffer.from(buffer).toString('base64');
+  return { base64, mimeType: file.type || 'image/jpeg' };
 }
 
 /**
@@ -70,18 +90,72 @@ export async function fileToBase64(file: Blob): Promise<{ base64: string; mimeTy
 export async function prepareImageForGemini(
   file: Blob,
   maxDimension = 1600,
-  quality = 0.85
+  quality = 0.82
 ): Promise<{ base64: string; mimeType: string }> {
-  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  // 1. First attempt: createImageBitmap (handles raw formats natively, fast & memory-efficient)
+  if (typeof window !== 'undefined' && typeof createImageBitmap === 'function') {
     try {
+      const bmp = await createImageBitmap(file);
+      let width = bmp.width;
+      let height = bmp.height;
+
+      if (width > 0 && height > 0) {
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(bmp, 0, 0, width, height);
+          bmp.close();
+
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          const [, base64] = dataUrl.split(',');
+          if (base64 && base64.length > 50) {
+            return { base64, mimeType: 'image/jpeg' };
+          }
+        }
+      }
+      bmp.close();
+    } catch (err) {
+      console.warn('createImageBitmap failed, falling back to Image element:', err);
+    }
+  }
+
+  // 2. Second attempt: HTMLImageElement with decode() and proper objectUrl lifecycle
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    let objectUrl = '';
+    try {
+      objectUrl = URL.createObjectURL(file);
       const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('Failed to load image'));
-        img.src = objectUrl;
-      });
-      URL.revokeObjectURL(objectUrl);
+      img.src = objectUrl;
+
+      if (typeof img.decode === 'function') {
+        try {
+          await img.decode();
+        } catch {
+          await new Promise<void>((resolve, reject) => {
+            (img as any).onload = () => resolve();
+            (img as any).onerror = () => reject(new Error('Failed to load image'));
+          });
+        }
+      } else {
+        await new Promise<void>((resolve, reject) => {
+          (img as any).onload = () => resolve();
+          (img as any).onerror = () => reject(new Error('Failed to load image'));
+        });
+      }
 
       let width = img.naturalWidth || img.width;
       let height = img.naturalHeight || img.height;
@@ -108,13 +182,21 @@ export async function prepareImageForGemini(
 
           const dataUrl = canvas.toDataURL('image/jpeg', quality);
           const [, base64] = dataUrl.split(',');
-          if (base64) {
+          if (base64 && base64.length > 50) {
             return { base64, mimeType: 'image/jpeg' };
           }
         }
       }
     } catch (err) {
-      console.warn('Canvas compression failed, falling back to raw fileToBase64:', err);
+      console.warn('HTMLImageElement compression failed, falling back to raw fileToBase64:', err);
+    } finally {
+      if (objectUrl) {
+        try {
+          URL.revokeObjectURL(objectUrl);
+        } catch {
+          /* ignore */
+        }
+      }
     }
   }
 
@@ -219,7 +301,7 @@ export function parseReceiptFromText(
 }
 
 /**
- * Send receipt image to Google Gemini 1.5 Flash to extract structured transaction data.
+ * Send receipt image to Google Gemini Vision API to extract structured transaction data.
  */
 export async function parseReceiptWithGemini(
   file: Blob,
@@ -235,54 +317,59 @@ export async function parseReceiptWithGemini(
   const categoryNames = categories.map((c) => c.name).join(', ');
 
   const systemPrompt = `You are an intelligent family finance assistant for the Namin app.
-Your task is to parse this image (which may be a grocery receipt, restaurant bill, retail invoice, mobile banking transfer confirmation screenshot such as Vietcombank, Techcombank, MB Bank, Momo, Apple Pay, etc. in Vietnamese or English).
+Your task is to parse this receipt, bill, invoice, or banking transfer confirmation screenshot (in Vietnamese or English).
 
-Extract the transaction details and return ONLY a valid JSON string (no markdown \`\`\`json fences, no explanations).
-
-JSON structure:
+Extract the transaction details and return ONLY a valid JSON object matching this schema:
 {
-  "amount": total transaction amount (integer number, e.g. 120000, without commas or decimals),
-  "note": "merchant name or concise transaction note (e.g. Highlands Coffee, WinMart, Lunch with team)",
-  "date": "YYYY-MM-DD" (transaction date or receipt date if visible, otherwise null),
-  "type": "expense" or "income" (default to "expense" unless it is an incoming money transfer),
-  "suggestedCategory": "choose the closest matching category name from this list: [${categoryNames}]",
+  "amount": integer total amount paid or received (e.g. 120000, without commas or decimals),
+  "note": "merchant name or concise transaction note (e.g. Highlands Coffee, WinMart, Grab, Cà phê)",
+  "date": "YYYY-MM-DD" (transaction date if clearly visible, otherwise null),
+  "type": "expense" or "income" (default to "expense" unless it is incoming money transfer),
+  "suggestedCategory": "choose the closest matching category name from: [${categoryNames}]",
   "items": [
     {
       "name": "item name",
-      "quantity": number,
-      "price": unit price or total price for item (number),
-      "unit": "pack, can, cup, kg, bottle, item if available"
+      "quantity": 1,
+      "price": 10000,
+      "unit": "pack, can, cup, kg, bottle, item"
     }
   ]
 }
 
-Guidelines:
-1. If this is an itemized receipt, extract individual items into the "items" array.
-2. "amount" must be the final total paid amount after any discounts.
-3. "note" prioritizes merchant/store name and a short summary.
-4. Return pure valid JSON syntax ready for JSON.parse().`;
+Important guidelines:
+1. "amount" must be the final total paid amount after any discounts.
+2. "note" should be short and descriptive, prioritizing merchant/store name.
+3. Return ONLY valid raw JSON syntax with no code fences or explanations.`;
 
+  // Standard Google GenAI REST API payload structure
   const requestBody = {
     contents: [
       {
+        role: 'user',
         parts: [
-          { text: systemPrompt },
           {
-            inline_data: {
-              mime_type: mimeType,
+            inlineData: {
+              mimeType,
               data: base64,
             },
           },
+          { text: systemPrompt },
         ],
       },
     ],
     generationConfig: {
       temperature: 0.1,
-      response_mime_type: 'application/json',
+      responseMimeType: 'application/json',
     },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    ],
   };
 
-  const models = ['gemini-1.5-flash', 'gemini-2.0-flash'];
+  const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-latest'];
   let response: Response | null = null;
   let lastErrorText = '';
 
@@ -291,7 +378,10 @@ Guidelines:
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify(requestBody),
       });
 
@@ -300,31 +390,47 @@ Guidelines:
       }
 
       const errorData = await response.json().catch(() => ({}));
-      lastErrorText = errorData?.error?.message || `Gemini API error (${response.status}): ${response.statusText}`;
+      const rawMsg = errorData?.error?.message || `HTTP ${response.status} (${response.statusText})`;
+      console.warn(`[Gemini ${model}] failed:`, rawMsg);
 
-      if (/api_key_invalid|api key not valid/i.test(lastErrorText)) {
-        throw new Error('API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại trong Cài đặt.');
+      if (/api_key_invalid|api key not valid|key not found|invalid api key/i.test(rawMsg)) {
+        throw new Error('API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại API Key trong Cài đặt.');
       }
-      if (/quota|rate limit/i.test(lastErrorText)) {
-        throw new Error('Hạn mức gọi Gemini API đã hết (Quota exceeded). Vui lòng thử lại sau.');
+      if (/quota|rate limit|resource has been exhausted|exceeded your current quota/i.test(rawMsg)) {
+        throw new Error('Hạn mức gọi Gemini API đã hết hoặc bị giới hạn tốc độ. Vui lòng thử lại sau ít phút.');
       }
+      if (/location is not supported|user location|geoblocked/i.test(rawMsg)) {
+        throw new Error('Google Gemini API chưa hỗ trợ khu vực mạng hiện tại của bạn. Vui lòng thử đổi mạng hoặc sử dụng VPN.');
+      }
+
+      lastErrorText = rawMsg;
     } catch (err: any) {
-      if (err.message && (err.message.includes('API Key') || err.message.includes('Hạn mức'))) {
+      if (
+        err.message &&
+        (err.message.includes('API Key') ||
+          err.message.includes('Hạn mức') ||
+          err.message.includes('khu vực') ||
+          err.message.includes('VPN'))
+      ) {
         throw err;
       }
-      lastErrorText = err.message || 'Network request failed';
+      lastErrorText = err.message || 'Không thể kết nối tới Google Gemini Vision API.';
     }
   }
 
   if (!response || !response.ok) {
-    throw new Error(lastErrorText || 'Could not connect to Gemini Vision API');
+    throw new Error(lastErrorText || 'Không thể kết nối tới Google Gemini Vision API.');
   }
 
   const data = await response.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const candidate = data?.candidates?.[0];
+  const rawText = candidate?.content?.parts?.[0]?.text;
 
   if (!rawText) {
-    throw new Error('No response received from AI.');
+    if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+      throw new Error(`AI không hoàn tất (Lý do: ${candidate.finishReason}). Vui lòng thử lại ảnh khác rõ hơn.`);
+    }
+    throw new Error('Không nhận được nội dung phản hồi từ AI.');
   }
 
   // Clean JSON in case markdown fences were included
@@ -343,7 +449,7 @@ Guidelines:
   }
 
   const amount = Number(parsed.amount) || 0;
-  const note = String(parsed.note || 'Transaction').trim();
+  const note = String(parsed.note || 'Giao dịch').trim();
   const date = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : undefined;
   const type: 'expense' | 'income' = parsed.type === 'income' ? 'income' : 'expense';
   const suggestedCategory = parsed.suggestedCategory ? String(parsed.suggestedCategory).trim() : undefined;
