@@ -361,21 +361,81 @@ Important guidelines:
       temperature: 0.1,
       responseMimeType: 'application/json',
     },
-    safetySettings: [
-      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-    ],
   };
 
-  const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-latest'];
+  // 1. Try to discover which models are actually enabled for this API Key
+  let activeEndpoint = 'v1beta';
+  let modelsToTry = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-flash-002',
+    'gemini-2.0-flash-001',
+    'gemini-2.5-pro',
+  ];
+
+  for (const ep of ['v1beta', 'v1']) {
+    try {
+      const listUrl = `https://generativelanguage.googleapis.com/${ep}/models?key=${encodeURIComponent(apiKey)}`;
+      const listRes = await fetch(listUrl, {
+        method: 'GET',
+        headers: { 'x-goog-api-key': apiKey },
+      });
+
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        if (Array.isArray(listData?.models)) {
+          const names = listData.models
+            .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+            .map((m: any) => m.name.replace(/^models\//, ''));
+          if (names.length > 0) {
+            // Sort models to prioritize fast flash models
+            names.sort((a: string, b: string) => {
+              const aFlash = a.includes('flash') ? 1 : 0;
+              const bFlash = b.includes('flash') ? 1 : 0;
+              if (aFlash !== bFlash) return bFlash - aFlash;
+              return b.localeCompare(a);
+            });
+            activeEndpoint = ep;
+            modelsToTry = names;
+            break;
+          }
+        }
+      } else {
+        const errJson = await listRes.json().catch(() => ({}));
+        const rawMsg = errJson?.error?.message || '';
+        if (/api_key_invalid|api key not valid|key not found|invalid api key/i.test(rawMsg)) {
+          throw new Error('API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại API Key trong Cài đặt.');
+        }
+        if (/quota|rate limit|resource has been exhausted|exceeded your current quota/i.test(rawMsg)) {
+          throw new Error('Hạn mức gọi Gemini API đã hết hoặc bị giới hạn tốc độ. Vui lòng thử lại sau ít phút.');
+        }
+        if (/location is not supported|user location|geoblocked/i.test(rawMsg)) {
+          throw new Error('Google Gemini API chưa hỗ trợ khu vực mạng hiện tại của bạn. Vui lòng thử đổi mạng hoặc sử dụng VPN.');
+        }
+      }
+    } catch (e: any) {
+      if (
+        e.message &&
+        (e.message.includes('API Key') ||
+          e.message.includes('Hạn mức') ||
+          e.message.includes('khu vực') ||
+          e.message.includes('VPN'))
+      ) {
+        throw e;
+      }
+      // If fetching model list fails, fall back to candidate list
+    }
+  }
+
   let response: Response | null = null;
   let lastErrorText = '';
 
-  for (const model of models) {
+  for (const model of modelsToTry) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const cleanModel = model.replace(/^models\//, '');
+      const url = `https://generativelanguage.googleapis.com/${activeEndpoint}/models/${cleanModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
       response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -391,7 +451,7 @@ Important guidelines:
 
       const errorData = await response.json().catch(() => ({}));
       const rawMsg = errorData?.error?.message || `HTTP ${response.status} (${response.statusText})`;
-      console.warn(`[Gemini ${model}] failed:`, rawMsg);
+      console.warn(`[Gemini ${cleanModel}] failed:`, rawMsg);
 
       if (/api_key_invalid|api key not valid|key not found|invalid api key/i.test(rawMsg)) {
         throw new Error('API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại API Key trong Cài đặt.');
@@ -419,6 +479,9 @@ Important guidelines:
   }
 
   if (!response || !response.ok) {
+    if (/is not found for api version|not found|models\//i.test(lastErrorText)) {
+      throw new Error('Tài khoản Google này chưa được kích hoạt mô hình Gemini tương ứng. Vui lòng thử tạo lại API Key mới với tùy chọn "Create API key in new project" trên Google AI Studio.');
+    }
     throw new Error(lastErrorText || 'Không thể kết nối tới Google Gemini Vision API.');
   }
 

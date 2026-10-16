@@ -60,6 +60,17 @@ describe('Vision & Receipt Parsing', () => {
     let interceptedBody: any = null;
 
     globalThis.fetch = async (url: any, init: any) => {
+      if (init?.method === 'GET' || !init?.body) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            models: [
+              { name: 'models/gemini-2.0-flash', supportedGenerationMethods: ['generateContent'] }
+            ]
+          })
+        } as any;
+      }
       interceptedUrl = String(url);
       interceptedBody = JSON.parse(init.body);
       return {
