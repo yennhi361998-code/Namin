@@ -322,7 +322,7 @@ export function parseGeminiJsonResponse(
   }
 
   const amount = Number(parsed.amount) || 0;
-  const note = String(parsed.note || 'Giao dịch').trim();
+  const note = String(parsed.note || 'Transaction').trim();
   const date = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : undefined;
   const type: 'expense' | 'income' = parsed.type === 'income' ? 'income' : 'expense';
   const suggestedCategory = parsed.suggestedCategory ? String(parsed.suggestedCategory).trim() : undefined;
@@ -515,13 +515,13 @@ Important guidelines:
       console.warn(`[Gemini ${cleanModel}] failed:`, rawMsg);
 
       if (/api_key_invalid|api key not valid|key not found|invalid api key/i.test(rawMsg)) {
-        throw new Error('API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại API Key trong Cài đặt.');
+        throw new Error('Invalid Google Gemini API Key. Please verify your API Key in Settings.');
       }
       if (/quota|rate limit|resource has been exhausted|exceeded your current quota/i.test(rawMsg)) {
-        throw new Error('Hạn mức gọi Gemini API đã hết hoặc bị giới hạn tốc độ. Vui lòng thử lại sau ít phút.');
+        throw new Error('Gemini API rate limit or quota exceeded. Please try again in a few moments.');
       }
       if (/location is not supported|user location|geoblocked/i.test(rawMsg)) {
-        throw new Error('Google Gemini API chưa hỗ trợ khu vực mạng hiện tại của bạn. Vui lòng thử đổi mạng hoặc sử dụng VPN.');
+        throw new Error('Google Gemini API is not available in your current region. Please try another network or VPN.');
       }
 
       lastErrorText = rawMsg;
@@ -529,21 +529,22 @@ Important guidelines:
       if (
         err.message &&
         (err.message.includes('API Key') ||
-          err.message.includes('Hạn mức') ||
-          err.message.includes('khu vực') ||
+          err.message.includes('rate limit') ||
+          err.message.includes('quota') ||
+          err.message.includes('region') ||
           err.message.includes('VPN'))
       ) {
         throw err;
       }
-      lastErrorText = err.message || 'Không thể kết nối tới Google Gemini Vision API.';
+      lastErrorText = err.message || 'Could not connect to Google Gemini Vision API.';
     }
   }
 
   if (!response || !response.ok) {
     if (/is not found for api version|not found|models\//i.test(lastErrorText)) {
-      throw new Error('Tài khoản Google này chưa được kích hoạt mô hình Gemini tương ứng. Vui lòng thử tạo lại API Key mới với tùy chọn "Create API key in new project" trên Google AI Studio.');
+      throw new Error('Gemini models not found for this account. Please create a new key via "Create API key in new project" on Google AI Studio.');
     }
-    throw new Error(lastErrorText || 'Không thể kết nối tới Google Gemini Vision API.');
+    throw new Error(lastErrorText || 'Could not connect to Google Gemini Vision API.');
   }
 
   const data = await response.json();
@@ -552,9 +553,9 @@ Important guidelines:
 
   if (!rawText) {
     if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
-      throw new Error(`AI không hoàn tất (Lý do: ${candidate.finishReason}). Vui lòng thử lại ảnh khác rõ hơn.`);
+      throw new Error(`AI generation incomplete (Reason: ${candidate.finishReason}). Please try a clearer photo.`);
     }
-    throw new Error('Không nhận được nội dung phản hồi từ AI.');
+    throw new Error('No response text received from AI.');
   }
 
   return parseGeminiJsonResponse(rawText, categories);

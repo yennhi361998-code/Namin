@@ -93,7 +93,7 @@ export function SettingsScreen() {
     if (!importPreview || isImporting) return;
     setIsImporting(true);
     try {
-      // Short delay so user can see "Đang nạp dữ liệu..." with spinner before popup closes
+      // Short delay so user can see "Importing data..." with spinner before popup closes
       await new Promise((r) => setTimeout(r, 600));
 
       const newAccs = importPreview.newAccounts?.length || 0;
@@ -104,10 +104,10 @@ export function SettingsScreen() {
       if (newCats > 0) extras.push(`${newCats} categories`);
       const extrasStr = extras.length > 0 ? `, ${extras.join(', ')}` : '';
       const summaryMsg = result.updatedTxs > 0
-        ? `Đã liên kết ${result.updatedTxs} giao dịch, thêm ${result.addedTxs} mới${extrasStr}.`
-        : `Đã nạp ${result.addedTxs} giao dịch${extrasStr} và ${result.addedTasks} việc nhà.`;
+        ? `Linked ${result.updatedTxs} transactions, added ${result.addedTxs} new${extrasStr}.`
+        : `Imported ${result.addedTxs} transactions${extrasStr} and ${result.addedTasks} tasks.`;
       toast({
-        title: 'Nạp dữ liệu thành công!',
+        title: 'Import completed successfully!',
         subtitle: summaryMsg,
         tone: 'success',
       });
@@ -217,7 +217,7 @@ export function SettingsScreen() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-body-sm text-ink-sub">
-                {isReadingFile ? 'Đang đọc file...' : 'Select file'}
+                {isReadingFile ? 'Reading file...' : 'Select file'}
               </span>
               {isReadingFile ? (
                 <Icon name="sync" className="text-[18px] text-sky-dark animate-spin" />
@@ -349,7 +349,7 @@ export function SettingsScreen() {
                 {isImporting ? (
                   <>
                     <Icon name="sync" className="text-[20px] animate-spin" />
-                    <span>Đang nạp dữ liệu...</span>
+                    <span>Importing data...</span>
                   </>
                 ) : (
                   'Import Data'
@@ -402,10 +402,10 @@ export function SettingsScreen() {
                 />
                 <div className="flex flex-col">
                   <span className="text-[13px] font-semibold text-ink">
-                    Làm mới ví cá nhân (Khuyên dùng)
+                    Refresh personal wallet (Recommended)
                   </span>
                   <span className="text-[12px] text-ink-sub leading-snug mt-0.5">
-                    Ghi đè và liên kết chuẩn xác 100% nguồn tiền & số dư từng ví theo Money Lover, tránh bị giữ lại các giao dịch cũ chưa gắn ví.
+                    Replaces and accurately links all transaction sources & balances from your workbook to match Money Lover.
                   </span>
                 </div>
               </label>
@@ -413,8 +413,8 @@ export function SettingsScreen() {
 
             <p className="text-caption text-ink-sub">
               {cleanPersonalBeforeImport
-                ? 'Ví cá nhân sẽ được làm mới khớp chuẩn theo file Excel. Việc nhà và ví Our Wallet giữ nguyên an toàn.'
-                : 'Các giao dịch trùng lặp sẽ được cập nhật liên kết ví tự động để không bị mất số liệu.'}
+                ? 'Personal wallet transactions will be refreshed cleanly from the Excel file. Our Wallet and tasks remain untouched.'
+                : 'Matching transactions will be automatically updated with account links.'}
             </p>
           </div>
         </BottomSheet>

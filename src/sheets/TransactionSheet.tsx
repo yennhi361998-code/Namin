@@ -157,23 +157,23 @@ export function TransactionSheet({
         if (first.unit) setUnit(first.unit);
       }
       toast({
-        title: 'Đã quét hóa đơn thành công!',
+        title: 'Receipt scanned successfully!',
         subtitle: `${result.amount > 0 ? formatVnd(result.amount) + ' • ' : ''}${result.note}`,
       });
     } catch (err: any) {
       console.error('Scan error:', err);
-      const msg = err?.message || 'Không thể đọc nội dung hóa đơn.';
+      const msg = err?.message || 'Could not read receipt content.';
       if (msg === 'MISSING_API_KEY' || msg.includes('API Key') || msg.includes('API_KEY')) {
         setPendingFile(file);
         setApiKeyModalOpen(true);
         toast({
           title: 'Google Gemini API Key',
-          subtitle: msg === 'MISSING_API_KEY' ? 'Vui lòng nhập API Key Google Gemini' : msg,
+          subtitle: msg === 'MISSING_API_KEY' ? 'Please enter your Google Gemini API Key in Settings' : msg,
           tone: 'error',
         });
       } else {
         toast({
-          title: 'Không thể đọc hóa đơn',
+          title: 'Could not read receipt',
           subtitle: msg,
           tone: 'error',
         });

@@ -27,14 +27,14 @@ export default async function handler(req: Request): Promise<Response> {
 
     const cleanKey = String(apiKey || '').trim().replace(/^["']|["']$/g, '').trim();
     if (!cleanKey) {
-      return new Response(JSON.stringify({ error: 'Chưa cung cấp Gemini API Key' }), {
+      return new Response(JSON.stringify({ error: 'Gemini API Key is required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
     if (!base64) {
-      return new Response(JSON.stringify({ error: 'Chưa cung cấp dữ liệu hình ảnh' }), {
+      return new Response(JSON.stringify({ error: 'Image data is required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -156,21 +156,21 @@ Important guidelines:
         lastError = rawMsg;
         if (/api_key_invalid|api key not valid|key not found|invalid api key/i.test(rawMsg)) {
           return new Response(
-            JSON.stringify({ error: 'API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại API Key trong Cài đặt.' }),
+            JSON.stringify({ error: 'Invalid Google Gemini API Key. Please verify your API Key in Settings.' }),
             { status: 400, headers: { 'Content-Type': 'application/json' } }
           );
         }
       } catch (err: any) {
-        lastError = err.message || 'Lỗi kết nối';
+        lastError = err.message || 'Connection error';
       }
     }
 
     return new Response(
-      JSON.stringify({ error: lastError || 'Không thể kết nối đến mô hình Gemini.' }),
+      JSON.stringify({ error: lastError || 'Unable to connect to Gemini model.' }),
       { status: 502, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message || 'Lỗi máy chủ' }), {
+    return new Response(JSON.stringify({ error: err.message || 'Server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

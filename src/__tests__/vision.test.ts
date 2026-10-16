@@ -123,7 +123,7 @@ describe('Vision & Receipt Parsing', () => {
     }
   });
 
-  it('throws helpful Vietnamese error on invalid API key', async () => {
+  it('throws helpful error on invalid API key', async () => {
     const { parseReceiptWithGemini, setGeminiApiKey } = await import('../lib/vision');
     setGeminiApiKey('AIzaSyInvalidKey');
 
@@ -133,7 +133,7 @@ describe('Vision & Receipt Parsing', () => {
         return {
           ok: false,
           status: 400,
-          json: async () => ({ error: 'API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại API Key trong Cài đặt.' })
+          json: async () => ({ error: 'Invalid Google Gemini API Key. Please verify your API Key in Settings.' })
         } as any;
       }
       return {
@@ -151,7 +151,7 @@ describe('Vision & Receipt Parsing', () => {
 
     try {
       const dummyFile = new Blob(['fake image data'], { type: 'image/jpeg' });
-      await expect(parseReceiptWithGemini(dummyFile, categories)).rejects.toThrow('API Key Google Gemini không hợp lệ');
+      await expect(parseReceiptWithGemini(dummyFile, categories)).rejects.toThrow('Invalid Google Gemini API Key');
     } finally {
       globalThis.fetch = originalFetch;
     }

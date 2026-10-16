@@ -31,9 +31,9 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="w-14 h-14 rounded-2xl bg-err/15 text-err-ink flex items-center justify-center mb-3.5">
             <span className="material-symbols-rounded text-[28px]">error</span>
           </div>
-          <h2 className="text-body-lg font-bold text-ink mb-1.5">Đã xảy ra lỗi</h2>
+          <h2 className="text-body-lg font-bold text-ink mb-1.5">Something went wrong</h2>
           <p className="text-body-sm text-ink-sub max-w-sm mb-5">
-            Ứng dụng gặp sự cố khi hiển thị phần này. Bạn có thể thử tải lại trang hoặc quay về trang chủ.
+            An error occurred while displaying this section. You can reload the page or return to the home screen.
           </p>
           <div className="flex gap-2.5">
             <button
@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
               }}
               className="h-10 px-4 rounded-xl bg-header-ink text-white font-semibold text-body-sm shadow-xs hover:opacity-90 active:opacity-80 transition-opacity"
             >
-              Tải lại trang
+              Reload page
             </button>
             <button
               type="button"
@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
               }}
               className="h-10 px-4 rounded-xl border border-line bg-surface text-ink font-semibold text-body-sm hover:bg-soft transition-colors"
             >
-              Trang chủ
+              Home
             </button>
           </div>
         </div>
