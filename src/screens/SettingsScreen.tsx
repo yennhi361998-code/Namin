@@ -27,7 +27,6 @@ export function SettingsScreen() {
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isReadingFile, setIsReadingFile] = useState(false);
-  const [isLoadingStandard, setIsLoadingStandard] = useState(false);
   const [cleanPersonalBeforeImport, setCleanPersonalBeforeImport] = useState(true);
 
   const handleOpenBudget = (scope: FinanceScope) => {
@@ -87,27 +86,6 @@ export function SettingsScreen() {
     } finally {
       setIsReadingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleLoadStandardFile = async () => {
-    if (isLoadingStandard || isReadingFile) return;
-    setIsLoadingStandard(true);
-    try {
-      const res = await fetch('/Namin_Import_Nhi_Wallet.xlsx');
-      if (!res.ok) throw new Error('Không thể tải file mẫu từ máy chủ.');
-      const blob = await res.blob();
-      const file = new File([blob], 'Namin_Import_Nhi_Wallet.xlsx', {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
-      const parsed = await parseExcelFile(file);
-      setImportPreview(parsed);
-      setCleanPersonalBeforeImport(true);
-    } catch (err: any) {
-      console.error('Failed to load standard template:', err);
-      toast({ title: 'Không thể mở file mẫu', subtitle: err.message, tone: 'error' });
-    } finally {
-      setIsLoadingStandard(false);
     }
   };
 
@@ -229,7 +207,7 @@ export function SettingsScreen() {
           {/* Import Excel */}
           <button
             type="button"
-            disabled={isReadingFile || isLoadingStandard}
+            disabled={isReadingFile}
             onClick={() => fileInputRef.current?.click()}
             className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent disabled:opacity-60"
           >
@@ -245,31 +223,6 @@ export function SettingsScreen() {
                 <Icon name="sync" className="text-[18px] text-sky-dark animate-spin" />
               ) : (
                 <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
-              )}
-            </div>
-          </button>
-
-          {/* Load bundled Money Lover standard workbook */}
-          <button
-            type="button"
-            disabled={isLoadingStandard || isReadingFile}
-            onClick={handleLoadStandardFile}
-            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent disabled:opacity-60"
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <Icon name="receipt_text" className="text-[20px] text-done-ink shrink-0" />
-              <div className="flex flex-col min-w-0">
-                <span className="text-body-md font-medium text-ink">Đồng bộ file Money Lover chuẩn</span>
-                <span className="text-caption text-ink-sub truncate">Namin_Import_Nhi_Wallet.xlsx (Khớp số dư & ví)</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {isLoadingStandard ? (
-                <Icon name="sync" className="text-[18px] text-done-ink animate-spin" />
-              ) : (
-                <span className="text-[12px] font-semibold px-2.5 py-0.5 rounded-full bg-done-soft text-done-ink">
-                  1 chạm
-                </span>
               )}
             </div>
           </button>
