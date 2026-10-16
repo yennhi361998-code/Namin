@@ -711,7 +711,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'namin:data',
-      version: 10,
+      version: 11,
       migrate: (persisted, version) => {
         const data = persisted as Data;
         if (version < 2) {
@@ -803,6 +803,19 @@ export const useStore = create<State>()(
             const me: Member = { id: uid(), householdId: hid, name: 'Me', color: '#8CC9E8', createdAt: now };
             data.members = [me];
             data.currentMemberId = me.id;
+          }
+        }
+        if (version < 11) {
+          // Fix Cash account scope: if acc-cash or Cash was marked as household, update to personal
+          if (data.accounts) {
+            const cashAcc = data.accounts.find((a) => a.id === 'acc-cash' || a.name.toLowerCase().trim() === 'cash');
+            if (cashAcc && cashAcc.scope === 'household') {
+              const hasPersonalTx = (data.transactions ?? []).some((t) => (t.accountId === cashAcc.id || t.toAccountId === cashAcc.id) && t.scope === 'personal');
+              const hasHouseholdTx = (data.transactions ?? []).some((t) => (t.accountId === cashAcc.id || t.toAccountId === cashAcc.id) && t.scope === 'household');
+              if (hasPersonalTx || cashAcc.initialBalance === -418000 || !hasHouseholdTx) {
+                cashAcc.scope = 'personal';
+              }
+            }
           }
         }
         return data;

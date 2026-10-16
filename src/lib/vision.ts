@@ -64,6 +64,64 @@ export async function fileToBase64(file: Blob): Promise<{ base64: string; mimeTy
 }
 
 /**
+ * Prepares and compresses image for Google Gemini Vision.
+ * Automatically converts iPhone HEIC/HEIF or large raw photos to standard, lightweight JPEG (<300KB).
+ */
+export async function prepareImageForGemini(
+  file: Blob,
+  maxDimension = 1600,
+  quality = 0.85
+): Promise<{ base64: string; mimeType: string }> {
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    try {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = objectUrl;
+      });
+      URL.revokeObjectURL(objectUrl);
+
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
+
+      if (width > 0 && height > 0) {
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          const [, base64] = dataUrl.split(',');
+          if (base64) {
+            return { base64, mimeType: 'image/jpeg' };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Canvas compression failed, falling back to raw fileToBase64:', err);
+    }
+  }
+
+  return fileToBase64(file);
+}
+
+/**
  * Match a category name from Gemini's suggestion to one of the user's category choices.
  */
 export function matchCategory(
@@ -167,12 +225,13 @@ export async function parseReceiptWithGemini(
   file: Blob,
   categories: Array<{ id: string; name: string }> = []
 ): Promise<ParsedReceipt> {
-  const apiKey = getGeminiApiKey();
+  const rawKey = getGeminiApiKey();
+  const apiKey = rawKey.trim().replace(/^["']|["']$/g, '').trim();
   if (!apiKey) {
     throw new Error('MISSING_API_KEY');
   }
 
-  const { base64, mimeType } = await fileToBase64(file);
+  const { base64, mimeType } = await prepareImageForGemini(file);
   const categoryNames = categories.map((c) => c.name).join(', ');
 
   const systemPrompt = `You are an intelligent family finance assistant for the Namin app.
@@ -203,36 +262,62 @@ Guidelines:
 3. "note" prioritizes merchant/store name and a short summary.
 4. Return pure valid JSON syntax ready for JSON.parse().`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: systemPrompt },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64,
-              },
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          { text: systemPrompt },
+          {
+            inline_data: {
+              mime_type: mimeType,
+              data: base64,
             },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        response_mime_type: 'application/json',
+          },
+        ],
       },
-    }),
-  });
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      response_mime_type: 'application/json',
+    },
+  };
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const message = errorData?.error?.message || `Gemini API error: ${response.statusText}`;
-    throw new Error(message);
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash'];
+  let response: Response | null = null;
+  let lastErrorText = '';
+
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.ok) {
+        break;
+      }
+
+      const errorData = await response.json().catch(() => ({}));
+      lastErrorText = errorData?.error?.message || `Gemini API error (${response.status}): ${response.statusText}`;
+
+      if (/api_key_invalid|api key not valid/i.test(lastErrorText)) {
+        throw new Error('API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại trong Cài đặt.');
+      }
+      if (/quota|rate limit/i.test(lastErrorText)) {
+        throw new Error('Hạn mức gọi Gemini API đã hết (Quota exceeded). Vui lòng thử lại sau.');
+      }
+    } catch (err: any) {
+      if (err.message && (err.message.includes('API Key') || err.message.includes('Hạn mức'))) {
+        throw err;
+      }
+      lastErrorText = err.message || 'Network request failed';
+    }
+  }
+
+  if (!response || !response.ok) {
+    throw new Error(lastErrorText || 'Could not connect to Gemini Vision API');
   }
 
   const data = await response.json();

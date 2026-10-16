@@ -323,3 +323,8 @@ XLSX.utils.book_append_sheet(wb, wsAccounts, 'Accounts');
 const outputPath = '/Users/june.temp/Downloads/Namin/Namin_Import_Nhi_Wallet.xlsx';
 XLSX.writeFile(wb, outputPath);
 console.log('Successfully written to:', outputPath);
+
+const publicPath = '/Users/june.temp/Downloads/Namin/public/Namin_Import_Nhi_Wallet.xlsx';
+XLSX.writeFile(wb, publicPath);
+console.log('Successfully written to public:', publicPath);
+

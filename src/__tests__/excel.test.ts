@@ -148,4 +148,43 @@ describe('Excel Import & Export Logic', () => {
     expect(transferTx?.accountId).toBeDefined();
     expect(transferTx?.toAccountId).toBeDefined();
   });
+
+  it('updates existing Cash account scope from household to personal when specified in Accounts sheet', async () => {
+    const XLSX = await import('xlsx');
+    const { parseExcelFile } = await import('../lib/excel');
+
+    // Manually force Cash to be household in store to simulate previous state
+    useStore.setState((s) => ({
+      accounts: s.accounts.map((a) => (a.name.toLowerCase() === 'cash' ? { ...a, scope: 'household', initialBalance: 0 } : a)),
+    }));
+
+    const preState = useStore.getState();
+    const preCash = preState.accounts.find((a) => a.name.toLowerCase() === 'cash');
+    expect(preCash?.scope).toBe('household');
+
+    const wb = XLSX.utils.book_new();
+    const accountsData = [
+      { 'Account Name': 'Cash', 'Scope': 'Personal', 'Nature': 'Asset', 'Initial Balance': -418000, 'Current Balance': 1132000, 'Exclude From Total': 'No' },
+    ];
+    const myWalletData = [
+      { 'Date': '2026-10-01', 'Type': 'EXPENSE', 'Item / Title': 'Bún bò', 'Category': 'Food', 'Amount': 50000, 'Account': 'Cash', 'To Account': '', 'Member': 'Me', 'Notes': '' },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accountsData), 'Accounts');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(myWalletData), 'My_Wallet');
+
+    const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    const file = new File([buffer], 'namin_cash_update.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    const preview = await parseExcelFile(file);
+    expect(preview.updatedAccounts?.some((a) => a.id === preCash?.id && a.scope === 'personal')).toBe(true);
+
+    commitImport(preview);
+
+    const postState = useStore.getState();
+    const postCash = postState.accounts.find((a) => a.name.toLowerCase() === 'cash');
+    expect(postCash?.scope).toBe('personal');
+    expect(postCash?.initialBalance).toBe(-418000);
+  });
 });
+

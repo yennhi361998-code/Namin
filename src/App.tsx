@@ -25,27 +25,61 @@ function ScrollOnNavigate() {
   return null;
 }
 
+function RootRedirect() {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const action = searchParams.get('action');
+  if (
+    action === 'quick-add' ||
+    action === 'new-transaction' ||
+    searchParams.has('quick-add') ||
+    searchParams.has('new') ||
+    searchParams.has('amount') ||
+    searchParams.has('note')
+  ) {
+    const scope = (searchParams.get('scope') as FinanceScope) || 'household';
+    const target = scope === 'personal' ? '/my-wallet' : '/our-wallet';
+    return <Navigate to={`${target}${location.search}`} replace />;
+  }
+  return <Navigate to="/tasks" replace />;
+}
+
+function QuickAddRedirect() {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const scope = (searchParams.get('scope') as FinanceScope) || 'household';
+  const target = scope === 'personal' ? '/my-wallet' : '/our-wallet';
+  return <Navigate to={`${target}${location.search}`} replace />;
+}
+
 /** Parses iOS Shortcut / Deep link query parameters to trigger quick add transaction */
 function QuickAddUrlListener() {
   const location = useLocation();
 
   useEffect(() => {
     try {
-      const href = window.location.href;
-      const url = new URL(href);
-      let params = url.searchParams;
-      if (url.hash && url.hash.includes('?')) {
-        params = new URLSearchParams(url.hash.split('?')[1]);
-      }
+      const search = location.search;
+      const params = new URLSearchParams(search);
+      const pathname = location.pathname;
 
+      const isQuickAddRoute = pathname === '/quick-add' || pathname === '/new-transaction' || pathname === '/scan';
       const action = params.get('action');
       const amountStr = params.get('amount');
       const note = params.get('note');
       const category = params.get('category');
       const type = (params.get('type') as TxType) || 'expense';
-      const scope = (params.get('scope') as FinanceScope) || 'household';
+      const scope = (params.get('scope') as FinanceScope) || (pathname.includes('my-wallet') ? 'personal' : 'household');
 
-      if (action === 'quick-add' || amountStr || note) {
+      const shouldTrigger =
+        isQuickAddRoute ||
+        action === 'quick-add' ||
+        action === 'new-transaction' ||
+        params.has('quick-add') ||
+        params.has('new') ||
+        Boolean(amountStr) ||
+        Boolean(note);
+
+      if (shouldTrigger) {
         const amount = amountStr ? parseInt(amountStr.replace(/\D/g, ''), 10) : undefined;
         const categories = useStore.getState().moneyCategories;
         let matchedCatId: string | undefined = undefined;
@@ -65,14 +99,15 @@ function QuickAddUrlListener() {
           },
         });
 
-        // Clean query parameters from URL to avoid re-triggering on page refresh
-        const cleanHash = url.hash.includes('?') ? url.hash.split('?')[0] : url.hash;
-        window.history.replaceState({}, document.title, window.location.pathname + cleanHash);
+        // Clean query parameters from URL so refreshes don't re-trigger unnecessarily
+        if (search) {
+          window.history.replaceState({}, document.title, location.pathname);
+        }
       }
     } catch (err) {
       console.warn('Failed to parse quick-add URL params:', err);
     }
-  }, [location]);
+  }, [location.pathname, location.search]);
 
   return null;
 }
@@ -88,7 +123,10 @@ export default function App() {
       <ScrollOnNavigate />
       <QuickAddUrlListener />
       <Routes>
-        <Route path="/" element={<Navigate to="/tasks" replace />} />
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="/quick-add" element={<QuickAddRedirect />} />
+        <Route path="/new-transaction" element={<QuickAddRedirect />} />
+        <Route path="/scan" element={<QuickAddRedirect />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/tasks/:id" element={<TaskDetail />} />
         <Route path="/our-wallet" element={<OurWallet />} />

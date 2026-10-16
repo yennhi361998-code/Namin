@@ -13,6 +13,7 @@ export interface ImportPreviewData {
   shoppingItems: ShoppingItem[];
   inventoryItems: HouseholdItem[];
   newAccounts?: Account[];
+  updatedAccounts?: Array<Partial<Account> & { id: string }>;
   newCategories?: MoneyCategory[];
 }
 
@@ -160,6 +161,7 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
   const membersByName = new Map(state.members.map((m) => [m.name.toLowerCase().trim(), m.id]));
 
   const newAccounts: Account[] = [];
+  const updatedAccountsMap = new Map<string, Partial<Account> & { id: string }>();
   const newCategories: MoneyCategory[] = [];
 
   const ensureAccount = (
@@ -167,13 +169,15 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
     defaultScope: FinanceScope = 'personal',
     defaultNature?: AccountNature,
     initialBalance: number = 0,
-    excludeFromTotal?: boolean
+    excludeFromTotal?: boolean,
+    explicitScope?: FinanceScope
   ): string | null => {
     const trimmed = rawName.trim();
     if (!trimmed) return null;
     const lower = trimmed.toLowerCase();
     if (accountsByName.has(lower)) {
-      const existingNew = newAccounts.find((a) => a.id === accountsByName.get(lower));
+      const id = accountsByName.get(lower)!;
+      const existingNew = newAccounts.find((a) => a.id === id);
       if (existingNew) {
         if (initialBalance !== 0 && (!existingNew.initialBalance || existingNew.initialBalance === 0)) {
           existingNew.initialBalance = initialBalance;
@@ -181,11 +185,38 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
         if (excludeFromTotal !== undefined) {
           existingNew.excludeFromTotal = excludeFromTotal;
         }
+        if (explicitScope) {
+          existingNew.scope = explicitScope;
+        }
+        if (defaultNature) {
+          existingNew.nature = defaultNature;
+        }
+      } else {
+        const existingInState = state.accounts.find((a) => a.id === id);
+        if (existingInState) {
+          const upd: Partial<Account> & { id: string } = updatedAccountsMap.get(id) || { id };
+          if (initialBalance !== 0 && (!existingInState.initialBalance || existingInState.initialBalance === 0)) {
+            upd.initialBalance = initialBalance;
+          }
+          if (excludeFromTotal !== undefined) {
+            upd.excludeFromTotal = excludeFromTotal;
+          }
+          if (explicitScope) {
+            upd.scope = explicitScope;
+          } else if (defaultScope === 'personal' && (lower === 'cash' || lower === 'tiền mặt')) {
+            // When Cash is used in Personal scope (e.g. My_Wallet), update from default household to personal
+            upd.scope = 'personal';
+          }
+          if (defaultNature) {
+            upd.nature = defaultNature;
+          }
+          updatedAccountsMap.set(id, upd);
+        }
       }
-      return accountsByName.get(lower)!;
+      return id;
     }
     const isDebt = defaultNature ? defaultNature === 'debt' : /tín dụng|tin dung|credit/i.test(trimmed);
-    const isHousehold = defaultScope === 'household' || /quỹ|chung|household/i.test(trimmed);
+    const resolvedScope = explicitScope ?? (defaultScope === 'household' || /quỹ|chung|household/i.test(trimmed) ? 'household' : 'personal');
     const isExcluded = excludeFromTotal ?? false;
 
     const newAcc: Account = {
@@ -194,7 +225,7 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
       name: trimmed,
       icon: isDebt ? 'credit_card' : /momo|zalopay|ví/i.test(trimmed) ? 'account_balance_wallet' : /tiền mặt|cash/i.test(trimmed) ? 'payments' : 'account_balance',
       color: isDebt ? '#8B5CF6' : /momo/i.test(trimmed) ? '#D946EF' : '#4B7BFF',
-      scope: isHousehold ? 'household' : 'personal',
+      scope: resolvedScope,
       nature: isDebt ? 'debt' : 'asset',
       initialBalance,
       excludeFromTotal: isExcluded,
@@ -243,7 +274,8 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
       for (const row of rawRows) {
         const name = String(row['Account Name'] || row['Tên tài khoản'] || row['Name'] || '').trim();
         if (!name) continue;
-        const scope: FinanceScope = /house|chung/i.test(String(row['Scope'] || '')) ? 'household' : 'personal';
+        const scopeStr = String(row['Scope'] || '').trim();
+        const scope: FinanceScope = /house|chung/i.test(scopeStr) ? 'household' : 'personal';
         const nature: AccountNature = /debt|nợ|credit|tín dụng|tin dung/i.test(String(row['Nature'] || '')) ? 'debt' : 'asset';
         const rawBal = row['Initial Balance'] ?? row['Số dư ban đầu'] ?? row['Initial balance'] ?? row['Balance'];
         const initialBalance = rawBal !== undefined && rawBal !== '' ? Number(String(rawBal).replace(/[^\d.-]/g, '')) || 0 : 0;
@@ -251,7 +283,7 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
         const excludeFromTotal = rawExclude !== undefined && rawExclude !== ''
           ? /yes|có|true|1|y/i.test(String(rawExclude).trim())
           : undefined;
-        ensureAccount(name, scope, nature, initialBalance, excludeFromTotal);
+        ensureAccount(name, scope, nature, initialBalance, excludeFromTotal, scope);
       }
     }
   }
@@ -386,6 +418,7 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
     shoppingItems,
     inventoryItems,
     newAccounts,
+    updatedAccounts: Array.from(updatedAccountsMap.values()),
     newCategories,
   };
 }
@@ -416,10 +449,18 @@ export function commitImport(data: ImportPreviewData): { addedTxs: number; added
   const newTasks = data.tasks.filter((t) => !existingTaskKey.has(`${t.title.trim().toLowerCase()}_${t.dueDate}`));
 
   const newAccounts = data.newAccounts || [];
+  const updatedAccounts = data.updatedAccounts || [];
+  const updatedAccountsMap = new Map(updatedAccounts.map((a) => [a.id, a]));
   const newCategories = data.newCategories || [];
 
   useStore.setState((s) => ({
-    accounts: [...s.accounts, ...newAccounts],
+    accounts: [
+      ...s.accounts.map((a) => {
+        const upd = updatedAccountsMap.get(a.id);
+        return upd ? { ...a, ...upd } : a;
+      }),
+      ...newAccounts,
+    ],
     moneyCategories: [...s.moneyCategories, ...newCategories],
     transactions: [...s.transactions, ...allNewTxs],
     tasks: [...s.tasks, ...newTasks],

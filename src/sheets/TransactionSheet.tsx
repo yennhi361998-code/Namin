@@ -162,9 +162,14 @@ export function TransactionSheet({
       });
     } catch (err: any) {
       console.error('Scan error:', err);
-      if (err.message === 'MISSING_API_KEY') {
+      if (err.message === 'MISSING_API_KEY' || err.message?.includes('API Key')) {
         setPendingFile(file);
         setApiKeyModalOpen(true);
+        toast({
+          title: 'Gemini API Key',
+          subtitle: err.message === 'MISSING_API_KEY' ? 'Vui lòng nhập API Key Google Gemini' : err.message,
+          tone: 'error',
+        });
       } else {
         toast({
           title: 'Could not read receipt',

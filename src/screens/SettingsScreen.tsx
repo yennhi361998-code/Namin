@@ -509,14 +509,51 @@ export function SettingsScreen() {
 
             <div className="p-3 bg-surface rounded-xl border border-line flex gap-3">
               <span className="w-6 h-6 rounded-full bg-sky text-ink text-[12px] font-bold flex items-center justify-center shrink-0">3</span>
-              <div className="flex flex-col gap-1 text-body-sm">
-                <span className="font-semibold text-ink">Quick Add Deep Link Format</span>
+              <div className="flex flex-col gap-2 text-body-sm flex-1 min-w-0">
+                <span className="font-semibold text-ink">Back Tap Shortcut URLs</span>
                 <span className="text-ink-sub text-caption leading-relaxed">
-                  The shortcut opens Namin with prefilled parameters:
+                  Use either of these links in the <strong>Open URLs</strong> action of your Apple Shortcut:
                 </span>
-                <code className="p-2 bg-canvas rounded-lg text-[11px] text-sky-dark font-mono break-all border border-line/60">
-                  {window.location.origin}/#/our-wallet?action=quick-add&amount=120000&note=Coffee
-                </code>
+                
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <div className="flex items-center justify-between gap-2 p-2 bg-canvas rounded-lg border border-line/60">
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[11px] font-bold text-ink">Our Wallet (Household)</span>
+                      <code className="text-[11px] text-sky-dark font-mono truncate">
+                        {window.location.origin}/quick-add
+                      </code>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/quick-add`);
+                        toast({ title: 'Copied Our Wallet link' });
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-surface border border-line rounded-md text-ink hover:bg-soft shrink-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 p-2 bg-canvas rounded-lg border border-line/60">
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[11px] font-bold text-ink">My Wallet (Personal)</span>
+                      <code className="text-[11px] text-sky-dark font-mono truncate">
+                        {window.location.origin}/quick-add?scope=personal
+                      </code>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/quick-add?scope=personal`);
+                        toast({ title: 'Copied My Wallet link' });
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-surface border border-line rounded-md text-ink hover:bg-soft shrink-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
