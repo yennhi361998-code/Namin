@@ -301,6 +301,57 @@ export function parseReceiptFromText(
 }
 
 /**
+ * Parses and validates Gemini JSON response.
+ */
+export function parseGeminiJsonResponse(
+  rawText: string,
+  categories: Array<{ id: string; name: string }>
+): ParsedReceipt {
+  const cleaned = rawText
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    console.warn('JSON parse failed on Gemini response:', rawText);
+    return parseReceiptFromText(rawText, categories);
+  }
+
+  const amount = Number(parsed.amount) || 0;
+  const note = String(parsed.note || 'Giao dịch').trim();
+  const date = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : undefined;
+  const type: 'expense' | 'income' = parsed.type === 'income' ? 'income' : 'expense';
+  const suggestedCategory = parsed.suggestedCategory ? String(parsed.suggestedCategory).trim() : undefined;
+  const matchedCategoryId = matchCategory(suggestedCategory, categories);
+
+  const items: ParsedReceiptItem[] = Array.isArray(parsed.items)
+    ? parsed.items
+        .map((it: any) => ({
+          name: String(it.name || '').trim(),
+          quantity: Number(it.quantity) || 1,
+          price: Number(it.price) || 0,
+          unit: it.unit ? String(it.unit).trim() : undefined,
+        }))
+        .filter((it: ParsedReceiptItem) => it.name.length > 0)
+    : [];
+
+  return {
+    amount,
+    note,
+    date,
+    type,
+    suggestedCategory,
+    matchedCategoryId,
+    items,
+    rawResponse: rawText,
+  };
+}
+
+/**
  * Send receipt image to Google Gemini Vision API to extract structured transaction data.
  */
 export async function parseReceiptWithGemini(
@@ -316,6 +367,44 @@ export async function parseReceiptWithGemini(
   const { base64, mimeType } = await prepareImageForGemini(file);
   const categoryNames = categories.map((c) => c.name).join(', ');
 
+  // 1. Try Vercel Serverless Function (/api/gemini) first to completely bypass browser CORS & preflight blocks
+  try {
+    const proxyRes = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey,
+        base64,
+        mimeType,
+        categoryNames,
+      }),
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data?.success && data?.text) {
+        return parseGeminiJsonResponse(data.text, categories);
+      }
+    } else {
+      const errJson = await proxyRes.json().catch(() => ({}));
+      if (errJson?.error && proxyRes.status !== 404) {
+        throw new Error(errJson.error);
+      }
+    }
+  } catch (err: any) {
+    // If backend returned a clear user error (e.g. invalid key), rethrow
+    if (
+      err.message &&
+      !err.message.includes('Failed to fetch') &&
+      !err.message.includes('Type error') &&
+      !err.message.includes('Load failed') &&
+      !err.message.includes('404')
+    ) {
+      throw err;
+    }
+  }
+
+  // 2. Direct browser fetch fallback (Pass key in query string and NO custom headers to avoid CORS preflight rejection)
   const systemPrompt = `You are an intelligent family finance assistant for the Namin app.
 Your task is to parse this receipt, bill, invoice, or banking transfer confirmation screenshot (in Vietnamese or English).
 
@@ -341,7 +430,6 @@ Important guidelines:
 2. "note" should be short and descriptive, prioritizing merchant/store name.
 3. Return ONLY valid raw JSON syntax with no code fences or explanations.`;
 
-  // Standard Google GenAI REST API payload structure
   const requestBody = {
     contents: [
       {
@@ -363,7 +451,6 @@ Important guidelines:
     },
   };
 
-  // 1. Try to discover which models are actually enabled for this API Key
   let activeEndpoint = 'v1beta';
   let modelsToTry = [
     'gemini-2.5-flash',
@@ -378,10 +465,7 @@ Important guidelines:
   for (const ep of ['v1beta', 'v1']) {
     try {
       const listUrl = `https://generativelanguage.googleapis.com/${ep}/models?key=${encodeURIComponent(apiKey)}`;
-      const listRes = await fetch(listUrl, {
-        method: 'GET',
-        headers: { 'x-goog-api-key': apiKey },
-      });
+      const listRes = await fetch(listUrl, { method: 'GET' });
 
       if (listRes.ok) {
         const listData = await listRes.json();
@@ -390,7 +474,6 @@ Important guidelines:
             .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
             .map((m: any) => m.name.replace(/^models\//, ''));
           if (names.length > 0) {
-            // Sort models to prioritize fast flash models
             names.sort((a: string, b: string) => {
               const aFlash = a.includes('flash') ? 1 : 0;
               const bFlash = b.includes('flash') ? 1 : 0;
@@ -402,30 +485,9 @@ Important guidelines:
             break;
           }
         }
-      } else {
-        const errJson = await listRes.json().catch(() => ({}));
-        const rawMsg = errJson?.error?.message || '';
-        if (/api_key_invalid|api key not valid|key not found|invalid api key/i.test(rawMsg)) {
-          throw new Error('API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại API Key trong Cài đặt.');
-        }
-        if (/quota|rate limit|resource has been exhausted|exceeded your current quota/i.test(rawMsg)) {
-          throw new Error('Hạn mức gọi Gemini API đã hết hoặc bị giới hạn tốc độ. Vui lòng thử lại sau ít phút.');
-        }
-        if (/location is not supported|user location|geoblocked/i.test(rawMsg)) {
-          throw new Error('Google Gemini API chưa hỗ trợ khu vực mạng hiện tại của bạn. Vui lòng thử đổi mạng hoặc sử dụng VPN.');
-        }
       }
-    } catch (e: any) {
-      if (
-        e.message &&
-        (e.message.includes('API Key') ||
-          e.message.includes('Hạn mức') ||
-          e.message.includes('khu vực') ||
-          e.message.includes('VPN'))
-      ) {
-        throw e;
-      }
-      // If fetching model list fails, fall back to candidate list
+    } catch {
+      // Continue to next endpoint or fallback
     }
   }
 
@@ -440,7 +502,6 @@ Important guidelines:
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
         },
         body: JSON.stringify(requestBody),
       });
@@ -496,47 +557,5 @@ Important guidelines:
     throw new Error('Không nhận được nội dung phản hồi từ AI.');
   }
 
-  // Clean JSON in case markdown fences were included
-  const cleaned = rawText
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
-
-  let parsed: any;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (err) {
-    console.warn('JSON parse failed on Gemini response:', rawText);
-    return parseReceiptFromText(rawText, categories);
-  }
-
-  const amount = Number(parsed.amount) || 0;
-  const note = String(parsed.note || 'Giao dịch').trim();
-  const date = parsed.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : undefined;
-  const type: 'expense' | 'income' = parsed.type === 'income' ? 'income' : 'expense';
-  const suggestedCategory = parsed.suggestedCategory ? String(parsed.suggestedCategory).trim() : undefined;
-  const matchedCategoryId = matchCategory(suggestedCategory, categories);
-
-  const items: ParsedReceiptItem[] = Array.isArray(parsed.items)
-    ? parsed.items
-        .map((it: any) => ({
-          name: String(it.name || '').trim(),
-          quantity: Number(it.quantity) || 1,
-          price: Number(it.price) || 0,
-          unit: it.unit ? String(it.unit).trim() : undefined,
-        }))
-        .filter((it: ParsedReceiptItem) => it.name.length > 0)
-    : [];
-
-  return {
-    amount,
-    note,
-    date,
-    type,
-    suggestedCategory,
-    matchedCategoryId,
-    items,
-    rawResponse: rawText,
-  };
+  return parseGeminiJsonResponse(rawText, categories);
 }

@@ -60,6 +60,9 @@ describe('Vision & Receipt Parsing', () => {
     let interceptedBody: any = null;
 
     globalThis.fetch = async (url: any, init: any) => {
+      if (String(url) === '/api/gemini') {
+        return { ok: false, status: 404, json: async () => ({}) } as any;
+      }
       if (init?.method === 'GET' || !init?.body) {
         return {
           ok: true,
@@ -125,17 +128,26 @@ describe('Vision & Receipt Parsing', () => {
     setGeminiApiKey('AIzaSyInvalidKey');
 
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = async () => ({
-      ok: false,
-      status: 400,
-      json: async () => ({
-        error: {
-          code: 400,
-          message: 'API key not valid. Please pass a valid API key.',
-          status: 'INVALID_ARGUMENT'
-        }
-      })
-    } as any);
+    globalThis.fetch = async (url: any) => {
+      if (String(url) === '/api/gemini') {
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({ error: 'API Key Google Gemini không hợp lệ. Vui lòng kiểm tra lại API Key trong Cài đặt.' })
+        } as any;
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: {
+            code: 400,
+            message: 'API key not valid. Please pass a valid API key.',
+            status: 'INVALID_ARGUMENT'
+          }
+        })
+      } as any;
+    };
 
     try {
       const dummyFile = new Blob(['fake image data'], { type: 'image/jpeg' });

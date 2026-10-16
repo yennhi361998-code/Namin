@@ -17,6 +17,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
         // Client-side routes (/tasks, /items/:id, ...) load index.html when offline.
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api/],
         cleanupOutdatedCaches: true,
       },
     }),
