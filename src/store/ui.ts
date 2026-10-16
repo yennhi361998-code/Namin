@@ -7,7 +7,7 @@ export interface Toast {
   title: string;
   subtitle?: string;
   action?: { label: string; run: () => void };
-  tone?: 'default' | 'error';
+  tone?: 'default' | 'error' | 'success';
 }
 
 export type Sheet =

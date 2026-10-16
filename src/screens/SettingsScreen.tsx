@@ -26,6 +26,8 @@ export function SettingsScreen() {
   const [geminiApiKeyInput, setGeminiApiKeyInput] = useState(() => getGeminiApiKey());
   const [backTapGuideOpen, setBackTapGuideOpen] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isReadingFile, setIsReadingFile] = useState(false);
 
   const handleOpenBudget = (scope: FinanceScope) => {
     setEditingBudgetScope(scope);
@@ -68,6 +70,7 @@ export function SettingsScreen() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setIsReadingFile(true);
     try {
       const parsed = await parseExcelFile(file);
       const totalFound = parsed.ourWalletTxs.length + parsed.myWalletTxs.length + parsed.tasks.length;
@@ -80,13 +83,18 @@ export function SettingsScreen() {
       console.error('Failed to parse Excel file:', err);
       toast({ title: 'Failed to read file', subtitle: err.message, tone: 'error' });
     } finally {
+      setIsReadingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleConfirmImport = () => {
-    if (!importPreview) return;
+  const handleConfirmImport = async () => {
+    if (!importPreview || isImporting) return;
+    setIsImporting(true);
     try {
+      // Short delay so user can see "Đang nạp dữ liệu..." with spinner before popup closes
+      await new Promise((r) => setTimeout(r, 600));
+
       const newAccs = importPreview.newAccounts?.length || 0;
       const newCats = importPreview.newCategories?.length || 0;
       const result = commitImport(importPreview);
@@ -97,11 +105,14 @@ export function SettingsScreen() {
       toast({
         title: 'Import completed successfully!',
         subtitle: `Added ${result.addedTxs} transactions${extrasStr} and ${result.addedTasks} tasks.`,
+        tone: 'success',
       });
       setImportPreview(null);
     } catch (err: any) {
       console.error('Import commit failed:', err);
       toast({ title: 'Import failed', subtitle: err.message, tone: 'error' });
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -192,16 +203,23 @@ export function SettingsScreen() {
           {/* Import Excel */}
           <button
             type="button"
+            disabled={isReadingFile}
             onClick={() => fileInputRef.current?.click()}
-            className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent"
+            className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent disabled:opacity-60"
           >
             <div className="flex items-center gap-3.5 min-w-0">
               <Icon name="upload" className="text-[20px] text-ink shrink-0" />
               <span className="text-body-md font-medium text-ink">Import Excel (.xlsx)</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-body-sm text-ink-sub">Select file</span>
-              <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
+              <span className="text-body-sm text-ink-sub">
+                {isReadingFile ? 'Đang đọc file...' : 'Select file'}
+              </span>
+              {isReadingFile ? (
+                <Icon name="sync" className="text-[18px] text-sky-dark animate-spin" />
+              ) : (
+                <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
+              )}
             </div>
           </button>
 
@@ -332,15 +350,22 @@ export function SettingsScreen() {
       {importPreview && (
         <BottomSheet
           open={!!importPreview}
-          onClose={() => setImportPreview(null)}
+          onClose={() => !isImporting && setImportPreview(null)}
           title="Import Excel Data"
           footer={
             <div className="flex items-center gap-2">
-              <GhostButton className="flex-1" onClick={() => setImportPreview(null)}>
+              <GhostButton className="flex-1" disabled={isImporting} onClick={() => !isImporting && setImportPreview(null)}>
                 Cancel
               </GhostButton>
-              <PrimaryButton className="flex-[2]" onClick={handleConfirmImport}>
-                Import Data
+              <PrimaryButton className="flex-[2]" disabled={isImporting} onClick={handleConfirmImport}>
+                {isImporting ? (
+                  <>
+                    <Icon name="sync" className="text-[20px] animate-spin" />
+                    <span>Đang nạp dữ liệu...</span>
+                  </>
+                ) : (
+                  'Import Data'
+                )}
               </PrimaryButton>
             </div>
           }

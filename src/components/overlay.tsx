@@ -288,7 +288,16 @@ export function Snackbar() {
           )}
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className={cx('w-7 h-7 rounded-full flex items-center justify-center shrink-0', current.tone === 'error' ? 'bg-err text-err-ink' : 'bg-sky text-ink')}>
+            <span
+              className={cx(
+                'w-7 h-7 rounded-full flex items-center justify-center shrink-0',
+                current.tone === 'error'
+                  ? 'bg-err text-err-ink'
+                  : current.tone === 'success'
+                  ? 'bg-[#10B981] text-white'
+                  : 'bg-sky text-ink',
+              )}
+            >
               <Icon name={current.tone === 'error' ? 'priority_high' : 'check'} className="text-[16px] font-bold" />
             </span>
             <div className="flex flex-col min-w-0">
