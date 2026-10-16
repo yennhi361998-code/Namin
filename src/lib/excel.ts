@@ -161,11 +161,15 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
   const newAccounts: Account[] = [];
   const newCategories: MoneyCategory[] = [];
 
-  const ensureAccount = (rawName: string, defaultScope: FinanceScope = 'personal', defaultNature?: AccountNature): string | null => {
+  const ensureAccount = (rawName: string, defaultScope: FinanceScope = 'personal', defaultNature?: AccountNature, initialBalance: number = 0): string | null => {
     const trimmed = rawName.trim();
     if (!trimmed) return null;
     const lower = trimmed.toLowerCase();
     if (accountsByName.has(lower)) {
+      const existingNew = newAccounts.find((a) => a.id === accountsByName.get(lower));
+      if (existingNew && initialBalance !== 0 && (!existingNew.initialBalance || existingNew.initialBalance === 0)) {
+        existingNew.initialBalance = initialBalance;
+      }
       return accountsByName.get(lower)!;
     }
     const isDebt = defaultNature ? defaultNature === 'debt' : /tín dụng|tin dung|credit/i.test(trimmed);
@@ -178,7 +182,7 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
       color: isDebt ? '#8B5CF6' : /momo/i.test(trimmed) ? '#D946EF' : '#4B7BFF',
       scope: isHousehold ? 'household' : 'personal',
       nature: isDebt ? 'debt' : 'asset',
-      initialBalance: 0,
+      initialBalance,
       createdAt: new Date().toISOString(),
     };
     newAccounts.push(newAcc);
@@ -225,8 +229,10 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
         const name = String(row['Account Name'] || row['Tên tài khoản'] || row['Name'] || '').trim();
         if (!name) continue;
         const scope: FinanceScope = /house|chung/i.test(String(row['Scope'] || '')) ? 'household' : 'personal';
-        const nature: AccountNature = /debt|nợ|credit|tín dụng/i.test(String(row['Nature'] || '')) ? 'debt' : 'asset';
-        ensureAccount(name, scope, nature);
+        const nature: AccountNature = /debt|nợ|credit|tín dụng|tin dung/i.test(String(row['Nature'] || '')) ? 'debt' : 'asset';
+        const rawBal = row['Initial Balance'] ?? row['Số dư ban đầu'] ?? row['Initial balance'] ?? row['Balance'];
+        const initialBalance = rawBal !== undefined && rawBal !== '' ? Number(String(rawBal).replace(/[^\d.-]/g, '')) || 0 : 0;
+        ensureAccount(name, scope, nature, initialBalance);
       }
     }
   }

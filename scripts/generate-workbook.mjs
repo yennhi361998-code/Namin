@@ -225,13 +225,57 @@ dataLines.forEach((line) => {
 console.log('Total processed My_Wallet rows:', myWalletRows.length);
 console.log('Distinct Accounts found:', accountsSet.size);
 
-// Create Accounts rows
-const accountsRows = Array.from(accountsSet.values()).map(a => ({
-  'Account Name': a.name,
-  'Scope': a.scope,
-  'Nature': a.nature,
-  'Initial Balance': 0,
-}));
+// Calculate net flow per account
+const flows = {};
+myWalletRows.forEach(r => {
+  const acc = r['Account'];
+  const toAcc = r['To Account'];
+  const type = r['Type'];
+  const amount = Number(r['Amount']) || 0;
+
+  if (acc) {
+    if (!flows[acc]) flows[acc] = 0;
+    if (type === 'EXPENSE') flows[acc] -= amount;
+    else if (type === 'INCOME') flows[acc] += amount;
+    else if (type === 'TRANSFER') flows[acc] -= amount;
+  }
+  if (toAcc && type === 'TRANSFER') {
+    if (!flows[toAcc]) flows[toAcc] = 0;
+    flows[toAcc] += amount;
+  }
+});
+
+// Target balances directly from user screenshots
+const targetCurrentBalances = {
+  'VPBank': 16554591,
+  'Cash': 1132000,
+  'Momo': 13000,
+  'The tin dung': -457275,
+  'Thẻ tín dụng WL': 0,
+  'Silver 40 lượng': 158350000,
+  'Gold 44 chỉ 🏅': 530850000,
+  'Tikop': 192000000,
+  'Quỹ vợ chồng': 120500000,
+  'Tiền iphone': 2000000,
+  'Stock': 10000000,
+  'Woori': 0,
+  'Woori 12T 250126': 0,
+  'Woori 24T 19Dec25': 0,
+};
+
+// Create Accounts rows with calibrated Initial Balance and Current Balance
+const accountsRows = Array.from(accountsSet.values()).map(a => {
+  const target = targetCurrentBalances[a.name] !== undefined ? targetCurrentBalances[a.name] : (flows[a.name] || 0);
+  const flow = flows[a.name] || 0;
+  const initial = target - flow;
+  return {
+    'Account Name': a.name,
+    'Scope': a.scope,
+    'Nature': a.nature,
+    'Initial Balance': Math.round(initial),
+    'Current Balance': target,
+  };
+});
 
 // Build Workbook
 const wb = XLSX.utils.book_new();
@@ -257,7 +301,8 @@ wsAccounts['!cols'] = [
   { wch: 24 }, // Account Name
   { wch: 14 }, // Scope
   { wch: 12 }, // Nature
-  { wch: 16 }, // Initial Balance
+  { wch: 18 }, // Initial Balance
+  { wch: 18 }, // Current Balance
 ];
 XLSX.utils.book_append_sheet(wb, wsAccounts, 'Accounts');
 
