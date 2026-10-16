@@ -87,10 +87,16 @@ export function SettingsScreen() {
   const handleConfirmImport = () => {
     if (!importPreview) return;
     try {
+      const newAccs = importPreview.newAccounts?.length || 0;
+      const newCats = importPreview.newCategories?.length || 0;
       const result = commitImport(importPreview);
+      const extras: string[] = [];
+      if (newAccs > 0) extras.push(`${newAccs} accounts`);
+      if (newCats > 0) extras.push(`${newCats} categories`);
+      const extrasStr = extras.length > 0 ? `, ${extras.join(', ')}` : '';
       toast({
         title: 'Import completed successfully!',
-        subtitle: `Added ${result.addedTxs} transactions and ${result.addedTasks} tasks.`,
+        subtitle: `Added ${result.addedTxs} transactions${extrasStr} and ${result.addedTasks} tasks.`,
       });
       setImportPreview(null);
     } catch (err: any) {
@@ -355,6 +361,18 @@ export function SettingsScreen() {
                 <span className="text-ink">My Wallet Transactions</span>
                 <span className="font-semibold text-ink">{importPreview.myWalletTxs.length}</span>
               </div>
+              {importPreview.newAccounts && importPreview.newAccounts.length > 0 && (
+                <div className="flex items-center justify-between p-3 text-body-sm">
+                  <span className="text-ink">Wallets & Accounts</span>
+                  <span className="font-semibold text-done-ink">+{importPreview.newAccounts.length}</span>
+                </div>
+              )}
+              {importPreview.newCategories && importPreview.newCategories.length > 0 && (
+                <div className="flex items-center justify-between p-3 text-body-sm">
+                  <span className="text-ink">Spending Categories</span>
+                  <span className="font-semibold text-done-ink">+{importPreview.newCategories.length}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between p-3 text-body-sm">
                 <span className="text-ink">Household Tasks</span>
                 <span className="font-semibold text-ink">{importPreview.tasks.length}</span>
