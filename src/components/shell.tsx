@@ -1,6 +1,6 @@
 import type { IconName } from './icons';
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentMember } from '../store/selectors';
 import { useStore } from '../store';
@@ -201,7 +201,15 @@ export function BrandHeader() {
       <div className="h-12 px-1.5 grid grid-cols-[52px_1fr_52px] items-center">
         <span aria-hidden />
         <div className="flex justify-center">
-          <Logo height={30} color="#FFFFFF" />
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            title="Làm mới trang"
+            aria-label="Làm mới trang"
+            className="flex items-center justify-center p-1 rounded-lg active:scale-95 transition-transform cursor-pointer"
+          >
+            <Logo height={30} color="#FFFFFF" />
+          </button>
         </div>
         <div className="flex justify-end">
           <button type="button" onClick={() => openSheet({ type: 'household' })} aria-label="Household and members" className="w-11 h-11 rounded-full flex items-center justify-center active:bg-white/40">
@@ -318,11 +326,109 @@ export function Fab({ label, onClick }: { label: string; onClick: () => void }) 
   );
 }
 
+export function PullToRefresh({ children }: { children: ReactNode }) {
+  const [pullY, setPullY] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const startYRef = useRef(0);
+  const isPullingRef = useRef(false);
+  const sheetOpen = useUi((s) => s.sheetOpen);
+
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      // Only start gesture if scrolled at the very top, no bottom sheet/modal is open
+      if (window.scrollY <= 2 && !sheetOpen && !isRefreshing) {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('[role="dialog"]') || target?.closest('input') || target?.closest('textarea')) {
+          isPullingRef.current = false;
+          return;
+        }
+        startYRef.current = e.touches[0].clientY;
+        isPullingRef.current = true;
+      } else {
+        isPullingRef.current = false;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isPullingRef.current || isRefreshing || sheetOpen) return;
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - startYRef.current;
+
+      if (diff > 0 && window.scrollY <= 2) {
+        // Smooth logarithmic resistance curve
+        const distance = Math.min(80, Math.pow(diff, 0.82) * 1.6);
+        setPullY(distance);
+      } else if (diff < 0) {
+        isPullingRef.current = false;
+        setPullY(0);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (!isPullingRef.current || isRefreshing) return;
+      isPullingRef.current = false;
+
+      if (pullY >= 55) {
+        setIsRefreshing(true);
+        setPullY(55);
+        setTimeout(() => {
+          window.location.reload();
+        }, 350);
+      } else {
+        setPullY(0);
+      }
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [pullY, isRefreshing, sheetOpen]);
+
+  return (
+    <>
+      {(pullY > 0 || isRefreshing) && (
+        <div
+          className="fixed top-0 inset-x-0 z-50 flex items-center justify-center pointer-events-none transition-transform duration-150 ease-out"
+          style={{
+            transform: `translateY(${Math.max(10, pullY)}px)`,
+            paddingTop: 'env(safe-area-inset-top, 10px)',
+          }}
+        >
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface/95 backdrop-blur-md shadow-lg border border-line text-ink text-[12.5px] font-medium">
+            <Icon
+              name="sync"
+              className={cx(
+                'text-[16px] text-sky-dark transition-transform duration-200',
+                isRefreshing || pullY >= 55 ? 'animate-spin' : ''
+              )}
+              style={{
+                transform: !isRefreshing && pullY < 55 ? `rotate(${pullY * 5}deg)` : undefined,
+              }}
+            />
+            <span>{isRefreshing ? 'Đang làm mới...' : pullY >= 55 ? 'Thả để làm mới' : 'Kéo xuống để làm mới'}</span>
+          </div>
+        </div>
+      )}
+      {children}
+    </>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-dvh bg-canvas">
-      <main className="pb-[calc(44px+max(8px,env(safe-area-inset-bottom,8px))+32px)] px-margin max-w-[640px] mx-auto">{children}</main>
-      <BottomNavigation />
-    </div>
+    <PullToRefresh>
+      <div className="min-h-dvh bg-canvas">
+        <main className="pb-[calc(44px+max(8px,env(safe-area-inset-bottom,8px))+32px)] px-margin max-w-[640px] mx-auto">{children}</main>
+        <BottomNavigation />
+      </div>
+    </PullToRefresh>
   );
 }
