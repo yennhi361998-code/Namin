@@ -4,26 +4,51 @@ import { createPortal } from 'react-dom';
 import { useUi } from '../store/ui';
 import { cx, Icon } from './ui';
 
-/** Distance the on-screen keyboard covers at the bottom (iOS doesn't resize the layout viewport). */
-function useKeyboardInset(active: boolean) {
-  const [inset, setInset] = useState(0);
-  const [viewport, setViewport] = useState<number | null>(null);
-  useEffect(() => {
+interface ViewportState {
+  height: number;
+  offsetTop: number;
+  isKeyboardOpen: boolean;
+}
+
+/** Track visual viewport height and offset so sheets and inputs stay above the software keyboard on mobile. */
+function useVisualViewport(active: boolean): ViewportState {
+  const [state, setState] = useState<ViewportState>(() => {
+    if (typeof window === 'undefined') return { height: 0, offsetTop: 0, isKeyboardOpen: false };
     const vv = window.visualViewport;
-    if (!active || !vv) return;
-    const update = () => {
-      setInset(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
-      setViewport(vv.height);
+    const h = vv ? vv.height : window.innerHeight;
+    const offset = vv ? vv.offsetTop : 0;
+    return {
+      height: h,
+      offsetTop: offset,
+      isKeyboardOpen: false,
     };
-    update();
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
+  });
+
+  useEffect(() => {
+    if (!active || typeof window === 'undefined') return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const onUpdate = () => {
+      const screenH = window.innerHeight;
+      const isUp = vv.height < screenH - 80;
+      setState({
+        height: vv.height,
+        offsetTop: vv.offsetTop,
+        isKeyboardOpen: isUp,
+      });
+    };
+
+    onUpdate();
+    vv.addEventListener('resize', onUpdate);
+    vv.addEventListener('scroll', onUpdate);
     return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
+      vv.removeEventListener('resize', onUpdate);
+      vv.removeEventListener('scroll', onUpdate);
     };
   }, [active]);
-  return { inset, viewport };
+
+  return state;
 }
 
 const EXIT_MS = 220;
@@ -66,7 +91,7 @@ export function BottomSheet({
   const [drag, setDrag] = useState(0);
   const dragStart = useRef<number | null>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const { inset, viewport } = useKeyboardInset(mounted);
+  const vp = useVisualViewport(mounted);
 
   useEffect(() => {
     if (open) {
@@ -89,23 +114,34 @@ export function BottomSheet({
     if (!mounted) return;
     const unlock = lockScroll();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onWindowScroll = () => {
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
     window.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onWindowScroll, { passive: true });
     return () => {
       unlock();
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onWindowScroll);
     };
   }, [mounted, onClose]);
 
   if (!mounted) return null;
 
-  const maxH = viewport ? `${viewport - 24}px` : '90dvh';
+  const maxH = vp.height ? `${Math.max(200, vp.height - (vp.isKeyboardOpen ? 8 : 24))}px` : '90dvh';
   return createPortal(
     <div
       className={cx(
-        'fixed inset-0',
+        'fixed inset-x-0',
         zIndex || 'z-[60]',
         centered ? 'flex items-center justify-center p-3 sm:p-4 overflow-hidden' : ''
       )}
+      style={{
+        top: `${vp.offsetTop}px`,
+        height: `${vp.height}px`,
+      }}
       role="presentation"
     >
       <div
@@ -122,18 +158,17 @@ export function BottomSheet({
         className={cx(
           centered
             ? 'relative w-full max-w-[540px] mx-auto bg-surface rounded-[24px] shadow-float flex flex-col outline-none overflow-hidden my-auto'
-            : 'absolute inset-x-0 mx-auto w-full max-w-[560px] bg-surface rounded-t-[20px] shadow-float flex flex-col outline-none overflow-hidden',
-          'transition-all duration-200 ease-out',
+            : 'absolute inset-x-0 bottom-0 mx-auto w-full max-w-[560px] bg-surface rounded-t-[20px] shadow-float flex flex-col outline-none overflow-hidden',
+          'transition-transform duration-200 ease-out',
         )}
         style={{
           ...(centered
             ? {
-                maxHeight: viewport ? `${Math.min(viewport - 24, window.innerHeight * 0.88)}px` : '88dvh',
+                maxHeight: `${Math.min(vp.height - 24, window.innerHeight * 0.88)}px`,
                 transform: shown ? 'scale(1)' : 'scale(0.95)',
                 opacity: shown ? 1 : 0,
               }
             : {
-                bottom: inset,
                 maxHeight: maxH,
                 transform: shown ? `translateY(${drag}px)` : 'translateY(100%)',
                 transitionDuration: dragStart.current != null ? '0ms' : undefined,
@@ -174,11 +209,11 @@ export function BottomSheet({
             </button>
           </div>
         )}
-        <div className={cx('flex-1 overflow-y-auto overflow-x-hidden min-w-0 w-full overscroll-contain px-4 pb-4', bodyClassName)}>{children}</div>
+        <div className={cx('flex-1 min-h-0 overflow-y-auto overflow-x-hidden min-w-0 w-full overscroll-contain px-4 pb-4', bodyClassName)}>{children}</div>
         {footer && (
           <div
-            className={cx('px-4 pt-3 border-t border-line bg-surface', footerClassName)}
-            style={{ paddingBottom: centered ? 16 : inset ? 12 : 'max(12px, env(safe-area-inset-bottom))' }}
+            className={cx('shrink-0 px-4 pt-3 border-t border-line bg-surface', footerClassName)}
+            style={{ paddingBottom: centered ? 16 : vp.isKeyboardOpen ? 12 : 'max(12px, env(safe-area-inset-bottom))' }}
           >
             {footer}
           </div>
