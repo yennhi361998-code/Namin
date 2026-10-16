@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ActionSheet, SwipeRow } from './overlay';
 import { ShoppingItemRow } from './rows';
-import { EmptyState, Icon } from './ui';
+import { Checkbox, Icon } from './ui';
 import { guessSpendCategory } from '../lib/moneyCategories';
 import type { ShoppingItem } from '../lib/types';
 import { useStore } from '../store';
@@ -16,6 +16,7 @@ export function ToBuySection() {
   const items = shopping.filter((x) => !x.completed);
   const navigate = useNavigate();
   const restock = useRestockMap();
+  const [isAdding, setIsAdding] = useState(false);
   const [quickText, setQuickText] = useState('');
   const quickInputRef = useRef<HTMLInputElement>(null);
   const [menuFor, setMenuFor] = useState<ShoppingItem | null>(null);
@@ -23,17 +24,29 @@ export function ToBuySection() {
   if (menuFor && menuFor !== last) setLast(menuFor);
   const m = menuFor ?? last;
 
-  const handleQuickAdd = (e: React.FormEvent) => {
-    e.preventDefault();
+  const startAdding = () => {
+    setIsAdding(true);
+    setTimeout(() => quickInputRef.current?.focus(), 40);
+  };
+
+  const commitItem = (andContinue: boolean) => {
     const trimmed = quickText.trim();
-    if (!trimmed) return;
-    addToShopping({
-      name: trimmed,
-      quantity: 1,
-      category: 'Other',
-    });
-    setQuickText('');
-    toast({ title: `Added "${trimmed}" to list` });
+    if (trimmed) {
+      addToShopping({
+        name: trimmed,
+        quantity: 1,
+        category: 'Other',
+      });
+      setQuickText('');
+      toast({ title: `Added "${trimmed}" to list` });
+      if (andContinue) {
+        quickInputRef.current?.focus();
+      } else {
+        setIsAdding(false);
+      }
+    } else {
+      setIsAdding(false);
+    }
   };
 
   const handleCheck = (item: ShoppingItem) => {
@@ -68,46 +81,51 @@ export function ToBuySection() {
         </div>
         <button
           type="button"
-          onClick={() => quickInputRef.current?.focus()}
-          className="text-label-sm font-semibold text-link hover:underline flex items-center gap-1 min-h-[36px] px-2"
+          onClick={startAdding}
+          className="text-label-sm font-semibold text-link hover:underline flex items-center gap-1 min-h-[36px] px-2 cursor-pointer"
         >
           <Icon name="add" className="text-[16px]" />
           Add item
         </button>
       </div>
 
-      <form onSubmit={handleQuickAdd} className="flex items-center gap-2">
-        <div className="relative flex-1 flex items-center">
-          <Icon name="add" className="absolute left-3 text-[18px] text-ink-sub pointer-events-none" />
-          <input
-            ref={quickInputRef}
-            type="text"
-            value={quickText}
-            onChange={(e) => setQuickText(e.target.value)}
-            placeholder="Quick add item to buy..."
-            className="w-full h-10 pl-9 pr-3 bg-surface rounded-xl border border-line/70 focus:border-sky focus:outline-none text-body-md text-ink placeholder:text-ink-sub/70 shadow-2xs transition-all"
-          />
-        </div>
-        {quickText.trim() && (
-          <button
-            type="submit"
-            className="h-10 px-4 rounded-xl bg-sky text-ink font-semibold text-label-md transition-all active:scale-95 shadow-2xs flex items-center gap-1 cursor-pointer shrink-0"
-          >
-            Add
-          </button>
+      <div className="flex flex-col">
+        {isAdding && (
+          <div className="p-3.5 flex items-start gap-3 bg-surface/80 rounded-xl border border-sky/40 shadow-xs transition-all mb-1">
+            <div className="mt-px shrink-0">
+              <Checkbox checked={false} onChange={() => {}} label="New item" shape="square" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <input
+                ref={quickInputRef}
+                type="text"
+                value={quickText}
+                onChange={(e) => setQuickText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitItem(true);
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setQuickText('');
+                    setIsAdding(false);
+                  }
+                }}
+                onBlur={() => commitItem(false)}
+                placeholder="Item name..."
+                className="w-full bg-transparent text-body-md text-ink placeholder:text-ink-sub/60 focus:outline-none"
+              />
+            </div>
+          </div>
         )}
-      </form>
+      </div>
 
-      {items.length === 0 ? (
-        <EmptyState
-          message="Your shopping list is empty."
-          action={{
-            label: 'Add item',
-            onClick: () => quickInputRef.current?.focus(),
-          }}
-        />
-      ) : (
-        <div className="divide-y divide-line/30">
+        {items.length === 0 && !isAdding ? (
+          <div className="py-8 text-center text-body-sm text-ink-sub">
+            Your shopping list is empty.
+          </div>
+        ) : (
+          <div className="divide-y divide-line/30">
           {items.map((x) => (
             <SwipeRow
               key={x.id}
