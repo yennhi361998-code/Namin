@@ -37,7 +37,7 @@ export function BottomNavigation() {
       }}
       aria-label="Main"
     >
-      <div className="h-11 flex items-center px-1.5 justify-around">
+      <div className="h-11 flex items-center px-2 justify-around gap-1">
         {TABS.map((t) => {
           const active = t.match(pathname);
           return (
@@ -49,9 +49,9 @@ export function BottomNavigation() {
               aria-current={active ? 'page' : undefined}
               title={t.label}
               className={cx(
-                'flex items-center justify-center h-8 px-4 rounded-full transition-all duration-150',
+                'flex-1 max-w-[96px] h-8.5 rounded-full flex items-center justify-center transition-all duration-200',
                 active
-                  ? 'bg-header/40 text-header-ink shadow-2xs font-semibold'
+                  ? 'bg-header text-header-ink shadow-xs font-semibold'
                   : 'text-ink-sub/70 hover:text-ink active:scale-95'
               )}
             >
