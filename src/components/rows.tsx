@@ -235,27 +235,27 @@ export function LedgerRow({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full min-w-0 text-left p-3.5 flex items-center gap-3 active:bg-canvas transition-colors"
+      className="w-full min-w-0 text-left px-3 py-2 flex items-center gap-2.5 active:bg-canvas transition-colors"
     >
       {/* Left: Category Icon */}
       <span
-        className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+        className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
         style={{ backgroundColor: `${color}20` }}
         aria-hidden
       >
         {entry.type === 'transfer' ? (
-          <Icon name="swap_horiz" className="text-[20px]" style={{ color }} />
+          <Icon name="swap_horiz" className="text-[15px]" style={{ color }} />
         ) : (
-          <CategoryIcon name={iconName} size={20} color={color} />
+          <CategoryIcon name={iconName} size={15} color={color} />
         )}
       </span>
 
       {/* Center: Item name with subtitle Category - Member */}
       <div className="flex-1 min-w-0 pr-2">
-        <div className="text-body-md font-semibold text-ink truncate leading-tight">
+        <div className="text-[12px] font-semibold text-ink truncate leading-tight">
           {entry.itemName}
         </div>
-        <div className="text-body-sm text-ink-sub mt-0.5 truncate">
+        <div className="text-[10.5px] text-ink-sub mt-0.5 truncate leading-tight">
           {subtitle}
         </div>
       </div>
@@ -264,7 +264,7 @@ export function LedgerRow({
       <div className="text-right shrink-0 flex flex-col items-end min-w-0">
         <span
           className={cx(
-            'text-body-md font-bold tabular-nums leading-tight whitespace-nowrap',
+            'text-[12px] font-bold tabular-nums leading-tight whitespace-nowrap',
             entry.type === 'expense'
               ? 'text-err-ink'
               : entry.type === 'income'
@@ -278,7 +278,7 @@ export function LedgerRow({
             ? `+${formatVnd(entry.amount)}`
             : formatVnd(entry.amount)}
         </span>
-        <span className="text-caption text-ink-sub mt-0.5 max-w-[120px] truncate">
+        <span className="text-[10.5px] text-ink-sub mt-0.5 max-w-[120px] truncate leading-tight">
           {accountName || 'Account'}
         </span>
       </div>

@@ -24,20 +24,20 @@ const TABS: { to: string; label: string; icon: IconName; match: (p: string) => b
   },
 ];
 
-/** Facebook-style bottom navigation bar docked flush to the bottom of the screen. */
+/** Floating pill navigation bar with rounded-full shape, compact Facebook-style tabs. */
 export function BottomNavigation() {
   const { pathname } = useLocation();
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-40 bg-surface/95 dark:bg-surface/95 backdrop-blur-md border-t border-line/60"
+      className="fixed z-40 left-1/2 w-[calc(100%-32px)] max-w-[360px] bg-surface/90 dark:bg-surface/90 backdrop-blur-xl border border-line/80 rounded-full shadow-float"
       style={{
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        transform: 'translateZ(0)',
-        WebkitTransform: 'translateZ(0)',
+        bottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
+        transform: 'translate3d(-50%, 0, 0)',
+        WebkitTransform: 'translate3d(-50%, 0, 0)',
       }}
       aria-label="Main"
     >
-      <div className="max-w-[640px] mx-auto h-[48px] flex items-center px-4 justify-around">
+      <div className="h-11 flex items-center px-1.5 justify-around">
         {TABS.map((t) => {
           const active = t.match(pathname);
           return (
@@ -49,13 +49,13 @@ export function BottomNavigation() {
               aria-current={active ? 'page' : undefined}
               title={t.label}
               className={cx(
-                'flex items-center justify-center h-8 px-5 rounded-full transition-all duration-150',
+                'flex items-center justify-center h-8 px-4 rounded-full transition-all duration-150',
                 active
                   ? 'bg-header/40 text-header-ink shadow-2xs font-semibold'
                   : 'text-ink-sub/70 hover:text-ink active:scale-95'
               )}
             >
-              <Icon name={t.icon} filled={active} className={cx('text-[22px]', active ? 'text-header-ink' : 'text-ink-sub')} />
+              <Icon name={t.icon} filled={active} className={cx('text-[20px]', active ? 'text-header-ink' : 'text-ink-sub')} />
             </NavLink>
           );
         })}
@@ -288,7 +288,7 @@ export function Fab({ label, onClick }: { label: string; onClick: () => void }) 
       className="fixed z-40 w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-surface text-header-ink ring-2 ring-header shadow-float flex items-center justify-center active:scale-95 active:bg-header transition-all"
       style={{
         right: 'max(16px, calc((100vw - 640px) / 2 + 16px))',
-        bottom: 'calc(48px + env(safe-area-inset-bottom, 0px) + 12px)',
+        bottom: 'calc(44px + max(8px, env(safe-area-inset-bottom, 8px)) + 12px)',
         transform: 'translateZ(0)',
         WebkitTransform: 'translateZ(0)',
       }}
@@ -301,7 +301,7 @@ export function Fab({ label, onClick }: { label: string; onClick: () => void }) 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-canvas">
-      <main className="pb-[calc(48px+env(safe-area-inset-bottom,0px)+32px)] px-margin max-w-[640px] mx-auto">{children}</main>
+      <main className="pb-[calc(44px+max(8px,env(safe-area-inset-bottom,8px))+32px)] px-margin max-w-[640px] mx-auto">{children}</main>
       <BottomNavigation />
     </div>
   );

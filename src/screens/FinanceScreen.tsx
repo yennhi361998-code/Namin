@@ -699,9 +699,9 @@ export function FinanceScreen({
         {/* 1. DETAILS MODE                                                */}
         {/* ============================================================== */}
         {viewMode === 'details' && (
-          <div className="flex flex-col gap-space-lg">
+          <div className="flex flex-col gap-2.5">
             {/* Unified Details Header Card */}
-            <Card className="p-space-md flex flex-col gap-3 bg-surface rounded-2xl shadow-card">
+            <Card className="p-3 flex flex-col gap-2 bg-surface rounded-xl shadow-card">
               <TimeRangeBar
                 label={displayRangeLabel}
                 onPrev={handlePrevRange}
@@ -710,23 +710,23 @@ export function FinanceScreen({
               />
 
               {/* Income and Expense horizontally aligned */}
-              <div className="pt-1.5 grid grid-cols-2 divide-x divide-line/40 text-center">
+              <div className="pt-1 grid grid-cols-2 divide-x divide-line/40 text-center">
                 <div className="flex flex-col items-center px-2">
-                  <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Income</span>
-                  <span className="text-[18px] sm:text-[20px] leading-snug font-bold text-done-ink tabular-nums mt-0.5">
+                  <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Income</span>
+                  <span className="text-[16px] sm:text-[18px] leading-snug font-bold text-done-ink tabular-nums mt-0.5">
                     + {formatVnd(totalIncome)}
                   </span>
                 </div>
                 <div className="flex flex-col items-center px-2">
-                  <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Expense</span>
-                  <span className="text-[18px] sm:text-[20px] leading-snug font-bold text-err-ink tabular-nums mt-0.5">
+                  <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Expense</span>
+                  <span className="text-[16px] sm:text-[18px] leading-snug font-bold text-err-ink tabular-nums mt-0.5">
                     - {formatVnd(totalSpent)}
                   </span>
                 </div>
               </div>
 
               {/* Net Text */}
-              <div className="pt-2 border-t border-line/40 flex items-center justify-center text-body-sm">
+              <div className="pt-1.5 border-t border-line/40 flex items-center justify-center text-[12px]">
                 <span className="text-ink-sub mr-1.5">Net:</span>
                 <span className={cx('font-bold tabular-nums', netPeriod >= 0 ? 'text-done-ink' : 'text-err-ink')}>
                   {netPeriod >= 0 ? `+ ${formatVnd(netPeriod)}` : `- ${formatVnd(Math.abs(netPeriod))}`}
@@ -735,8 +735,8 @@ export function FinanceScreen({
 
               {/* Budget Progress Bar: Only shown if user configured a budget in Settings */}
               {currentBudget != null && currentBudget > 0 ? (
-                <div className="pt-2 border-t border-line/40 flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-caption">
+                <div className="pt-1.5 border-t border-line/40 flex flex-col gap-1">
+                  <div className="flex items-center justify-between text-[11px]">
                     <span className="text-ink-sub font-medium">Monthly budget</span>
                     <button
                       type="button"
@@ -748,7 +748,7 @@ export function FinanceScreen({
                     </button>
                   </div>
                   <ProgressBar value={budgetRatio} label={`Budget ${budgetPct}%`} />
-                  <div className="flex items-center justify-between text-caption text-ink-sub">
+                  <div className="flex items-center justify-between text-[11px] text-ink-sub">
                     <span>{budgetPct}% of budget</span>
                     <span className="tabular-nums font-medium text-ink">
                       {formatVnd(totalSpent)} / {formatVnd(currentBudget)}
@@ -864,18 +864,18 @@ export function FinanceScreen({
                 }
               />
             ) : (
-              <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-2">
                 {dayGroups.map((dayGroup) => (
                   <div
                     key={dayGroup.date}
-                    className="bg-surface rounded-2xl shadow-card border border-line/40 overflow-hidden divide-y divide-line/20"
+                    className="bg-surface rounded-xl shadow-card border border-line/40 overflow-hidden divide-y divide-line/20"
                   >
                     {/* Day Header */}
-                    <div className="px-3.5 py-2.5 bg-soft/30 border-b border-line/30 flex items-center justify-between gap-2 select-none">
-                      <div className="font-semibold text-body-sm text-ink">
+                    <div className="px-3 py-1.5 bg-soft/30 border-b border-line/30 flex items-center justify-between gap-2 select-none">
+                      <div className="font-semibold text-[12px] text-ink">
                         <span>{dayGroup.dayLabel}</span>
                       </div>
-                      <div className="flex items-center gap-2.5 text-caption tabular-nums shrink-0 text-ink-sub font-normal">
+                      <div className="flex items-center gap-2 text-[11px] tabular-nums shrink-0 text-ink-sub font-normal">
                         {dayGroup.dayIncome > 0 && (
                           <span>Income: {formatVnd(dayGroup.dayIncome)}</span>
                         )}
@@ -981,23 +981,23 @@ export function FinanceScreen({
               </Card>
 
               {/* Time Range Card & Wallet Flow */}
-              <Card className="p-space-md flex flex-col gap-2.5 bg-surface rounded-2xl shadow-card">
+              <Card className="p-3 flex flex-col gap-2 bg-surface rounded-xl shadow-card">
                 <TimeRangeBar
                   label={displayRangeLabel}
                   onPrev={handlePrevRange}
                   onNext={handleNextRange}
                   onOpenSheet={handleOpenDateSheet}
                 />
-                <div className="pt-2 border-t border-line/40 grid grid-cols-2 divide-x divide-line/40 text-center">
+                <div className="pt-1.5 border-t border-line/40 grid grid-cols-2 divide-x divide-line/40 text-center">
                   <div className="flex flex-col items-center px-2">
-                    <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Inflow</span>
-                    <span className="text-[16px] font-bold text-done-ink tabular-nums mt-0.5">
+                    <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Inflow</span>
+                    <span className="text-[15px] font-bold text-done-ink tabular-nums mt-0.5">
                       + {formatVnd(walletInflow)}
                     </span>
                   </div>
                   <div className="flex flex-col items-center px-2">
-                    <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Outflow</span>
-                    <span className="text-[16px] font-bold text-err-ink tabular-nums mt-0.5">
+                    <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Outflow</span>
+                    <span className="text-[15px] font-bold text-err-ink tabular-nums mt-0.5">
                       - {formatVnd(walletOutflow)}
                     </span>
                   </div>
@@ -1011,17 +1011,17 @@ export function FinanceScreen({
                   action={{ label: 'Add transaction', onClick: () => openSheet({ type: 'transaction', scope }) }}
                 />
               ) : (
-                <div className="flex flex-col gap-3.5">
+                <div className="flex flex-col gap-2">
                   {walletDayGroups.map((dayGroup) => (
                     <div
                       key={dayGroup.date}
-                      className="bg-surface rounded-2xl shadow-card border border-line/40 overflow-hidden divide-y divide-line/20"
+                      className="bg-surface rounded-xl shadow-card border border-line/40 overflow-hidden divide-y divide-line/20"
                     >
-                      <div className="px-3.5 py-2.5 bg-soft/30 border-b border-line/30 flex items-center justify-between gap-2 select-none">
-                        <div className="font-semibold text-body-sm text-ink">
+                      <div className="px-3 py-1.5 bg-soft/30 border-b border-line/30 flex items-center justify-between gap-2 select-none">
+                        <div className="font-semibold text-[12px] text-ink">
                           <span>{dayGroup.dayLabel}</span>
                         </div>
-                        <div className="flex items-center gap-2.5 text-caption tabular-nums shrink-0 text-ink-sub font-normal">
+                        <div className="flex items-center gap-2 text-[11px] tabular-nums shrink-0 text-ink-sub font-normal">
                           {dayGroup.dayInflow > 0 && (
                             <span>Inflow: {formatVnd(dayGroup.dayInflow)}</span>
                           )}
@@ -1065,29 +1065,29 @@ export function FinanceScreen({
             </div>
           ) : (
             /* All Wallets List View Grouped by Asset / Loan */
-            <div className="flex flex-col gap-space-lg">
+            <div className="flex flex-col gap-2.5">
               {/* Net Worth Top Card */}
-              <Card className="p-space-md flex flex-col gap-3 bg-surface rounded-2xl shadow-card">
+              <Card className="p-3 flex flex-col gap-2 bg-surface rounded-xl shadow-card">
                 <div className="flex flex-col items-center justify-center text-center">
-                  <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Net Worth</span>
+                  <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Net Worth</span>
                   <span className={cx(
-                    'text-[24px] sm:text-[28px] font-bold tracking-tight tabular-nums mt-0.5',
+                    'text-[22px] sm:text-[24px] font-bold tracking-tight tabular-nums mt-0.5',
                     netWorth >= 0 ? 'text-ink' : 'text-err-ink'
                   )}>
                     {netWorth >= 0 ? formatVnd(netWorth) : `- ${formatVnd(Math.abs(netWorth))}`}
                   </span>
                 </div>
 
-                <div className="pt-2.5 border-t border-line/40 grid grid-cols-2 divide-x divide-line/40 text-center">
+                <div className="pt-2 border-t border-line/40 grid grid-cols-2 divide-x divide-line/40 text-center">
                   <div className="flex flex-col items-center px-2">
-                    <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Asset</span>
-                    <span className="text-[17px] font-bold text-done-ink tabular-nums mt-0.5">
+                    <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Asset</span>
+                    <span className="text-[15px] font-bold text-done-ink tabular-nums mt-0.5">
                       + {formatVnd(totalAssets)}
                     </span>
                   </div>
                   <div className="flex flex-col items-center px-2">
-                    <span className="text-caption text-ink-sub uppercase tracking-wider font-semibold">Debt</span>
-                    <span className="text-[17px] font-bold text-err-ink tabular-nums mt-0.5">
+                    <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Debt</span>
+                    <span className="text-[15px] font-bold text-err-ink tabular-nums mt-0.5">
                       - {formatVnd(totalDebts)}
                     </span>
                   </div>
@@ -1095,11 +1095,11 @@ export function FinanceScreen({
               </Card>
 
               {/* Wallets List Section Grouped by Asset and Loan/Debt */}
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-label-md font-bold text-ink">Wallets & Accounts</span>
-                    <span className="text-caption text-ink-sub">({scopedAccounts.length})</span>
+                    <span className="text-[13px] font-bold text-ink">Wallets & Accounts</span>
+                    <span className="text-[11px] text-ink-sub">({scopedAccounts.length})</span>
                   </div>
                   <button
                     type="button"
@@ -1107,20 +1107,20 @@ export function FinanceScreen({
                       setEditingAccountId(undefined);
                       setIsAccountSheetOpen(true);
                     }}
-                    className="text-body-sm font-semibold text-sky hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-[12px] font-semibold text-sky hover:underline flex items-center gap-1 cursor-pointer"
                   >
-                    <Icon name="add" className="text-[16px]" />
+                    <Icon name="add" className="text-[15px]" />
                     <span>Add account</span>
                   </button>
                 </div>
 
                 {/* 1. Assets Group Card */}
                 {assetAccounts.length > 0 && (
-                  <div className="bg-surface rounded-2xl shadow-card border border-line/40 overflow-hidden">
+                  <div className="bg-surface rounded-xl shadow-card border border-line/40 overflow-hidden">
                     {/* Group Header */}
-                    <div className="px-3.5 py-2.5 bg-soft/30 border-b border-line/30 flex items-center justify-between gap-2 select-none">
-                      <span className="text-caption font-bold text-ink-sub uppercase tracking-wider">Asset</span>
-                      <span className="text-caption font-bold text-done-ink tabular-nums">
+                    <div className="px-3 py-1.5 bg-soft/30 border-b border-line/30 flex items-center justify-between gap-2 select-none">
+                      <span className="text-[11px] font-bold text-ink-sub uppercase tracking-wider">Asset</span>
+                      <span className="text-[11px] font-bold text-done-ink tabular-nums">
                         Assets: +{formatVnd(totalAssets)}
                       </span>
                     </div>
@@ -1133,19 +1133,19 @@ export function FinanceScreen({
                           <div
                             key={acc.id}
                             onClick={() => setSelectedWalletId(acc.id)}
-                            className="w-full p-3.5 flex items-center justify-between gap-3 hover:bg-canvas active:bg-soft text-left transition-colors cursor-pointer group"
+                            className="w-full px-3 py-2 flex items-center justify-between gap-2.5 hover:bg-canvas active:bg-soft text-left transition-colors cursor-pointer group"
                           >
-                            <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
                               <span
-                                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-2xs"
+                                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-2xs"
                                 style={{ backgroundColor: `${acc.color || '#3FA88B'}20` }}
                               >
-                                <Icon name={(acc.icon as any) || 'payments'} className="text-[20px]" style={{ color: acc.color || '#3FA88B' }} />
+                                <Icon name={(acc.icon as any) || 'payments'} className="text-[16px]" style={{ color: acc.color || '#3FA88B' }} />
                               </span>
                               <div className="flex flex-col min-w-0">
-                                <span className="text-body-sm font-bold text-ink truncate">{acc.name}</span>
+                                <span className="text-[12px] font-bold text-ink truncate">{acc.name}</span>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[12px] text-ink-sub font-medium">Asset</span>
+                                  <span className="text-[11px] text-ink-sub font-medium">Asset</span>
                                   {acc.excludeFromTotal && (
                                     <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded leading-none">
                                       Excluded from total
@@ -1157,12 +1157,12 @@ export function FinanceScreen({
 
                             <div className="flex items-center gap-2 shrink-0">
                               <div className="flex flex-col items-end">
-                                <span className="text-body-md font-bold text-ink tabular-nums">
+                                <span className="text-[13px] font-bold text-ink tabular-nums">
                                   {formatVnd(bal)}
                                 </span>
-                                <span className="text-[11px] text-ink-sub font-normal">VND</span>
+                                <span className="text-[10px] text-ink-sub font-normal">VND</span>
                               </div>
-                              <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors ml-0.5" />
+                              <Icon name="chevron_right" className="text-[16px] text-ink-sub/50 group-hover:text-ink transition-colors ml-0.5" />
                             </div>
                           </div>
                         );
@@ -1173,11 +1173,11 @@ export function FinanceScreen({
 
                 {/* 2. Loans & Debts Group Card */}
                 {debtAccounts.length > 0 && (
-                  <div className="bg-surface rounded-2xl shadow-card border border-line/40 overflow-hidden">
+                  <div className="bg-surface rounded-xl shadow-card border border-line/40 overflow-hidden">
                     {/* Group Header */}
-                    <div className="px-3.5 py-2.5 bg-soft/30 border-b border-line/30 flex items-center justify-between gap-2 select-none">
-                      <span className="text-caption font-bold text-ink-sub uppercase tracking-wider">Loan / Debt</span>
-                      <span className="text-caption font-bold text-err-ink tabular-nums">
+                    <div className="px-3 py-1.5 bg-soft/30 border-b border-line/30 flex items-center justify-between gap-2 select-none">
+                      <span className="text-[11px] font-bold text-ink-sub uppercase tracking-wider">Loan / Debt</span>
+                      <span className="text-[11px] font-bold text-err-ink tabular-nums">
                         Debt: -{formatVnd(totalDebts)}
                       </span>
                     </div>
@@ -1190,19 +1190,19 @@ export function FinanceScreen({
                           <div
                             key={acc.id}
                             onClick={() => setSelectedWalletId(acc.id)}
-                            className="w-full p-3.5 flex items-center justify-between gap-3 hover:bg-canvas active:bg-soft text-left transition-colors cursor-pointer group"
+                            className="w-full px-3 py-2 flex items-center justify-between gap-2.5 hover:bg-canvas active:bg-soft text-left transition-colors cursor-pointer group"
                           >
-                            <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
                               <span
-                                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-2xs"
+                                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-2xs"
                                 style={{ backgroundColor: `${acc.color || '#EF4444'}20` }}
                               >
-                                <Icon name={(acc.icon as any) || 'credit_card'} className="text-[20px]" style={{ color: acc.color || '#EF4444' }} />
+                                <Icon name={(acc.icon as any) || 'credit_card'} className="text-[16px]" style={{ color: acc.color || '#EF4444' }} />
                               </span>
                               <div className="flex flex-col min-w-0">
-                                <span className="text-body-sm font-bold text-ink truncate">{acc.name}</span>
+                                <span className="text-[12px] font-bold text-ink truncate">{acc.name}</span>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[12px] text-ink-sub font-medium">Debt</span>
+                                  <span className="text-[11px] text-ink-sub font-medium">Debt</span>
                                   {acc.excludeFromTotal && (
                                     <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded leading-none">
                                       Excluded from total
@@ -1214,12 +1214,12 @@ export function FinanceScreen({
 
                             <div className="flex items-center gap-2 shrink-0">
                               <div className="flex flex-col items-end">
-                                <span className={cx('text-body-md font-bold tabular-nums', bal < 0 ? 'text-err-ink' : 'text-ink')}>
+                                <span className={cx('text-[13px] font-bold tabular-nums', bal < 0 ? 'text-err-ink' : 'text-ink')}>
                                   {bal < 0 ? `- ${formatVnd(Math.abs(bal))}` : formatVnd(bal)}
                                 </span>
-                                <span className="text-[11px] text-ink-sub font-normal">VND</span>
+                                <span className="text-[10px] text-ink-sub font-normal">VND</span>
                               </div>
-                              <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors ml-0.5" />
+                              <Icon name="chevron_right" className="text-[16px] text-ink-sub/50 group-hover:text-ink transition-colors ml-0.5" />
                             </div>
                           </div>
                         );
