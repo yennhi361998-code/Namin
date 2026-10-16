@@ -532,6 +532,7 @@ export function Charts() {
             type: 'transaction',
             transactionId: rawId,
             txType: entry.type,
+            scope: entry.scope,
           });
         }}
       />

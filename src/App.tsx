@@ -10,6 +10,7 @@ import { Tasks } from './screens/Tasks';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SheetHost } from './sheets/SheetHost';
 import { initSyncAuth } from './lib/sync';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 /** New screens start at the top; going back keeps the browser's restored scroll position. */
 function ScrollOnNavigate() {
@@ -28,23 +29,27 @@ export default function App() {
   }, []);
 
   return (
-    <AppShell>
-      <ScrollOnNavigate />
-      <Routes>
-        <Route path="/" element={<Navigate to="/tasks" replace />} />
-        <Route path="/tasks" element={<Tasks />} />
-        <Route path="/tasks/:id" element={<TaskDetail />} />
-        <Route path="/our-wallet" element={<OurWallet />} />
-        <Route path="/my-wallet" element={<MyWallet />} />
-        <Route path="/shopping" element={<Navigate to="/our-wallet" replace />} />
-        <Route path="/items/:id" element={<ItemDetail />} />
-        <Route path="/charts" element={<Charts />} />
-        <Route path="/settings" element={<SettingsScreen />} />
-        <Route path="/spending" element={<Navigate to="/charts" replace />} />
-        <Route path="*" element={<Navigate to="/tasks" replace />} />
-      </Routes>
-      <SheetHost />
-      <Snackbar />
-    </AppShell>
+    <ErrorBoundary>
+      <AppShell>
+        <ScrollOnNavigate />
+        <Routes>
+          <Route path="/" element={<Navigate to="/tasks" replace />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/tasks/:id" element={<TaskDetail />} />
+          <Route path="/our-wallet" element={<OurWallet />} />
+          <Route path="/my-wallet" element={<MyWallet />} />
+          <Route path="/shopping" element={<Navigate to="/our-wallet" replace />} />
+          <Route path="/items/:id" element={<ItemDetail />} />
+          <Route path="/charts" element={<Charts />} />
+          <Route path="/settings" element={<SettingsScreen />} />
+          <Route path="/spending" element={<Navigate to="/charts" replace />} />
+          <Route path="*" element={<Navigate to="/tasks" replace />} />
+        </Routes>
+        <ErrorBoundary>
+          <SheetHost />
+        </ErrorBoundary>
+        <Snackbar />
+      </AppShell>
+    </ErrorBoundary>
   );
 }

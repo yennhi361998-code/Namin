@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { addDays, addMonths, today } from '../lib/dates';
+import { addDays, addMonths, today, parseDate, weekdayName, shortDate, longDate } from '../lib/dates';
 import { parseVnd, formatVnd } from '../lib/money';
 import { nextOccurrence, recurrenceLabel } from '../lib/recurrence';
 import { estimateRestock, statusFromEstimate } from '../lib/restock';
@@ -529,6 +529,27 @@ describe('date cycle and range navigation', () => {
     expect(BASIC_PURCHASE_UNITS).toContain('bag');
     expect(BASIC_PURCHASE_UNITS).toContain('roll');
     expect(BASIC_PURCHASE_UNITS.length).toBe(6);
+  });
+
+  it('resiliently handles invalid, undefined, null, and ISO dates without crashing', () => {
+    expect(() => parseDate(undefined)).not.toThrow();
+    expect(() => parseDate(null)).not.toThrow();
+    expect(() => parseDate('')).not.toThrow();
+
+    // ISO timestamp strings should extract date cleanly
+    expect(shortDate('2026-10-16T12:00:00.000Z')).toBe('16 Oct');
+    expect(longDate('2026-10-16T12:00:00.000Z')).toBe('16 Oct 2026');
+    expect(weekdayName('2026-10-16T12:00:00.000Z')).toBe('Friday');
+
+    // Standard date string
+    expect(shortDate('2026-10-16')).toBe('16 Oct');
+    expect(longDate('2026-10-16')).toBe('16 Oct 2026');
+    expect(weekdayName('2026-10-16')).toBe('Friday');
+
+    // Missing / malformed dates should return fallback without crashing
+    expect(shortDate(undefined as any)).toBe('—');
+    expect(longDate(undefined as any)).toBe('—');
+    expect(weekdayName(undefined as any)).toBe('');
   });
 });
 

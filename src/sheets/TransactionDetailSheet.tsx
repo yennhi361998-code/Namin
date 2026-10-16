@@ -26,15 +26,19 @@ export function TransactionDetailSheet({
   const accounts = useStore((s) => s.accounts ?? []);
   const members = useStore((s) => s.members ?? []);
   const moneyCategories = useStore((s) => s.moneyCategories ?? []);
-  const items = useStore((s) => s.items);
-  const allPurchases = useStore((s) => s.purchases);
-  const transactions = useStore((s) => s.transactions);
+  const items = useStore((s) => s.items ?? []);
+  const allPurchases = useStore((s) => s.purchases ?? []);
+  const transactions = useStore((s) => s.transactions ?? []);
+
+  const rawItemName = (entry?.itemName || entry?.notes || '').trim();
+  const entryName = rawItemName.toLowerCase();
 
   const item = useMemo(() => {
     if (!entry) return undefined;
     if (entry.itemId) return items.find((i) => i.id === entry.itemId);
-    return items.find((i) => i.name.trim().toLowerCase() === entry.itemName.trim().toLowerCase());
-  }, [entry, items]);
+    if (!entryName) return undefined;
+    return items.find((i) => i.name && i.name.trim().toLowerCase() === entryName);
+  }, [entry, items, entryName]);
 
   const allHistoryPurchases = useMemo(() => {
     if (!entry) return [];
@@ -48,17 +52,17 @@ export function TransactionDetailSheet({
       notes: string;
       isCurrent: boolean;
     }> = [];
-    const entryName = entry.itemName.trim().toLowerCase();
-    const currentRawId = entry.id.replace(/^(pur-|tx-)/, '');
+    const currentRawId = (entry.id || '').replace(/^(pur-|tx-)/, '');
 
     // 1. Household purchases
     for (const p of allPurchases) {
-      const match = (item && p.itemId === item.id) || p.itemName.trim().toLowerCase() === entryName;
+      const pName = (p.itemName || '').trim().toLowerCase();
+      const match = (item && p.itemId === item.id) || (Boolean(entryName) && pName === entryName);
       if (match) {
         list.push({
           id: `pur-${p.id}`,
-          date: p.purchaseDate,
-          price: p.price,
+          date: p.purchaseDate || '',
+          price: p.price ?? null,
           quantity: p.quantity || 1,
           unit: p.unit || item?.unit || 'pack',
           store: p.store || '',
@@ -71,12 +75,13 @@ export function TransactionDetailSheet({
     // 2. Personal / household transactions
     for (const tx of transactions) {
       if (tx.type !== 'expense') continue;
-      const match = (item && tx.itemId === item.id) || tx.note.trim().toLowerCase() === entryName;
+      const txNote = (tx.note || '').trim().toLowerCase();
+      const match = (item && tx.itemId === item.id) || (Boolean(entryName) && txNote === entryName);
       if (match) {
         list.push({
           id: `tx-${tx.id}`,
-          date: tx.date,
-          price: tx.amount,
+          date: tx.date || '',
+          price: tx.amount ?? null,
           quantity: tx.quantity || 1,
           unit: tx.unit || item?.unit || 'pack',
           store: '',
@@ -88,9 +93,9 @@ export function TransactionDetailSheet({
 
     if (!list.some((p) => p.isCurrent)) {
       list.unshift({
-        id: entry.id,
-        date: entry.date,
-        price: entry.amount,
+        id: entry.id || '',
+        date: entry.date || '',
+        price: entry.amount ?? null,
         quantity: entry.rawPurchase?.quantity ?? entry.rawTransaction?.quantity ?? 1,
         unit: entry.rawPurchase?.unit ?? entry.rawTransaction?.unit ?? item?.unit ?? 'pack',
         store: entry.rawPurchase?.store ?? '',
@@ -100,12 +105,31 @@ export function TransactionDetailSheet({
     }
 
     return list.sort((a, b) => {
-      const cmp = b.date.localeCompare(a.date);
-      return cmp !== 0 ? cmp : b.id.localeCompare(a.id);
+      const cmp = (b.date || '').localeCompare(a.date || '');
+      return cmp !== 0 ? cmp : (b.id || '').localeCompare(a.id || '');
     });
-  }, [entry, item, allPurchases, transactions]);
+  }, [entry, item, entryName, allPurchases, transactions]);
 
-  if (!entry) return null;
+  // Restock estimate / product cycle calculation (Hook placed before any early returns)
+  const est = useMemo(() => {
+    if (!entry) return null;
+    try {
+      const purchaseDates = allHistoryPurchases
+        .filter((p) => Boolean(p.date))
+        .map((p) => ({ purchaseDate: p.date }));
+      if (purchaseDates.length === 0) return null;
+      return estimateRestock(
+        { expectedUsageDays: item?.expectedUsageDays ?? null },
+        purchaseDates,
+        today(),
+      );
+    } catch (err) {
+      console.warn('Failed to calculate estimateRestock', err);
+      return null;
+    }
+  }, [entry, allHistoryPurchases, item]);
+
+  if (!open || !entry) return null;
 
   const moneyCategory = entry.categoryId
     ? moneyCategories.find((c) => c.id === entry.categoryId)
@@ -147,21 +171,11 @@ export function TransactionDetailSheet({
 
   // Average price calculation for item across all history purchases
   const priced = allHistoryPurchases.filter((p) => p.price != null && p.price > 0);
-  const totalPrice = priced.reduce((sum, p) => sum + p.price!, 0);
+  const totalPrice = priced.reduce((sum, p) => sum + (p.price || 0), 0);
   const totalQty = priced.reduce((sum, p) => sum + (p.quantity || 1), 0);
   const avgPrice = totalQty > 0 ? Math.round(totalPrice / totalQty) : null;
   const hasConversion = !!(item?.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1);
   const costPerUsage = hasConversion && avgPrice != null ? Math.round(avgPrice / item!.usagePerPurchaseUnit!) : null;
-
-  // Restock estimate / product cycle calculation
-  const est = useMemo(() => {
-    const purchaseDates = allHistoryPurchases.map((p) => ({ purchaseDate: p.date }));
-    return estimateRestock(
-      { expectedUsageDays: item?.expectedUsageDays ?? null },
-      purchaseDates,
-      today(),
-    );
-  }, [allHistoryPurchases, item]);
 
   const status = statusFromEstimate(est);
 
@@ -178,7 +192,7 @@ export function TransactionDetailSheet({
     onClose();
   };
 
-  const formattedDate = `${weekdayName(entry.date)}, ${longDate(entry.date)}`;
+  const formattedDate = entry.date ? `${weekdayName(entry.date)}, ${longDate(entry.date)}` : '—';
   const titleLabel =
     entry.type === 'expense'
       ? 'Expense Details'
@@ -259,9 +273,21 @@ export function TransactionDetailSheet({
           <div className="bg-surface rounded-2xl border border-line/50 divide-y divide-line/40 overflow-hidden shadow-2xs">
             {/* Item Name */}
             <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
-              <span className="text-ink-sub shrink-0">Item</span>
-              <span className="font-semibold text-ink text-right break-words">{entry.itemName}</span>
+              <span className="text-ink-sub shrink-0">
+                {entry.type === 'transfer' ? 'Description' : 'Item'}
+              </span>
+              <span className="font-semibold text-ink text-right break-words">
+                {entry.itemName || entry.notes || (entry.type === 'transfer' ? 'Transfer' : '—')}
+              </span>
             </div>
+
+            {/* Note if different from item name */}
+            {entry.notes && entry.notes.trim() !== (entry.itemName || '').trim() && (
+              <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
+                <span className="text-ink-sub shrink-0">Note</span>
+                <span className="font-medium text-ink text-right break-words">{entry.notes}</span>
+              </div>
+            )}
 
             {/* Date */}
             <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">

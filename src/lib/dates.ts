@@ -11,8 +11,14 @@ export function toDateStr(d: Date): DateStr {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function parseDate(s: DateStr): Date {
-  const [y, m, d] = s.split('-').map(Number);
+export function parseDate(s: DateStr | string | undefined | null): Date {
+  if (!s) return new Date();
+  const clean = String(s).slice(0, 10);
+  const [y, m, d] = clean.split('-').map(Number);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) {
+    const fallback = new Date(s);
+    return isNaN(fallback.getTime()) ? new Date() : fallback;
+  }
   return new Date(y, m - 1, d);
 }
 
@@ -43,7 +49,9 @@ export function daysBetween(a: DateStr, b: DateStr): number {
 }
 
 export function weekdayName(s: DateStr): string {
-  return WEEKDAYS[parseDate(s).getDay()];
+  if (!s) return '';
+  const d = parseDate(s);
+  return isNaN(d.getTime()) ? '' : WEEKDAYS[d.getDay()] || '';
 }
 
 export function shortWeekday(s: DateStr): string {
@@ -52,13 +60,19 @@ export function shortWeekday(s: DateStr): string {
 
 /** "24 Sep" */
 export function shortDate(s: DateStr): string {
+  if (!s) return '—';
   const d = parseDate(s);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  if (isNaN(d.getTime())) return String(s || '—');
+  const month = MONTHS[d.getMonth()] || '';
+  return `${d.getDate()} ${month}`.trim();
 }
 
 /** "24 Sep 2026" */
 export function longDate(s: DateStr): string {
-  return `${shortDate(s)} ${parseDate(s).getFullYear()}`;
+  if (!s) return '—';
+  const d = parseDate(s);
+  if (isNaN(d.getTime())) return String(s || '—');
+  return `${shortDate(s)} ${d.getFullYear()}`.trim();
 }
 
 /** "Thursday, 24 Sep" */
