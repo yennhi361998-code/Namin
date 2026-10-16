@@ -121,6 +121,7 @@ export interface Account {
   initialBalance?: number | null;
   excludeFromTotal?: boolean;
   archived?: boolean;
+  order?: number;
   createdAt?: string;
 }
 

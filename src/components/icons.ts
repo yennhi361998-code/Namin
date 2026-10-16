@@ -8,7 +8,7 @@ import {
   User, UserPlus, Users, Wallet, WashingMachine, Wrench, X, SprayCan, Utensils, ShowerHead, Apple, Eraser,
   ArrowLeftRight, Bell, Building2, CircleDollarSign, Vault, Settings, Search,
   Cloud, Lock, Share2, RefreshCw, Download, Upload, Camera, Sparkles, Scan, FileText,
-  Calculator, Keyboard, type LucideIcon,
+  Calculator, Keyboard, ArrowUpDown, EyeOff, type LucideIcon,
 } from 'lucide-react';
 import type { Category } from '../lib/types';
 
@@ -107,6 +107,10 @@ export const UI_ICONS = {
   dialpad: Calculator,
   keyboard: Keyboard,
   keyboard_hide: ChevronDown,
+  swap_vert: ArrowUpDown,
+  visibility_off: EyeOff,
+  keyboard_arrow_up: ChevronUp,
+  keyboard_arrow_down: ChevronDown,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof UI_ICONS;

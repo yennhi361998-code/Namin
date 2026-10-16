@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BottomSheet } from '../components/overlay';
 import { cx, Icon, PrimaryButton } from '../components/ui';
 import { FormField, TextInput } from '../components/forms';
@@ -55,7 +55,7 @@ export function AccountSheet({
   const [name, setName] = useState(existing?.name ?? '');
   const [initialBalance, setInitialBalance] = useState<string>(
     existing?.initialBalance != null && existing.initialBalance !== 0
-      ? String(existing.initialBalance)
+      ? String(Math.abs(existing.initialBalance))
       : ''
   );
   const [scope, setScope] = useState<FinanceScope>(existing?.scope ?? initialScope);
@@ -63,9 +63,41 @@ export function AccountSheet({
     existing?.nature ?? (existing?.name.toLowerCase().includes('credit') ? 'debt' : 'asset')
   );
   const [excludeFromTotal, setExcludeFromTotal] = useState<boolean>(existing?.excludeFromTotal ?? false);
+  const [archived, setArchived] = useState<boolean>(existing?.archived ?? false);
   const [color, setColor] = useState(existing?.color ?? ACCOUNT_COLORS[0]);
   const [icon, setIcon] = useState(existing?.icon ?? 'payments');
   const [error, setError] = useState<string | null>(null);
+
+  // Sync state whenever sheet opens or target account changes
+  useEffect(() => {
+    if (open) {
+      if (existing) {
+        setName(existing.name || '');
+        setInitialBalance(
+          existing.initialBalance != null && existing.initialBalance !== 0
+            ? String(Math.abs(existing.initialBalance))
+            : ''
+        );
+        setScope(existing.scope ?? initialScope);
+        setNature(existing.nature ?? (existing.name.toLowerCase().includes('credit') ? 'debt' : 'asset'));
+        setExcludeFromTotal(existing.excludeFromTotal ?? false);
+        setArchived(existing.archived ?? false);
+        setColor(existing.color ?? ACCOUNT_COLORS[0]);
+        setIcon(existing.icon ?? 'payments');
+        setError(null);
+      } else {
+        setName('');
+        setInitialBalance('');
+        setScope(initialScope);
+        setNature('asset');
+        setExcludeFromTotal(false);
+        setArchived(false);
+        setColor(ACCOUNT_COLORS[0]);
+        setIcon('payments');
+        setError(null);
+      }
+    }
+  }, [open, accountId, existing, initialScope]);
 
   const handleSave = () => {
     const trimmed = name.trim();
@@ -75,7 +107,8 @@ export function AccountSheet({
     }
 
     const parsedInit = parseInt(initialBalance.replace(/\D/g, '') || '0', 10);
-    const finalInitialBalance = Number.isNaN(parsedInit) ? 0 : parsedInit;
+    const absInitial = Number.isNaN(parsedInit) ? 0 : parsedInit;
+    const finalInitialBalance = nature === 'debt' && absInitial > 0 ? -absInitial : absInitial;
 
     if (existing) {
       updateAccount(existing.id, {
@@ -86,11 +119,12 @@ export function AccountSheet({
         nature,
         initialBalance: finalInitialBalance,
         excludeFromTotal,
+        archived,
       });
       toast({ title: 'Account updated', subtitle: trimmed });
       onClose();
     } else {
-      const id = addAccount(trimmed, icon, color, scope, nature, finalInitialBalance, excludeFromTotal);
+      const id = addAccount(trimmed, icon, color, scope, nature, finalInitialBalance, excludeFromTotal, archived);
       toast({ title: 'New account created', subtitle: trimmed });
       onCreated?.(id);
       onClose();
@@ -198,6 +232,23 @@ export function AccountSheet({
             type="checkbox"
             checked={excludeFromTotal}
             onChange={(e) => setExcludeFromTotal(e.target.checked)}
+            className="w-5 h-5 rounded border-line text-header focus:ring-header accent-[#3FA88B] cursor-pointer"
+          />
+        </label>
+
+        {/* Hide Account Toggle */}
+        <label className="flex items-center justify-between p-3.5 bg-canvas rounded-xl border border-line/60 cursor-pointer hover:bg-soft transition-colors select-none">
+          <div className="flex flex-col pr-3">
+            <div className="flex items-center gap-1.5">
+              <Icon name="visibility_off" className="text-[17px] text-ink-sub" />
+              <span className="text-label-md font-semibold text-ink">Hide account</span>
+            </div>
+            <span className="text-caption text-ink-sub mt-0.5">Hide from active lists and transaction selectors</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={archived}
+            onChange={(e) => setArchived(e.target.checked)}
             className="w-5 h-5 rounded border-line text-header focus:ring-header accent-[#3FA88B] cursor-pointer"
           />
         </label>

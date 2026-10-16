@@ -60,4 +60,40 @@ describe('money totals', () => {
     expect(row.category.name).toBe('Rent out');
     expect(m.rows.reduce((n, r) => n + r.share, 0)).toBeCloseTo(1);
   });
+
+  it('can create an account with archived property and update it', () => {
+    const s = useStore.getState();
+    const id = s.addAccount('Old Wallet', 'payments', '#64748B', 'personal', 'asset', 500000, false, true);
+
+    let acc = useStore.getState().accounts.find((a) => a.id === id);
+    expect(acc).toBeDefined();
+    expect(acc?.name).toBe('Old Wallet');
+    expect(acc?.archived).toBe(true);
+
+    // Unarchive the account
+    useStore.getState().updateAccount(id, { archived: false });
+    acc = useStore.getState().accounts.find((a) => a.id === id);
+    expect(acc?.archived).toBe(false);
+  });
+
+  it('reorders accounts within state without affecting other accounts', () => {
+    const s = useStore.getState();
+    const id1 = s.addAccount('Wallet 1', 'payments', '#3FA88B', 'personal');
+    const id2 = s.addAccount('Wallet 2', 'payments', '#4B7BFF', 'personal');
+    const id3 = s.addAccount('Wallet 3', 'payments', '#D946EF', 'personal');
+
+    const accountsBefore = useStore.getState().accounts;
+    const initialOrder = accountsBefore.map((a) => a.id);
+    expect(initialOrder.indexOf(id1)).toBeLessThan(initialOrder.indexOf(id2));
+    expect(initialOrder.indexOf(id2)).toBeLessThan(initialOrder.indexOf(id3));
+
+    // Reorder: 3 -> 1 -> 2
+    useStore.getState().reorderAccounts([id3, id1, id2]);
+
+    const accountsAfter = useStore.getState().accounts;
+    const reordered = accountsAfter.map((a) => a.id);
+    expect(reordered.indexOf(id3)).toBeLessThan(reordered.indexOf(id1));
+    expect(reordered.indexOf(id1)).toBeLessThan(reordered.indexOf(id2));
+  });
 });
+

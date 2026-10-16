@@ -16,7 +16,7 @@ import {
 import { shortWeekday, today } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import { CHART_COLORS, DAILY_CATEGORY_ID } from '../lib/moneyCategories';
-import type { DateStr, FinanceScope, LedgerEntry, TxType } from '../lib/types';
+import type { Account, DateStr, FinanceScope, LedgerEntry, TxType } from '../lib/types';
 import { AccountSheet } from '../sheets/AccountSheet';
 import { ChartBreakdownSheet, type ChartBreakdownSlice } from '../sheets/ChartBreakdownSheet';
 import { TransactionDetailSheet } from '../sheets/TransactionDetailSheet';
@@ -108,6 +108,7 @@ export function FinanceScreen({
   const items = useStore((s) => s.items ?? []);
   const householdBudget = useStore((s) => s.householdBudget);
   const personalBudget = useStore((s) => s.personalBudget);
+  const reorderAccounts = useStore((s) => s.reorderAccounts);
 
   const accountBalances = useAccountBalances();
 
@@ -123,6 +124,8 @@ export function FinanceScreen({
 
   const [isAccountSheetOpen, setIsAccountSheetOpen] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<string | undefined>(undefined);
+  const [isReordering, setIsReordering] = useState(false);
+  const [showHiddenAccounts, setShowHiddenAccounts] = useState(false);
 
   const [monthStartDay, setMonthStartDay] = useState<number>(() => getSavedMonthStartDay());
   const initialCycleKey = useMemo(() => getCurrentCycleMonthKey(today(), monthStartDay), [monthStartDay]);
@@ -144,14 +147,32 @@ export function FinanceScreen({
     return accounts.filter((a) => (scope === 'household' ? a.scope !== 'personal' : a.scope === 'personal'));
   }, [accounts, scope]);
 
-  // Group scoped accounts by Asset vs Loan / Debt
-  const assetAccounts = useMemo(() => {
-    return scopedAccounts.filter((a) => a.nature !== 'debt');
+  const activeScopedAccounts = useMemo(() => {
+    return scopedAccounts.filter((a) => !a.archived);
   }, [scopedAccounts]);
 
-  const debtAccounts = useMemo(() => {
-    return scopedAccounts.filter((a) => a.nature === 'debt');
+  const hiddenScopedAccounts = useMemo(() => {
+    return scopedAccounts.filter((a) => a.archived);
   }, [scopedAccounts]);
+
+  // Group active scoped accounts by Asset vs Loan / Debt
+  const assetAccounts = useMemo(() => {
+    return activeScopedAccounts.filter((a) => a.nature !== 'debt');
+  }, [activeScopedAccounts]);
+
+  const debtAccounts = useMemo(() => {
+    return activeScopedAccounts.filter((a) => a.nature === 'debt');
+  }, [activeScopedAccounts]);
+
+  const handleMoveAccount = (groupList: Account[], fromIndex: number, direction: -1 | 1) => {
+    const toIndex = fromIndex + direction;
+    if (toIndex < 0 || toIndex >= groupList.length) return;
+    const newIds = groupList.map((a) => a.id);
+    const temp = newIds[fromIndex];
+    newIds[fromIndex] = newIds[toIndex];
+    newIds[toIndex] = temp;
+    reorderAccounts(newIds);
+  };
 
   // Purchases belong to household only
   const filteredPurchases = useMemo(() => {
@@ -970,6 +991,11 @@ export function FinanceScreen({
                             Excluded from total
                           </span>
                         )}
+                        {selectedWallet.archived && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-soft text-ink-sub border border-line">
+                            Hidden
+                          </span>
+                        )}
                       </div>
                       <span className="text-caption text-ink-sub">Current balance</span>
                     </div>
@@ -1099,19 +1125,38 @@ export function FinanceScreen({
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[13px] font-bold text-ink">Wallets & Accounts</span>
-                    <span className="text-[11px] text-ink-sub">({scopedAccounts.length})</span>
+                    <span className="text-[11px] text-ink-sub">({activeScopedAccounts.length})</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingAccountId(undefined);
-                      setIsAccountSheetOpen(true);
-                    }}
-                    className="text-[12px] font-semibold text-sky hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Icon name="add" className="text-[15px]" />
-                    <span>Add account</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {activeScopedAccounts.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsReordering((v) => !v)}
+                        className={cx(
+                          'text-[12px] font-semibold flex items-center gap-1 cursor-pointer transition-colors px-2.5 py-1 rounded-lg',
+                          isReordering
+                            ? 'bg-sky text-white shadow-2xs font-bold'
+                            : 'text-ink-sub hover:text-ink hover:bg-soft'
+                        )}
+                      >
+                        <Icon name={isReordering ? 'check' : 'swap_vert'} className="text-[15px]" />
+                        <span>{isReordering ? 'Done' : 'Reorder'}</span>
+                      </button>
+                    )}
+                    {!isReordering && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAccountId(undefined);
+                          setIsAccountSheetOpen(true);
+                        }}
+                        className="text-[12px] font-semibold text-sky hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Icon name="add" className="text-[15px]" />
+                        <span>Add account</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* 1. Assets Group Card */}
@@ -1127,13 +1172,20 @@ export function FinanceScreen({
 
                     {/* Group Accounts */}
                     <div className="divide-y divide-line/20">
-                      {assetAccounts.map((acc) => {
+                      {assetAccounts.map((acc, idx) => {
                         const bal = accountBalances[acc.id] ?? 0;
                         return (
                           <div
                             key={acc.id}
-                            onClick={() => setSelectedWalletId(acc.id)}
-                            className="w-full px-3 py-2 flex items-center justify-between gap-2.5 hover:bg-canvas active:bg-soft text-left transition-colors cursor-pointer group"
+                            onClick={() => {
+                              if (!isReordering) setSelectedWalletId(acc.id);
+                            }}
+                            className={cx(
+                              'w-full px-3 py-2 flex items-center justify-between gap-2.5 transition-colors group',
+                              isReordering
+                                ? 'bg-surface'
+                                : 'hover:bg-canvas active:bg-soft cursor-pointer text-left'
+                            )}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <span
@@ -1143,7 +1195,7 @@ export function FinanceScreen({
                                 <Icon name={(acc.icon as any) || 'payments'} className="text-[16px]" style={{ color: acc.color || '#3FA88B' }} />
                               </span>
                               <div className="flex flex-col min-w-0">
-                                <span className="text-[12px] font-bold text-ink truncate">{acc.name}</span>
+                                <span className="text-[14px] font-bold text-ink truncate">{acc.name}</span>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-[11px] text-ink-sub font-medium">Asset</span>
                                   {acc.excludeFromTotal && (
@@ -1157,12 +1209,35 @@ export function FinanceScreen({
 
                             <div className="flex items-center gap-2 shrink-0">
                               <div className="flex flex-col items-end">
-                                <span className="text-[13px] font-bold text-ink tabular-nums">
+                                <span className="text-[15px] font-bold text-ink tabular-nums">
                                   {formatVnd(bal)}
                                 </span>
                                 <span className="text-[10px] text-ink-sub font-normal">VND</span>
                               </div>
-                              <Icon name="chevron_right" className="text-[16px] text-ink-sub/50 group-hover:text-ink transition-colors ml-0.5" />
+                              {isReordering ? (
+                                <div className="flex items-center gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={() => handleMoveAccount(assetAccounts, idx, -1)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center border border-line bg-surface text-ink hover:bg-soft disabled:opacity-25 disabled:cursor-not-allowed active:scale-95 transition-all"
+                                    aria-label={`Move ${acc.name} up`}
+                                  >
+                                    <Icon name="keyboard_arrow_up" className="text-[18px]" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={idx === assetAccounts.length - 1}
+                                    onClick={() => handleMoveAccount(assetAccounts, idx, 1)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center border border-line bg-surface text-ink hover:bg-soft disabled:opacity-25 disabled:cursor-not-allowed active:scale-95 transition-all"
+                                    aria-label={`Move ${acc.name} down`}
+                                  >
+                                    <Icon name="keyboard_arrow_down" className="text-[18px]" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <Icon name="chevron_right" className="text-[16px] text-ink-sub/50 group-hover:text-ink transition-colors ml-0.5" />
+                              )}
                             </div>
                           </div>
                         );
@@ -1184,13 +1259,20 @@ export function FinanceScreen({
 
                     {/* Group Accounts */}
                     <div className="divide-y divide-line/20">
-                      {debtAccounts.map((acc) => {
+                      {debtAccounts.map((acc, idx) => {
                         const bal = accountBalances[acc.id] ?? 0;
                         return (
                           <div
                             key={acc.id}
-                            onClick={() => setSelectedWalletId(acc.id)}
-                            className="w-full px-3 py-2 flex items-center justify-between gap-2.5 hover:bg-canvas active:bg-soft text-left transition-colors cursor-pointer group"
+                            onClick={() => {
+                              if (!isReordering) setSelectedWalletId(acc.id);
+                            }}
+                            className={cx(
+                              'w-full px-3 py-2 flex items-center justify-between gap-2.5 transition-colors group',
+                              isReordering
+                                ? 'bg-surface'
+                                : 'hover:bg-canvas active:bg-soft cursor-pointer text-left'
+                            )}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <span
@@ -1200,7 +1282,7 @@ export function FinanceScreen({
                                 <Icon name={(acc.icon as any) || 'credit_card'} className="text-[16px]" style={{ color: acc.color || '#EF4444' }} />
                               </span>
                               <div className="flex flex-col min-w-0">
-                                <span className="text-[12px] font-bold text-ink truncate">{acc.name}</span>
+                                <span className="text-[14px] font-bold text-ink truncate">{acc.name}</span>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                   <span className="text-[11px] text-ink-sub font-medium">Debt</span>
                                   {acc.excludeFromTotal && (
@@ -1214,17 +1296,119 @@ export function FinanceScreen({
 
                             <div className="flex items-center gap-2 shrink-0">
                               <div className="flex flex-col items-end">
-                                <span className={cx('text-[13px] font-bold tabular-nums', bal < 0 ? 'text-err-ink' : 'text-ink')}>
+                                <span className={cx('text-[15px] font-bold tabular-nums', bal < 0 ? 'text-err-ink' : 'text-ink')}>
                                   {bal < 0 ? `- ${formatVnd(Math.abs(bal))}` : formatVnd(bal)}
                                 </span>
                                 <span className="text-[10px] text-ink-sub font-normal">VND</span>
                               </div>
-                              <Icon name="chevron_right" className="text-[16px] text-ink-sub/50 group-hover:text-ink transition-colors ml-0.5" />
+                              {isReordering ? (
+                                <div className="flex items-center gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={() => handleMoveAccount(debtAccounts, idx, -1)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center border border-line bg-surface text-ink hover:bg-soft disabled:opacity-25 disabled:cursor-not-allowed active:scale-95 transition-all"
+                                    aria-label={`Move ${acc.name} up`}
+                                  >
+                                    <Icon name="keyboard_arrow_up" className="text-[18px]" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={idx === debtAccounts.length - 1}
+                                    onClick={() => handleMoveAccount(debtAccounts, idx, 1)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center border border-line bg-surface text-ink hover:bg-soft disabled:opacity-25 disabled:cursor-not-allowed active:scale-95 transition-all"
+                                    aria-label={`Move ${acc.name} down`}
+                                  >
+                                    <Icon name="keyboard_arrow_down" className="text-[18px]" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <Icon name="chevron_right" className="text-[16px] text-ink-sub/50 group-hover:text-ink transition-colors ml-0.5" />
+                              )}
                             </div>
                           </div>
                         );
                       })}
                     </div>
+                  </div>
+                )}
+
+                {/* 3. Hidden Accounts Section */}
+                {hiddenScopedAccounts.length > 0 && (
+                  <div className="bg-surface rounded-xl shadow-card border border-line/40 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setShowHiddenAccounts((v) => !v)}
+                      className="w-full px-3 py-2.5 flex items-center justify-between gap-2 hover:bg-canvas active:bg-soft transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon name="visibility_off" className="text-[16px] text-ink-sub" />
+                        <span className="text-[12px] font-semibold text-ink-sub">
+                          Hidden accounts ({hiddenScopedAccounts.length})
+                        </span>
+                      </div>
+                      <Icon
+                        name={showHiddenAccounts ? 'expand_less' : 'expand_more'}
+                        className="text-[18px] text-ink-sub"
+                      />
+                    </button>
+
+                    {showHiddenAccounts && (
+                      <div className="divide-y divide-line/20 border-t border-line/20">
+                        {hiddenScopedAccounts.map((acc) => {
+                          const bal = accountBalances[acc.id] ?? 0;
+                          const isDebt = acc.nature === 'debt';
+                          return (
+                            <div
+                              key={acc.id}
+                              onClick={() => setSelectedWalletId(acc.id)}
+                              className="w-full px-3 py-2 flex items-center justify-between gap-2.5 hover:bg-canvas active:bg-soft text-left transition-colors cursor-pointer group opacity-75 hover:opacity-100"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span
+                                  className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-2xs grayscale"
+                                  style={{ backgroundColor: `${acc.color || '#64748B'}20` }}
+                                >
+                                  <Icon
+                                    name={(acc.icon as any) || (isDebt ? 'credit_card' : 'payments')}
+                                    className="text-[16px]"
+                                    style={{ color: acc.color || '#64748B' }}
+                                  />
+                                </span>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-[14px] font-bold text-ink truncate">{acc.name}</span>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="text-[10px] font-semibold text-ink-sub bg-soft px-1.5 py-0.5 rounded leading-none">
+                                      Hidden
+                                    </span>
+                                    {acc.excludeFromTotal && (
+                                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded leading-none">
+                                        Excluded
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex flex-col items-end">
+                                  <span
+                                    className={cx(
+                                      'text-[15px] font-bold tabular-nums',
+                                      isDebt && bal < 0 ? 'text-err-ink' : 'text-ink'
+                                    )}
+                                  >
+                                    {isDebt && bal < 0 ? `- ${formatVnd(Math.abs(bal))}` : formatVnd(bal)}
+                                  </span>
+                                  <span className="text-[10px] text-ink-sub font-normal">VND</span>
+                                </div>
+                                <Icon name="chevron_right" className="text-[16px] text-ink-sub/50 group-hover:text-ink transition-colors ml-0.5" />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1363,6 +1547,7 @@ export function FinanceScreen({
 
       {/* Sheets & Overlays */}
       <AccountSheet
+        key={editingAccountId ?? (isAccountSheetOpen ? 'new' : 'closed')}
         open={isAccountSheetOpen || !!editingAccountId}
         onClose={() => {
           setIsAccountSheetOpen(false);

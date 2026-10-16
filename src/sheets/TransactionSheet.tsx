@@ -83,7 +83,8 @@ export function TransactionSheet({
   const currentMemberId = useStore((s) => s.currentMemberId);
 
   const preferredAccount =
-    accounts.find((a) => (initialScope === 'personal' ? a.scope === 'personal' : a.scope !== 'personal')) ??
+    accounts.find((a) => !a.archived && (initialScope === 'personal' ? a.scope === 'personal' : a.scope !== 'personal')) ??
+    accounts.find((a) => !a.archived) ??
     accounts[0];
   const [categoryId, setCategoryId] = useState<string | null>(
     () => existing?.categoryId ?? initialValues?.categoryId ?? null
@@ -91,8 +92,8 @@ export function TransactionSheet({
   const [accountId, setAccountId] = useState<string | null>(existing?.accountId ?? preferredAccount?.id ?? null);
   const [toAccountId, setToAccountId] = useState<string | null>(
     existing?.toAccountId ??
+      accounts.find((a) => !a.archived && a.id !== (existing?.accountId ?? preferredAccount?.id))?.id ??
       accounts.find((a) => a.id !== (existing?.accountId ?? preferredAccount?.id))?.id ??
-      accounts[1]?.id ??
       null
   );
   const [pickingAccountFor, setPickingAccountFor] = useState<'from' | 'to'>('from');
@@ -753,7 +754,10 @@ export function TransactionSheet({
           {/* Account Groups ordered by scope */}
           {(() => {
             const renderGroup = (isPersonal: boolean) => {
-              const list = accounts.filter((a) => (isPersonal ? a.scope === 'personal' : a.scope !== 'personal'));
+              const currentlySelected = type === 'transfer' && pickingAccountFor === 'to' ? toAccountId : accountId;
+              const list = accounts.filter(
+                (a) => (isPersonal ? a.scope === 'personal' : a.scope !== 'personal') && (!a.archived || a.id === currentlySelected)
+              );
               if (list.length === 0) return null;
               const title = isPersonal ? 'My Wallets' : 'Our Wallets';
               return (

@@ -109,9 +109,10 @@ interface Actions {
   /** Hides it from pickers; past entries keep showing under it. */
   archiveMoneyCategory: (id: string) => Undo;
 
-  addAccount: (name: string, icon?: string, color?: string, scope?: FinanceScope, nature?: AccountNature, initialBalance?: number | null, excludeFromTotal?: boolean) => string;
+  addAccount: (name: string, icon?: string, color?: string, scope?: FinanceScope, nature?: AccountNature, initialBalance?: number | null, excludeFromTotal?: boolean, archived?: boolean) => string;
   updateAccount: (id: string, patch: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
+  reorderAccounts: (orderedIds: string[]) => void;
   setBudget: (scope: FinanceScope, amount: number | null) => void;
 
   renameHousehold: (name: string) => void;
@@ -633,7 +634,7 @@ export const useStore = create<State>()(
         return () => set((s) => ({ moneyCategories: s.moneyCategories.map((c) => (c.id === id ? { ...c, archived: false } : c)) }));
       },
 
-      addAccount: (name, icon = 'payments', color = '#3FA88B', scope = 'household', nature = 'asset', initialBalance = 0, excludeFromTotal = false) => {
+      addAccount: (name, icon = 'payments', color = '#3FA88B', scope = 'household', nature = 'asset', initialBalance = 0, excludeFromTotal = false, archived = false) => {
         const id = uid();
         set((s) => ({
           accounts: [
@@ -648,6 +649,8 @@ export const useStore = create<State>()(
               nature,
               initialBalance: initialBalance ?? 0,
               excludeFromTotal: excludeFromTotal ?? false,
+              archived: archived ?? false,
+              order: (s.accounts ?? []).length,
               createdAt: new Date().toISOString(),
             },
           ],
@@ -662,6 +665,25 @@ export const useStore = create<State>()(
         set((s) => ({
           accounts: (s.accounts ?? []).filter((a) => a.id !== id),
         })),
+      reorderAccounts: (orderedIds) =>
+        set((s) => {
+          const list = [...(s.accounts ?? [])];
+          const orderedSet = new Set(orderedIds);
+          const targetIndices: number[] = [];
+          list.forEach((acc, idx) => {
+            if (orderedSet.has(acc.id)) {
+              targetIndices.push(idx);
+            }
+          });
+          const accountMap = new Map(list.map((a) => [a.id, a]));
+          targetIndices.forEach((targetIdx, i) => {
+            const id = orderedIds[i];
+            if (id && accountMap.has(id)) {
+              list[targetIdx] = { ...accountMap.get(id)!, order: i };
+            }
+          });
+          return { accounts: list };
+        }),
       setBudget: (scope, amount) =>
         set(() => (scope === 'household' ? { householdBudget: amount } : { personalBudget: amount })),
 

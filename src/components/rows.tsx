@@ -252,10 +252,10 @@ export function LedgerRow({
 
       {/* Center: Item name with subtitle Category - Member */}
       <div className="flex-1 min-w-0 pr-2">
-        <div className="text-[12px] font-semibold text-ink truncate leading-tight">
+        <div className="text-[14px] font-semibold text-ink truncate leading-tight">
           {entry.itemName}
         </div>
-        <div className="text-[10.5px] text-ink-sub mt-0.5 truncate leading-tight">
+        <div className="text-[11.5px] text-ink-sub mt-0.5 truncate leading-tight">
           {subtitle}
         </div>
       </div>
@@ -264,7 +264,7 @@ export function LedgerRow({
       <div className="text-right shrink-0 flex flex-col items-end min-w-0">
         <span
           className={cx(
-            'text-[12px] font-bold tabular-nums leading-tight whitespace-nowrap',
+            'text-[14px] font-bold tabular-nums leading-tight whitespace-nowrap',
             entry.type === 'expense'
               ? 'text-err-ink'
               : entry.type === 'income'
@@ -278,7 +278,7 @@ export function LedgerRow({
             ? `+${formatVnd(entry.amount)}`
             : formatVnd(entry.amount)}
         </span>
-        <span className="text-[10.5px] text-ink-sub mt-0.5 max-w-[120px] truncate leading-tight">
+        <span className="text-[11.5px] text-ink-sub mt-0.5 max-w-[120px] truncate leading-tight">
           {accountName || 'Account'}
         </span>
       </div>
