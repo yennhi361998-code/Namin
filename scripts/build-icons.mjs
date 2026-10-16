@@ -15,8 +15,8 @@ const mark = {
   heart: 'M965 891 C948 852 908 833 872 833 C817 833 783 874 783 929 C783 1038 865 1102 965 1141 C1065 1102 1153 1038 1153 929 C1153 874 1115 833 1060 833 C1024 833 984 852 965 891 Z'
 };
 
-const BG = '#FFFFFF';
-const FG = '#B5E7F1';
+const BG = '#B5E7F1';
+const FG = '#FFFFFF';
 
 /** Mark scaled to `fill` of the square's width (keeps aspect), centred. */
 function iconSvg(size, { fill, radius = 0, weight = 1 }) {
