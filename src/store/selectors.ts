@@ -51,9 +51,25 @@ export function useTaskLists() {
 export function useRestockMap() {
   const items = useStore((s) => s.items);
   const purchases = useStore((s) => s.purchases);
+  const transactions = useStore((s) => s.transactions);
   return useMemo(() => {
-    const byItem = new Map<string, Purchase[]>();
-    for (const p of purchases) byItem.set(p.itemId, [...(byItem.get(p.itemId) ?? []), p]);
+    const byItem = new Map<string, Array<Pick<Purchase, 'purchaseDate'>>>();
+    for (const p of purchases) {
+      if (p.itemId) {
+        byItem.set(p.itemId, [...(byItem.get(p.itemId) ?? []), { purchaseDate: p.purchaseDate }]);
+      }
+    }
+    for (const tx of transactions) {
+      if (tx.type !== 'expense') continue;
+      let targetItemId = tx.itemId;
+      if (!targetItemId && tx.note) {
+        const found = items.find((i) => i.name.trim().toLowerCase() === tx.note.trim().toLowerCase());
+        if (found) targetItemId = found.id;
+      }
+      if (targetItemId) {
+        byItem.set(targetItemId, [...(byItem.get(targetItemId) ?? []), { purchaseDate: tx.date }]);
+      }
+    }
     const t = today();
     const map = new Map<string, RestockEstimate>();
     for (const it of items) {
@@ -61,7 +77,7 @@ export function useRestockMap() {
       if (est) map.set(it.id, est);
     }
     return map;
-  }, [items, purchases]);
+  }, [items, purchases, transactions]);
 }
 
 /** Items due for restock within the low threshold that aren't already on the list, soonest first. */

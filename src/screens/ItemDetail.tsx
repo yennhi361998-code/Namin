@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { SwipeRow } from '../components/overlay';
 import { quantityLabel } from '../components/rows';
@@ -27,10 +27,12 @@ export function ItemDetail() {
   const { id } = useParams();
   const item = useStore((s) => s.items.find((i) => i.id === id));
   const allPurchases = useStore((s) => s.purchases);
+  const allTransactions = useStore((s) => s.transactions);
   const allTasks = useStore((s) => s.tasks);
   const onList = useStore((s) => s.shopping.find((x) => x.itemId === id && !x.completed));
   const addToShopping = useStore((s) => s.addToShopping);
   const deletePurchase = useStore((s) => s.deletePurchase);
+  const deleteTransaction = useStore((s) => s.deleteTransaction);
   const restock = useRestockMap();
 
   if (!item) {
@@ -43,14 +45,62 @@ export function ItemDetail() {
     );
   }
 
-  const purchases = allPurchases
-    .filter((p) => p.itemId === item.id)
-    .sort((a, b) => {
+  const purchases = useMemo(() => {
+    if (!item) return [];
+    const list: Array<{
+      id: string;
+      rawId: string;
+      source: 'purchase' | 'transaction';
+      purchaseDate: string;
+      quantity: number;
+      unit: string;
+      price: number | null;
+      store: string;
+      createdAt?: string;
+    }> = [];
+
+    const itemName = item.name.trim().toLowerCase();
+
+    for (const p of allPurchases) {
+      if (p.itemId === item.id || p.itemName.trim().toLowerCase() === itemName) {
+        list.push({
+          id: `pur-${p.id}`,
+          rawId: p.id,
+          source: 'purchase',
+          purchaseDate: p.purchaseDate,
+          quantity: p.quantity || 1,
+          unit: p.unit || item.unit,
+          price: p.price,
+          store: p.store || '',
+          createdAt: p.createdAt,
+        });
+      }
+    }
+
+    for (const tx of allTransactions) {
+      if (tx.type !== 'expense') continue;
+      if (tx.itemId === item.id || tx.note.trim().toLowerCase() === itemName) {
+        list.push({
+          id: `tx-${tx.id}`,
+          rawId: tx.id,
+          source: 'transaction',
+          purchaseDate: tx.date,
+          quantity: tx.quantity || 1,
+          unit: tx.unit || item.unit,
+          price: tx.amount,
+          store: '',
+          createdAt: tx.createdAt,
+        });
+      }
+    }
+
+    return list.sort((a, b) => {
       const dateCmp = b.purchaseDate.localeCompare(a.purchaseDate);
       if (dateCmp !== 0) return dateCmp;
       if (a.createdAt && b.createdAt) return b.createdAt.localeCompare(a.createdAt);
-      return allPurchases.indexOf(b) - allPurchases.indexOf(a);
+      return b.id.localeCompare(a.id);
     });
+  }, [item, allPurchases, allTransactions]);
   const linkedTasks = allTasks.filter((t) => t.mappedItemId === item.id && !t.completed);
   const est = restock.get(item.id) ?? null;
   const status = statusFromEstimate(est);
@@ -266,7 +316,9 @@ export function ItemDetail() {
                       icon: 'delete',
                       tone: 'err',
                       onSelect: () => {
-                        const undo = deletePurchase(p.id);
+                        const undo = p.source === 'transaction'
+                          ? deleteTransaction(p.rawId)
+                          : deletePurchase(p.rawId);
                         toast({ title: 'Purchase deleted', subtitle: `${shortDate(p.purchaseDate)}${p.price != null ? ` · ${formatVnd(p.price)}` : ''}`, action: { label: 'Undo', run: undo } });
                       },
                     },

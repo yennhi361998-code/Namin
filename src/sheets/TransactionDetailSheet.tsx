@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
 import { BottomSheet } from '../components/overlay';
 import { Badge, CategoryIcon, Icon, MemberAvatar, PrimaryButton, cx } from '../components/ui';
-import { longDate, shortDate, weekdayName } from '../lib/dates';
+import { longDate, shortDate, today, weekdayName } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import { DAILY_CATEGORY_ID } from '../lib/moneyCategories';
-import { statusFromEstimate, STATUS_LABEL } from '../lib/restock';
+import { estimateRestock, statusFromEstimate, STATUS_LABEL } from '../lib/restock';
 import type { LedgerEntry } from '../lib/types';
 import { quantityLabel } from '../components/rows';
 import { useStore } from '../store';
-import { useRestockMap } from '../store/selectors';
 import { toast } from '../store/ui';
 
 const STATUS_TONE = { in_stock: 'done', running_low: 'warn', out: 'err', unknown: 'plain' } as const;
@@ -30,7 +29,6 @@ export function TransactionDetailSheet({
   const items = useStore((s) => s.items);
   const allPurchases = useStore((s) => s.purchases);
   const transactions = useStore((s) => s.transactions);
-  const restockMap = useRestockMap();
 
   const item = useMemo(() => {
     if (!entry) return undefined;
@@ -38,25 +36,74 @@ export function TransactionDetailSheet({
     return items.find((i) => i.name.trim().toLowerCase() === entry.itemName.trim().toLowerCase());
   }, [entry, items]);
 
-  const itemPurchases = useMemo(() => {
-    if (!item) return [];
-    return allPurchases
-      .filter((p) => p.itemId === item.id)
-      .sort((a, b) => {
-        const dateCmp = b.purchaseDate.localeCompare(a.purchaseDate);
-        if (dateCmp !== 0) return dateCmp;
-        if (a.createdAt && b.createdAt) return b.createdAt.localeCompare(a.createdAt);
-        return 0;
-      });
-  }, [allPurchases, item]);
+  const allHistoryPurchases = useMemo(() => {
+    if (!entry) return [];
+    const list: Array<{
+      id: string;
+      date: string;
+      price: number | null;
+      quantity: number;
+      unit: string;
+      store: string;
+      notes: string;
+      isCurrent: boolean;
+    }> = [];
+    const entryName = entry.itemName.trim().toLowerCase();
+    const currentRawId = entry.id.replace(/^(pur-|tx-)/, '');
 
-  const matchingTransactions = useMemo(() => {
-    if (!entry || item) return [];
-    const rawId = entry.id.replace(/^(tx-|pur-)/, '');
-    return transactions
-      .filter((t) => t.id !== rawId && t.note.trim().toLowerCase() === entry.itemName.trim().toLowerCase())
-      .sort((a, b) => b.date.localeCompare(a.date));
-  }, [entry, item, transactions]);
+    // 1. Household purchases
+    for (const p of allPurchases) {
+      const match = (item && p.itemId === item.id) || p.itemName.trim().toLowerCase() === entryName;
+      if (match) {
+        list.push({
+          id: `pur-${p.id}`,
+          date: p.purchaseDate,
+          price: p.price,
+          quantity: p.quantity || 1,
+          unit: p.unit || item?.unit || 'pack',
+          store: p.store || '',
+          notes: p.notes || '',
+          isCurrent: entry.kind === 'purchase' && (entry.rawPurchase?.id === p.id || currentRawId === p.id),
+        });
+      }
+    }
+
+    // 2. Personal / household transactions
+    for (const tx of transactions) {
+      if (tx.type !== 'expense') continue;
+      const match = (item && tx.itemId === item.id) || tx.note.trim().toLowerCase() === entryName;
+      if (match) {
+        list.push({
+          id: `tx-${tx.id}`,
+          date: tx.date,
+          price: tx.amount,
+          quantity: tx.quantity || 1,
+          unit: tx.unit || item?.unit || 'pack',
+          store: '',
+          notes: tx.note || '',
+          isCurrent: entry.kind === 'transaction' && (entry.rawTransaction?.id === tx.id || currentRawId === tx.id),
+        });
+      }
+    }
+
+    if (!list.some((p) => p.isCurrent)) {
+      list.unshift({
+        id: entry.id,
+        date: entry.date,
+        price: entry.amount,
+        quantity: entry.rawPurchase?.quantity ?? entry.rawTransaction?.quantity ?? 1,
+        unit: entry.rawPurchase?.unit ?? entry.rawTransaction?.unit ?? item?.unit ?? 'pack',
+        store: entry.rawPurchase?.store ?? '',
+        notes: entry.notes ?? '',
+        isCurrent: true,
+      });
+    }
+
+    return list.sort((a, b) => {
+      const cmp = b.date.localeCompare(a.date);
+      return cmp !== 0 ? cmp : b.id.localeCompare(a.id);
+    });
+  }, [entry, item, allPurchases, transactions]);
 
   if (!entry) return null;
 
@@ -98,16 +145,24 @@ export function TransactionDetailSheet({
         : `${quantity} ${unit || 'items'}`
       : unit || null;
 
-  // Average price calculation for item
-  const priced = itemPurchases.filter((p) => p.price != null && p.price > 0);
+  // Average price calculation for item across all history purchases
+  const priced = allHistoryPurchases.filter((p) => p.price != null && p.price > 0);
   const totalPrice = priced.reduce((sum, p) => sum + p.price!, 0);
   const totalQty = priced.reduce((sum, p) => sum + (p.quantity || 1), 0);
   const avgPrice = totalQty > 0 ? Math.round(totalPrice / totalQty) : null;
   const hasConversion = !!(item?.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1);
   const costPerUsage = hasConversion && avgPrice != null ? Math.round(avgPrice / item!.usagePerPurchaseUnit!) : null;
 
-  // Restock estimate for item
-  const est = item ? restockMap.get(item.id) ?? null : null;
+  // Restock estimate / product cycle calculation
+  const est = useMemo(() => {
+    const purchaseDates = allHistoryPurchases.map((p) => ({ purchaseDate: p.date }));
+    return estimateRestock(
+      { expectedUsageDays: item?.expectedUsageDays ?? null },
+      purchaseDates,
+      today(),
+    );
+  }, [allHistoryPurchases, item]);
+
   const status = statusFromEstimate(est);
 
   const handleDelete = () => {
@@ -262,7 +317,7 @@ export function TransactionDetailSheet({
         </div>
 
         {/* 2. Item Insights: Average price, Typical usage, Next purchase */}
-        {item && (
+        {(item || allHistoryPurchases.length > 0 || avgPrice != null || est != null) && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between px-0.5">
               <span className="text-label-md uppercase tracking-wider font-semibold text-ink-sub">
@@ -279,7 +334,7 @@ export function TransactionDetailSheet({
                 <div className="text-right">
                   {avgPrice != null ? (
                     <span className="font-semibold text-ink">
-                      {formatVnd(avgPrice)} {item.unit ? `/ ${item.unit}` : ''}
+                      {formatVnd(avgPrice)} {unit ? `/ ${unit}` : ''}
                       {costPerUsage != null && (
                         <span className="block text-caption text-ink-sub font-normal">
                           ~{formatVnd(costPerUsage)} / {usageUnit}
@@ -292,11 +347,11 @@ export function TransactionDetailSheet({
                 </div>
               </div>
 
-              {/* Typical Usage */}
+              {/* Typical Usage (Product cycle) */}
               <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
                 <span className="text-ink-sub shrink-0">Typical usage</span>
                 <span className="font-semibold text-ink text-right">
-                  {est ? `~${est.cycleDays} days` : item.expectedUsageDays ? `~${item.expectedUsageDays} days` : 'Not enough data'}
+                  {est ? `~${est.cycleDays} days` : item?.expectedUsageDays ? `~${item.expectedUsageDays} days` : 'Not enough data'}
                 </span>
               </div>
 
@@ -323,7 +378,7 @@ export function TransactionDetailSheet({
               </div>
 
               {/* Current Stock (if set) */}
-              {item.currentStock != null && (
+              {item?.currentStock != null && (
                 <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
                   <span className="text-ink-sub shrink-0">Current stock</span>
                   <span className="font-semibold text-ink text-right">
@@ -335,73 +390,41 @@ export function TransactionDetailSheet({
           </div>
         )}
 
-        {/* 3. Purchase History */}
-        {itemPurchases.length > 0 && (
+        {/* 3. Purchase History (Unified across household & personal records) */}
+        {allHistoryPurchases.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between px-0.5">
               <span className="text-label-md uppercase tracking-wider font-semibold text-ink-sub">
                 Purchase history
               </span>
               <span className="text-body-sm text-ink-sub">
-                {itemPurchases.length} {itemPurchases.length === 1 ? 'purchase' : 'purchases'}
+                {allHistoryPurchases.length} {allHistoryPurchases.length === 1 ? 'record' : 'records'}
               </span>
             </div>
             <div className="bg-surface rounded-2xl border border-line/50 divide-y divide-line/30 overflow-hidden shadow-2xs">
-              {itemPurchases.map((p) => {
-                const isCurrent = p.id === entry.rawPurchase?.id || entry.id === `pur-${p.id}`;
-                return (
-                  <div
-                    key={p.id}
-                    className={cx(
-                      'p-3.5 flex items-center justify-between gap-3 text-body-sm transition-colors',
-                      isCurrent ? 'bg-sky/15' : 'hover:bg-soft/20'
-                    )}
-                  >
-                    <div className="flex flex-col min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-ink">{longDate(p.purchaseDate)}</span>
-                        {isCurrent && (
-                          <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-header-ink text-white">
-                            Current
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-caption text-ink-sub truncate mt-0.5">
-                        {[quantityLabel(p.quantity, p.unit), p.store, p.notes].filter(Boolean).join(' · ') || '—'}
-                      </span>
-                    </div>
-                    <span className="font-semibold text-ink tabular-nums shrink-0">
-                      {p.price != null ? formatVnd(p.price) : '—'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 4. Past Transactions (when not an inventory item, but has similar past transactions) */}
-        {!item && matchingTransactions.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between px-0.5">
-              <span className="text-label-md uppercase tracking-wider font-semibold text-ink-sub">
-                Past transactions
-              </span>
-              <span className="text-body-sm text-ink-sub">
-                {matchingTransactions.length} {matchingTransactions.length === 1 ? 'record' : 'records'}
-              </span>
-            </div>
-            <div className="bg-surface rounded-2xl border border-line/50 divide-y divide-line/30 overflow-hidden shadow-2xs">
-              {matchingTransactions.map((tx) => (
-                <div key={tx.id} className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
+              {allHistoryPurchases.map((p) => (
+                <div
+                  key={p.id}
+                  className={cx(
+                    'p-3.5 flex items-center justify-between gap-3 text-body-sm transition-colors',
+                    p.isCurrent ? 'bg-sky/15' : 'hover:bg-soft/20'
+                  )}
+                >
                   <div className="flex flex-col min-w-0">
-                    <span className="font-semibold text-ink">{longDate(tx.date)}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-ink">{longDate(p.date)}</span>
+                      {p.isCurrent && (
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-header-ink text-white">
+                          Current
+                        </span>
+                      )}
+                    </div>
                     <span className="text-caption text-ink-sub truncate mt-0.5">
-                      {[quantityLabel(tx.quantity ?? 1, tx.unit ?? ''), tx.note].filter(Boolean).join(' · ')}
+                      {[quantityLabel(p.quantity, p.unit), p.store, p.notes].filter(Boolean).join(' · ') || '—'}
                     </span>
                   </div>
                   <span className="font-semibold text-ink tabular-nums shrink-0">
-                    {formatVnd(tx.amount)}
+                    {p.price != null ? formatVnd(p.price) : '—'}
                   </span>
                 </div>
               ))}

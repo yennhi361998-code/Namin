@@ -24,16 +24,36 @@ const TABS: { to: string; label: string; icon: IconName; match: (p: string) => b
   },
 ];
 
+function useIsStandalone(): boolean {
+  const [standalone, setStandalone] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      Boolean((window.navigator as any)?.standalone)
+    );
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(display-mode: standalone)');
+    const onChange = (e: MediaQueryListEvent) => setStandalone(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  return standalone;
+}
+
 /** Floating pill navigation bar with rounded-full shape, compact Facebook-style tabs. */
 export function BottomNavigation() {
   const { pathname } = useLocation();
+  const isStandalone = useIsStandalone();
+
   return (
     <nav
-      className="fixed z-40 left-1/2 w-[calc(100%-32px)] max-w-[360px] bg-surface/90 dark:bg-surface/90 backdrop-blur-xl border border-line/80 rounded-full shadow-float"
+      className="fixed z-40 inset-x-0 mx-auto w-[calc(100%-32px)] max-w-[360px] bg-surface/90 dark:bg-surface/90 backdrop-blur-xl border border-line/80 rounded-full shadow-float transition-[bottom] duration-200 ease-out"
       style={{
-        bottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
-        transform: 'translate3d(-50%, 0, 0)',
-        WebkitTransform: 'translate3d(-50%, 0, 0)',
+        bottom: isStandalone ? 'max(14px, env(safe-area-inset-bottom))' : '14px',
       }}
       aria-label="Main"
     >

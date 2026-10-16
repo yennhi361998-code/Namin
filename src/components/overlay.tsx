@@ -62,6 +62,23 @@ function lockScroll() {
   };
 }
 
+function useIsDesktop(): boolean {
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(min-width: 640px)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 640px)');
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  return isDesktop;
+}
+
 export function BottomSheet({
   open,
   onClose,
@@ -92,6 +109,8 @@ export function BottomSheet({
   const dragStart = useRef<number | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const vp = useVisualViewport(mounted);
+  const isDesktop = useIsDesktop();
+  const isEffectiveCentered = Boolean(centered || isDesktop);
 
   useEffect(() => {
     if (open) {
@@ -114,17 +133,10 @@ export function BottomSheet({
     if (!mounted) return;
     const unlock = lockScroll();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    const onWindowScroll = () => {
-      if (window.scrollY !== 0) {
-        window.scrollTo(0, 0);
-      }
-    };
     window.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', onWindowScroll, { passive: true });
     return () => {
       unlock();
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', onWindowScroll);
     };
   }, [mounted, onClose]);
 
@@ -136,7 +148,7 @@ export function BottomSheet({
       className={cx(
         'fixed inset-x-0',
         zIndex || 'z-[60]',
-        centered ? 'flex items-center justify-center p-3 sm:p-4 overflow-hidden' : ''
+        isEffectiveCentered ? 'flex items-center justify-center p-3 sm:p-4 overflow-hidden' : ''
       )}
       style={{
         top: `${vp.offsetTop}px`,
@@ -156,13 +168,13 @@ export function BottomSheet({
         aria-label={title}
         tabIndex={-1}
         className={cx(
-          centered
-            ? 'relative w-full max-w-[540px] mx-auto bg-surface rounded-[24px] shadow-float flex flex-col outline-none overflow-hidden my-auto'
+          isEffectiveCentered
+            ? 'relative w-full max-w-[540px] mx-auto bg-surface rounded-[24px] shadow-float border border-line/60 flex flex-col outline-none overflow-hidden my-auto'
             : 'absolute inset-x-0 bottom-0 mx-auto w-full max-w-[560px] bg-surface rounded-t-[20px] shadow-float flex flex-col outline-none overflow-hidden',
           'transition-transform duration-200 ease-out',
         )}
         style={{
-          ...(centered
+          ...(isEffectiveCentered
             ? {
                 maxHeight: `${Math.min(vp.height - 24, window.innerHeight * 0.88)}px`,
                 transform: shown ? 'scale(1)' : 'scale(0.95)',
@@ -175,7 +187,7 @@ export function BottomSheet({
               }),
         }}
       >
-        {!centered && (
+        {!isEffectiveCentered && (
           <div
             className="pt-2 pb-1 flex flex-col items-center touch-none cursor-grab"
             onPointerDown={(e) => {
@@ -197,7 +209,7 @@ export function BottomSheet({
           </div>
         )}
         {header ?? (
-          <div className={cx('flex items-center justify-between px-4 pb-2 min-w-0', centered && 'pt-3.5')}>
+          <div className={cx('flex items-center justify-between px-4 pb-2 min-w-0', isEffectiveCentered && 'pt-3.5')}>
             <h2 className="text-title-sm text-ink truncate pr-2 flex-1 min-w-0">{title}</h2>
             <button
               type="button"
@@ -213,7 +225,7 @@ export function BottomSheet({
         {footer && (
           <div
             className={cx('shrink-0 px-4 pt-3 border-t border-line bg-surface', footerClassName)}
-            style={{ paddingBottom: centered ? 16 : vp.isKeyboardOpen ? 12 : 'max(12px, env(safe-area-inset-bottom))' }}
+            style={{ paddingBottom: isEffectiveCentered ? 16 : vp.isKeyboardOpen ? 12 : 'max(12px, env(safe-area-inset-bottom))' }}
           >
             {footer}
           </div>
