@@ -41,6 +41,7 @@ writeFileSync('public/favicon.svg', iconSvg(64, { fill: 0.68, radius: 14, weight
 writeFileSync('public/favicon-32.png', png(iconSvg(32, { fill: 0.70, radius: 7, weight: 1.0 })));
 // iOS home screen: full-bleed square matching Embé icon scale (~53% mark width).
 writeFileSync('public/apple-touch-icon.png', png(iconSvg(180, { fill: 0.53, weight: 1.0 })));
+writeFileSync('public/apple-touch-icon-v5.png', png(iconSvg(180, { fill: 0.53, weight: 1.0 })));
 // Android / installed PWA.
 writeFileSync('public/icon-192.png', png(iconSvg(192, { fill: 0.53, weight: 1.0 })));
 writeFileSync('public/icon-512.png', png(iconSvg(512, { fill: 0.53, weight: 1.0 })));
