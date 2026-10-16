@@ -27,6 +27,8 @@ export function SettingsScreen() {
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isReadingFile, setIsReadingFile] = useState(false);
+  const [isLoadingStandard, setIsLoadingStandard] = useState(false);
+  const [cleanPersonalBeforeImport, setCleanPersonalBeforeImport] = useState(true);
 
   const handleOpenBudget = (scope: FinanceScope) => {
     setEditingBudgetScope(scope);
@@ -78,12 +80,34 @@ export function SettingsScreen() {
         return;
       }
       setImportPreview(parsed);
+      setCleanPersonalBeforeImport(true);
     } catch (err: any) {
       console.error('Failed to parse Excel file:', err);
       toast({ title: 'Failed to read file', subtitle: err.message, tone: 'error' });
     } finally {
       setIsReadingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleLoadStandardFile = async () => {
+    if (isLoadingStandard || isReadingFile) return;
+    setIsLoadingStandard(true);
+    try {
+      const res = await fetch('/Namin_Import_Nhi_Wallet.xlsx');
+      if (!res.ok) throw new Error('Không thể tải file mẫu từ máy chủ.');
+      const blob = await res.blob();
+      const file = new File([blob], 'Namin_Import_Nhi_Wallet.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const parsed = await parseExcelFile(file);
+      setImportPreview(parsed);
+      setCleanPersonalBeforeImport(true);
+    } catch (err: any) {
+      console.error('Failed to load standard template:', err);
+      toast({ title: 'Không thể mở file mẫu', subtitle: err.message, tone: 'error' });
+    } finally {
+      setIsLoadingStandard(false);
     }
   };
 
@@ -96,14 +120,17 @@ export function SettingsScreen() {
 
       const newAccs = importPreview.newAccounts?.length || 0;
       const newCats = importPreview.newCategories?.length || 0;
-      const result = commitImport(importPreview);
+      const result = commitImport(importPreview, { cleanPersonalScope: cleanPersonalBeforeImport });
       const extras: string[] = [];
       if (newAccs > 0) extras.push(`${newAccs} accounts`);
       if (newCats > 0) extras.push(`${newCats} categories`);
       const extrasStr = extras.length > 0 ? `, ${extras.join(', ')}` : '';
+      const summaryMsg = result.updatedTxs > 0
+        ? `Đã liên kết ${result.updatedTxs} giao dịch, thêm ${result.addedTxs} mới${extrasStr}.`
+        : `Đã nạp ${result.addedTxs} giao dịch${extrasStr} và ${result.addedTasks} việc nhà.`;
       toast({
-        title: 'Import completed successfully!',
-        subtitle: `Added ${result.addedTxs} transactions${extrasStr} and ${result.addedTasks} tasks.`,
+        title: 'Nạp dữ liệu thành công!',
+        subtitle: summaryMsg,
         tone: 'success',
       });
       setImportPreview(null);
@@ -202,7 +229,7 @@ export function SettingsScreen() {
           {/* Import Excel */}
           <button
             type="button"
-            disabled={isReadingFile}
+            disabled={isReadingFile || isLoadingStandard}
             onClick={() => fileInputRef.current?.click()}
             className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent disabled:opacity-60"
           >
@@ -218,6 +245,31 @@ export function SettingsScreen() {
                 <Icon name="sync" className="text-[18px] text-sky-dark animate-spin" />
               ) : (
                 <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
+              )}
+            </div>
+          </button>
+
+          {/* Load bundled Money Lover standard workbook */}
+          <button
+            type="button"
+            disabled={isLoadingStandard || isReadingFile}
+            onClick={handleLoadStandardFile}
+            className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent disabled:opacity-60"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <Icon name="receipt_text" className="text-[20px] text-done-ink shrink-0" />
+              <div className="flex flex-col min-w-0">
+                <span className="text-body-md font-medium text-ink">Đồng bộ file Money Lover chuẩn</span>
+                <span className="text-caption text-ink-sub truncate">Namin_Import_Nhi_Wallet.xlsx (Khớp số dư & ví)</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {isLoadingStandard ? (
+                <Icon name="sync" className="text-[18px] text-done-ink animate-spin" />
+              ) : (
+                <span className="text-[12px] font-semibold px-2.5 py-0.5 rounded-full bg-done-soft text-done-ink">
+                  1 chạm
+                </span>
               )}
             </div>
           </button>
@@ -387,8 +439,29 @@ export function SettingsScreen() {
               </div>
             </div>
 
+            {importPreview.myWalletTxs.length > 0 && (
+              <label className="flex items-start gap-3 p-3 bg-canvas rounded-xl border border-line cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={cleanPersonalBeforeImport}
+                  onChange={(e) => setCleanPersonalBeforeImport(e.target.checked)}
+                  className="mt-0.5 rounded border-line text-sky accent-sky-dark shrink-0 w-4 h-4"
+                />
+                <div className="flex flex-col">
+                  <span className="text-[13px] font-semibold text-ink">
+                    Làm mới ví cá nhân (Khuyên dùng)
+                  </span>
+                  <span className="text-[12px] text-ink-sub leading-snug mt-0.5">
+                    Ghi đè và liên kết chuẩn xác 100% nguồn tiền & số dư từng ví theo Money Lover, tránh bị giữ lại các giao dịch cũ chưa gắn ví.
+                  </span>
+                </div>
+              </label>
+            )}
+
             <p className="text-caption text-ink-sub">
-              Existing duplicate entries will be automatically skipped to protect your data.
+              {cleanPersonalBeforeImport
+                ? 'Ví cá nhân sẽ được làm mới khớp chuẩn theo file Excel. Việc nhà và ví Our Wallet giữ nguyên an toàn.'
+                : 'Các giao dịch trùng lặp sẽ được cập nhật liên kết ví tự động để không bị mất số liệu.'}
             </p>
           </div>
         </BottomSheet>

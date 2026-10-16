@@ -186,5 +186,106 @@ describe('Excel Import & Export Logic', () => {
     expect(postCash?.scope).toBe('personal');
     expect(postCash?.initialBalance).toBe(-418000);
   });
+
+  it('correctly imports Namin_Import_Nhi_Wallet.xlsx and calculates exact Money Lover balances', async () => {
+    const fs = await import('fs');
+    const { parseExcelFile, commitImport } = await import('../lib/excel');
+    const { calculateAccountBalances } = await import('../store/selectors');
+
+    const buffer = fs.readFileSync('Namin_Import_Nhi_Wallet.xlsx');
+    const file = new File([buffer], 'Namin_Import_Nhi_Wallet.xlsx');
+
+    const preview = await parseExcelFile(file);
+    expect(preview.myWalletTxs.length).toBe(2021);
+    expect(preview.newAccounts?.length).toBeGreaterThanOrEqual(13);
+
+    const { createSeed } = await import('../store/seed');
+    useStore.setState(createSeed());
+
+    // Commit cleanly
+    const result = commitImport(preview, { cleanPersonalScope: true });
+    expect(result.addedTxs).toBeGreaterThanOrEqual(2021);
+
+    const state = useStore.getState();
+    const vpbank = state.accounts.find((a) => a.name === 'VPBank');
+    expect(vpbank).toBeDefined();
+
+    // Verify transactions are linked to VPBank
+    const vpbankTxs = state.transactions.filter((t) => t.accountId === vpbank?.id);
+    expect(vpbankTxs.length).toBeGreaterThan(1000);
+
+    const balances = calculateAccountBalances({
+      accounts: state.accounts,
+      transactions: state.transactions,
+      purchases: state.purchases,
+    });
+
+    // Check exact target balances matching Money Lover
+    expect(balances[vpbank!.id]).toBe(16554591);
+
+    const gold = state.accounts.find((a) => a.name.includes('Gold'));
+    expect(balances[gold!.id]).toBe(530850000);
+
+    const silver = state.accounts.find((a) => a.name.includes('Silver'));
+    expect(balances[silver!.id]).toBe(158350000);
+
+    const tikop = state.accounts.find((a) => a.name === 'Tikop');
+    expect(balances[tikop!.id]).toBe(192000000);
+
+    const cash = state.accounts.find((a) => a.name.toLowerCase() === 'cash');
+    expect(balances[cash!.id]).toBe(1132000);
+  });
+
+  it('enriches and links existing transactions that previously had null accountId', async () => {
+    const { commitImport } = await import('../lib/excel');
+
+    // Simulate existing transaction with null accountId
+    useStore.setState((s) => ({
+      transactions: [
+        {
+          id: 'tx-old-unlinked',
+          householdId: s.household.id,
+          type: 'expense',
+          scope: 'personal',
+          amount: 410000,
+          date: '2026-10-02',
+          note: 'Cước 4G',
+          accountId: null,
+          memberId: null,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    }));
+
+    const preview: ImportPreviewData = {
+      filename: 'enrich_test.xlsx',
+      ourWalletTxs: [],
+      myWalletTxs: [
+        {
+          id: 'tx-incoming-linked',
+          householdId: useStore.getState().household.id,
+          type: 'expense',
+          scope: 'personal',
+          amount: 410000,
+          date: '2026-10-02',
+          note: 'Cước 4G',
+          accountId: 'acc-real-vpbank',
+          memberId: null,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      tasks: [],
+      shoppingItems: [],
+      inventoryItems: [],
+    };
+
+    const res = commitImport(preview, { cleanPersonalScope: false });
+    expect(res.updatedTxs).toBe(1);
+
+    const tx = useStore.getState().transactions.find((t) => t.id === 'tx-old-unlinked');
+    expect(tx?.accountId).toBe('acc-real-vpbank');
+  });
 });
+
+
 

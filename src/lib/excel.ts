@@ -423,51 +423,136 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
   };
 }
 
+export interface CommitImportOptions {
+  /** If true, cleans existing personal transactions and loads freshly from workbook */
+  cleanPersonalScope?: boolean;
+}
+
 /**
- * Apply the parsed preview data into the local Zustand store (avoiding duplicates).
+ * Apply the parsed preview data into the local Zustand store (avoiding duplicates and enriching unlinked records).
  */
-export function commitImport(data: ImportPreviewData): { addedTxs: number; addedTasks: number } {
+export function commitImport(
+  data: ImportPreviewData,
+  options: CommitImportOptions = {}
+): { addedTxs: number; updatedTxs: number; addedTasks: number } {
   const state = useStore.getState();
-
-  // Deduplicate transactions by (date + amount + note + type + scope)
-  const existingTxKey = new Set(
-    state.transactions.map((t) => `${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}_${t.scope}`)
-  );
-
-  const newOurTxs = data.ourWalletTxs.filter(
-    (t) => !existingTxKey.has(`${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}_${t.scope}`)
-  );
-
-  const newMyTxs = data.myWalletTxs.filter(
-    (t) => !existingTxKey.has(`${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}_${t.scope}`)
-  );
-
-  const allNewTxs = [...newOurTxs, ...newMyTxs];
-
-  // Deduplicate tasks by (title + dueDate)
-  const existingTaskKey = new Set(state.tasks.map((t) => `${t.title.trim().toLowerCase()}_${t.dueDate}`));
-  const newTasks = data.tasks.filter((t) => !existingTaskKey.has(`${t.title.trim().toLowerCase()}_${t.dueDate}`));
 
   const newAccounts = data.newAccounts || [];
   const updatedAccounts = data.updatedAccounts || [];
   const updatedAccountsMap = new Map(updatedAccounts.map((a) => [a.id, a]));
   const newCategories = data.newCategories || [];
 
-  useStore.setState((s) => ({
-    accounts: [
-      ...s.accounts.map((a) => {
-        const upd = updatedAccountsMap.get(a.id);
-        return upd ? { ...a, ...upd } : a;
-      }),
-      ...newAccounts,
-    ],
-    moneyCategories: [...s.moneyCategories, ...newCategories],
-    transactions: [...s.transactions, ...allNewTxs],
-    tasks: [...s.tasks, ...newTasks],
-  }));
+  const existingAccountNames = new Set(state.accounts.map((a) => a.name.toLowerCase().trim()));
+  const existingAccountIds = new Set(state.accounts.map((a) => a.id));
+  const filteredNewAccounts = newAccounts.filter(
+    (a) => !existingAccountIds.has(a.id) && !existingAccountNames.has(a.name.toLowerCase().trim())
+  );
+
+  const mergedAccounts = [
+    ...state.accounts.map((a) => {
+      const upd = updatedAccountsMap.get(a.id);
+      return upd ? { ...a, ...upd } : a;
+    }),
+    ...filteredNewAccounts,
+  ];
+
+  // Map incoming transactions by signature for matching/enrichment
+  const incomingByKeyA = new Map<string, Transaction>();
+  const incomingByKeyB = new Map<string, Transaction>();
+
+  const allIncoming = [...data.ourWalletTxs, ...data.myWalletTxs];
+  for (const t of allIncoming) {
+    const keyA = `${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}_${t.scope}`;
+    const keyB = `${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}`;
+    if (!incomingByKeyA.has(keyA)) incomingByKeyA.set(keyA, t);
+    if (!incomingByKeyB.has(keyB)) incomingByKeyB.set(keyB, t);
+  }
+
+  let finalTransactions: Transaction[] = [];
+  let addedCount = 0;
+  let updatedCount = 0;
+
+  if (options.cleanPersonalScope) {
+    // Keep household transactions, cleanly replace personal transactions
+    const nonPersonalTxs = state.transactions.filter((t) => t.scope !== 'personal');
+    const existingOurKey = new Set(
+      nonPersonalTxs.map((t) => `${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}`)
+    );
+    const newOurTxs = data.ourWalletTxs.filter(
+      (t) => !existingOurKey.has(`${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}`)
+    );
+    finalTransactions = [...nonPersonalTxs, ...newOurTxs, ...data.myWalletTxs];
+    addedCount = newOurTxs.length + data.myWalletTxs.length;
+  } else {
+    // Smart merge & enrich:
+    const matchedIncomingIds = new Set<string>();
+
+    const updatedExistingTxs = state.transactions.map((existing) => {
+      const keyA = `${existing.date}_${existing.amount}_${existing.note.trim().toLowerCase()}_${existing.type}_${existing.scope}`;
+      const keyB = `${existing.date}_${existing.amount}_${existing.note.trim().toLowerCase()}_${existing.type}`;
+      const incoming = incomingByKeyA.get(keyA) || incomingByKeyB.get(keyB);
+
+      if (!incoming) return existing;
+
+      matchedIncomingIds.add(incoming.id);
+
+      let changed = false;
+      const copy = { ...existing };
+
+      if (incoming.accountId && existing.accountId !== incoming.accountId) {
+        copy.accountId = incoming.accountId;
+        changed = true;
+      }
+      if (incoming.toAccountId && existing.toAccountId !== incoming.toAccountId) {
+        copy.toAccountId = incoming.toAccountId;
+        changed = true;
+      }
+      if (incoming.categoryId && (!existing.categoryId || existing.categoryId === 'daily' || existing.categoryId === 'cat-other')) {
+        copy.categoryId = incoming.categoryId;
+        changed = true;
+      }
+      if (incoming.scope && existing.scope !== incoming.scope) {
+        copy.scope = incoming.scope;
+        changed = true;
+      }
+
+      if (changed) {
+        updatedCount++;
+        return copy;
+      }
+      return existing;
+    });
+
+    // Add any incoming transaction that was not matched
+    const newTxs: Transaction[] = [];
+    for (const t of allIncoming) {
+      if (!matchedIncomingIds.has(t.id)) {
+        newTxs.push(t);
+      }
+    }
+
+    finalTransactions = [...updatedExistingTxs, ...newTxs];
+    addedCount = newTxs.length;
+  }
+
+  // Deduplicate tasks by (title + dueDate)
+  const existingTaskKey = new Set(state.tasks.map((t) => `${t.title.trim().toLowerCase()}_${t.dueDate}`));
+  const newTasks = data.tasks.filter((t) => !existingTaskKey.has(`${t.title.trim().toLowerCase()}_${t.dueDate}`));
+
+  // Deduplicate new categories
+  const existingCatKeys = new Set(state.moneyCategories.map((c) => `${c.name.toLowerCase().trim()}_${c.type}`));
+  const uniqueCategories = newCategories.filter((c) => !existingCatKeys.has(`${c.name.toLowerCase().trim()}_${c.type}`));
+
+  useStore.setState({
+    accounts: mergedAccounts,
+    moneyCategories: [...state.moneyCategories, ...uniqueCategories],
+    transactions: finalTransactions,
+    tasks: [...state.tasks, ...newTasks],
+  });
 
   return {
-    addedTxs: allNewTxs.length,
+    addedTxs: addedCount,
+    updatedTxs: updatedCount,
     addedTasks: newTasks.length,
   };
 }
