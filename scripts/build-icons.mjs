@@ -3,8 +3,18 @@
 import { Resvg } from '@resvg/resvg-js';
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const mark = JSON.parse(readFileSync('src/lib/logoMark.json', 'utf8'));
-// Same colour as the header, so the installed icon matches the app.
+// App icon uses the bold mark (matching Embé app stroke thickness)
+const mark = {
+  viewBox: [512, 530, 906, 720],
+  stroke: 100,
+  strokes: [
+    'M545 940 L965 565 L1380 940',
+    'M626 872 L626 1217 L855 1217'
+  ],
+  dot: { cx: 970, cy: 1217, r: 50 },
+  heart: 'M965 891 C948 852 908 833 872 833 C817 833 783 874 783 929 C783 1038 865 1102 965 1141 C1065 1102 1153 1038 1153 929 C1153 874 1115 833 1060 833 C1024 833 984 852 965 891 Z'
+};
+
 const BG = '#B5E7F1';
 const FG = '#FFFFFF';
 
