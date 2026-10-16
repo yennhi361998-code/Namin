@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LedgerRow } from '../components/rows';
 import { BrandHeader, Fab, PillTabs, ScreenTitle } from '../components/shell';
-import { Card, CategoryIcon, cx, EmptyState, Icon, MemberAvatar, ProgressBar } from '../components/ui';
+import { Card, CategoryIcon, cx, EmptyState, Icon, MemberAvatar, ProgressBar, SpiralCard } from '../components/ui';
 import { MoneyDonut, sharePct, type Slice } from '../components/money';
 import {
   type DateFilterSelection,
@@ -722,62 +722,64 @@ export function FinanceScreen({
         {viewMode === 'details' && (
           <div className="flex flex-col gap-2.5">
             {/* Unified Details Header Card */}
-            <Card className="p-3 flex flex-col gap-2 bg-surface rounded-xl shadow-card">
-              <TimeRangeBar
-                label={displayRangeLabel}
-                onPrev={handlePrevRange}
-                onNext={handleNextRange}
-                onOpenSheet={handleOpenDateSheet}
-              />
+            <SpiralCard>
+              <Card className="p-3 flex flex-col gap-2 bg-surface rounded-xl shadow-card">
+                <TimeRangeBar
+                  label={displayRangeLabel}
+                  onPrev={handlePrevRange}
+                  onNext={handleNextRange}
+                  onOpenSheet={handleOpenDateSheet}
+                />
 
-              {/* Income and Expense horizontally aligned */}
-              <div className="pt-1 grid grid-cols-2 divide-x divide-line/40 text-center">
-                <div className="flex flex-col items-center px-2">
-                  <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Income</span>
-                  <span className="text-[16px] sm:text-[18px] leading-snug font-bold text-done-ink tabular-nums mt-0.5">
-                    + {formatVnd(totalIncome)}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center px-2">
-                  <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Expense</span>
-                  <span className="text-[16px] sm:text-[18px] leading-snug font-bold text-err-ink tabular-nums mt-0.5">
-                    - {formatVnd(totalSpent)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Net Text */}
-              <div className="pt-1.5 border-t border-line/40 flex items-center justify-center text-[12px]">
-                <span className="text-ink-sub mr-1.5">Net:</span>
-                <span className={cx('font-bold tabular-nums', netPeriod >= 0 ? 'text-done-ink' : 'text-err-ink')}>
-                  {netPeriod >= 0 ? `+ ${formatVnd(netPeriod)}` : `- ${formatVnd(Math.abs(netPeriod))}`}
-                </span>
-              </div>
-
-              {/* Budget Progress Bar: Only shown if user configured a budget in Settings */}
-              {currentBudget != null && currentBudget > 0 ? (
-                <div className="pt-1.5 border-t border-line/40 flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-ink-sub font-medium">Monthly budget</span>
-                    <button
-                      type="button"
-                      onClick={() => navigate('/settings')}
-                      className="text-sky hover:underline font-semibold flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>Settings</span>
-                      <Icon name="chevron_right" className="text-[13px]" />
-                    </button>
+                {/* Income and Expense horizontally aligned */}
+                <div className="pt-1 grid grid-cols-2 divide-x divide-line/40 text-center">
+                  <div className="flex flex-col items-center px-2">
+                    <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Income</span>
+                    <span className="text-[16px] sm:text-[18px] leading-snug font-bold text-done-ink tabular-nums mt-0.5">
+                      + {formatVnd(totalIncome)}
+                    </span>
                   </div>
-                  <ProgressBar value={budgetRatio} label={`Budget ${budgetPct}%`} />
-                  <div className="flex items-center justify-between text-[11px] text-ink-sub">
-                    <span>{budgetPct}% of budget</span>
-                    <span className="tabular-nums font-medium text-ink">
-                      {formatVnd(totalSpent)} / {formatVnd(currentBudget)}
+                  <div className="flex flex-col items-center px-2">
+                    <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Expense</span>
+                    <span className="text-[16px] sm:text-[18px] leading-snug font-bold text-err-ink tabular-nums mt-0.5">
+                      - {formatVnd(totalSpent)}
                     </span>
                   </div>
                 </div>
-              ) : null}
-            </Card>
+
+                {/* Net Text */}
+                <div className="pt-1.5 border-t border-line/40 flex items-center justify-center text-[12px]">
+                  <span className="text-ink-sub mr-1.5">Net:</span>
+                  <span className={cx('font-bold tabular-nums', netPeriod >= 0 ? 'text-done-ink' : 'text-err-ink')}>
+                    {netPeriod >= 0 ? `+ ${formatVnd(netPeriod)}` : `- ${formatVnd(Math.abs(netPeriod))}`}
+                  </span>
+                </div>
+
+                {/* Budget Progress Bar: Only shown if user configured a budget in Settings */}
+                {currentBudget != null && currentBudget > 0 ? (
+                  <div className="pt-1.5 border-t border-line/40 flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-ink-sub font-medium">Monthly budget</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/settings')}
+                        className="text-sky hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Settings</span>
+                        <Icon name="chevron_right" className="text-[13px]" />
+                      </button>
+                    </div>
+                    <ProgressBar value={budgetRatio} label={`Budget ${budgetPct}%`} />
+                    <div className="flex items-center justify-between text-[11px] text-ink-sub">
+                      <span>{budgetPct}% of budget</span>
+                      <span className="tabular-nums font-medium text-ink">
+                        {formatVnd(totalSpent)} / {formatVnd(currentBudget)}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+              </Card>
+            </SpiralCard>
 
             {/* Search Header / Search Input Field */}
             {isSearchOpen ? (
@@ -1093,32 +1095,34 @@ export function FinanceScreen({
             /* All Wallets List View Grouped by Asset / Loan */
             <div className="flex flex-col gap-2.5">
               {/* Net Worth Top Card */}
-              <Card className="p-3 flex flex-col gap-2 bg-surface rounded-xl shadow-card">
-                <div className="flex flex-col items-center justify-center text-center">
-                  <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Net Worth</span>
-                  <span className={cx(
-                    'text-[22px] sm:text-[24px] font-bold tracking-tight tabular-nums mt-0.5',
-                    netWorth >= 0 ? 'text-ink' : 'text-err-ink'
-                  )}>
-                    {netWorth >= 0 ? formatVnd(netWorth) : `- ${formatVnd(Math.abs(netWorth))}`}
-                  </span>
-                </div>
+              <SpiralCard>
+                <Card className="p-3 flex flex-col gap-2 bg-surface rounded-xl shadow-card">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Net Worth</span>
+                    <span className={cx(
+                      'text-[22px] sm:text-[24px] font-bold tracking-tight tabular-nums mt-0.5',
+                      netWorth >= 0 ? 'text-ink' : 'text-err-ink'
+                    )}>
+                      {netWorth >= 0 ? formatVnd(netWorth) : `- ${formatVnd(Math.abs(netWorth))}`}
+                    </span>
+                  </div>
 
-                <div className="pt-2 border-t border-line/40 grid grid-cols-2 divide-x divide-line/40 text-center">
-                  <div className="flex flex-col items-center px-2">
-                    <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Asset</span>
-                    <span className="text-[15px] font-bold text-done-ink tabular-nums mt-0.5">
-                      + {formatVnd(totalAssets)}
-                    </span>
+                  <div className="pt-2 border-t border-line/40 grid grid-cols-2 divide-x divide-line/40 text-center">
+                    <div className="flex flex-col items-center px-2">
+                      <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Asset</span>
+                      <span className="text-[15px] font-bold text-done-ink tabular-nums mt-0.5">
+                        + {formatVnd(totalAssets)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center px-2">
+                      <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Debt</span>
+                      <span className="text-[15px] font-bold text-err-ink tabular-nums mt-0.5">
+                        - {formatVnd(totalDebts)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-center px-2">
-                    <span className="text-[11px] text-ink-sub uppercase tracking-wider font-semibold">Debt</span>
-                    <span className="text-[15px] font-bold text-err-ink tabular-nums mt-0.5">
-                      - {formatVnd(totalDebts)}
-                    </span>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </SpiralCard>
 
               {/* Wallets List Section Grouped by Asset and Loan/Debt */}
               <div className="flex flex-col gap-2.5">

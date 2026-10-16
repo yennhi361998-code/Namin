@@ -5,7 +5,7 @@ import { WeekRows, WeekTimetable } from '../components/timetable';
 import { ActionSheet, SwipeRow, type SheetAction } from '../components/overlay';
 import { TaskRow } from '../components/rows';
 import { AssigneeFilter, BrandHeader, Fab, PillTabs, ScreenTitle } from '../components/shell';
-import { EmptyState, NotePaper, paperRowBg, SectionHeader } from '../components/ui';
+import { EmptyState, NotePaper, paperRowBg, SectionHeader, SpiralCard } from '../components/ui';
 import { monthGrid, weekDays } from '../lib/calendar';
 import { addDays, addMonths, monthKey, relativeDay, shortDate, shortWeekday, today, weekdayName } from '../lib/dates';
 import type { DateStr, Task } from '../lib/types';
@@ -145,49 +145,53 @@ export function Tasks() {
         </section>
       ) : mode === 'week' ? (
         <section className="flex flex-col gap-space-lg">
-          {WEEK_LAYOUT === 'rows' ? (
-            <WeekRows
-              days={days}
-              byDay={byDay}
-              todayStr={t}
-              selected={selected}
-              rangeLabel={rangeLabel(days, 'week', selected)}
-              onSelect={select}
-              onPrev={() => select(addDays(selected, -7))}
-              onNext={() => select(addDays(selected, 7))}
-              onToggle={(e, d) => (e.projected ? completeOccurrence(e.anchorId, d) : toggleTask(e.task.id))}
-              onOpen={(e) => navigate(`/tasks/${e.anchorId}`)}
-            />
-          ) : (
-            <WeekTimetable
-              days={days}
-              byDay={byDay}
-              todayStr={t}
-              selected={selected}
-              members={members}
-              rangeLabel={rangeLabel(days, 'week', selected)}
-              onSelect={select}
-              onPrev={() => select(addDays(selected, -7))}
-              onNext={() => select(addDays(selected, 7))}
-              onOpen={(e) => navigate(`/tasks/${e.anchorId}`)}
-            />
-          )}
+          <SpiralCard>
+            {WEEK_LAYOUT === 'rows' ? (
+              <WeekRows
+                days={days}
+                byDay={byDay}
+                todayStr={t}
+                selected={selected}
+                rangeLabel={rangeLabel(days, 'week', selected)}
+                onSelect={select}
+                onPrev={() => select(addDays(selected, -7))}
+                onNext={() => select(addDays(selected, 7))}
+                onToggle={(e, d) => (e.projected ? completeOccurrence(e.anchorId, d) : toggleTask(e.task.id))}
+                onOpen={(e) => navigate(`/tasks/${e.anchorId}`)}
+              />
+            ) : (
+              <WeekTimetable
+                days={days}
+                byDay={byDay}
+                todayStr={t}
+                selected={selected}
+                members={members}
+                rangeLabel={rangeLabel(days, 'week', selected)}
+                onSelect={select}
+                onPrev={() => select(addDays(selected, -7))}
+                onNext={() => select(addDays(selected, 7))}
+                onOpen={(e) => navigate(`/tasks/${e.anchorId}`)}
+              />
+            )}
+          </SpiralCard>
           <div className="pt-2 border-t border-line/60">
             <ToBuySection />
           </div>
         </section>
       ) : (
         <>
-          <Calendar
-            mode={mode}
-            days={days}
-            selected={selected}
-            todayStr={t}
-            byDay={byDay}
-            onSelect={select}
-            onPrev={() => select(addMonths(selected, -1))}
-            onNext={() => select(addMonths(selected, 1))}
-          />
+          <SpiralCard>
+            <Calendar
+              mode={mode}
+              days={days}
+              selected={selected}
+              todayStr={t}
+              byDay={byDay}
+              onSelect={select}
+              onPrev={() => select(addMonths(selected, -1))}
+              onNext={() => select(addMonths(selected, 1))}
+            />
+          </SpiralCard>
 
           <section className="mt-space-xl flex flex-col gap-space-lg" aria-labelledby="day-title">
             <div>

@@ -102,6 +102,34 @@ export function Card({ className, children }: { className?: string; children: Re
 }
 
 const RINGS = 9;
+
+/**
+ * Card wrapper with spiral notebook rings along the top edge,
+ * matching NotePaper's spiral binding style.
+ */
+export function SpiralCard({
+  children,
+  className,
+  rings = RINGS,
+}: {
+  children: ReactNode;
+  className?: string;
+  rings?: number;
+}) {
+  return (
+    <div className={cx('relative pt-2', className)}>
+      <div className="absolute top-0 inset-x-6 flex justify-between z-10 pointer-events-none" aria-hidden>
+        {Array.from({ length: rings }, (_, i) => (
+          <span
+            key={i}
+            className="w-2 h-4 rounded-full border-[1.5px] border-note-ring bg-canvas shadow-[0_1px_2px_rgba(38,52,59,0.08)]"
+          />
+        ))}
+      </div>
+      {children}
+    </div>
+  );
+}
 const FOLD = 20;
 
 const PAPER = {
