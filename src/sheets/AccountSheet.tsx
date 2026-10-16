@@ -114,7 +114,6 @@ export function AccountSheet({
               setName(e.target.value);
               if (error) setError(null);
             }}
-            data-autofocus
           />
         </FormField>
 

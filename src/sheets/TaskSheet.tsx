@@ -109,7 +109,6 @@ export function TaskSheet({ open, onClose, taskId, dueDate }: { open: boolean; o
         <FormField label="Task name" error={error} htmlFor="task-title">
           <TextInput
             id="task-title"
-            data-autofocus
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);

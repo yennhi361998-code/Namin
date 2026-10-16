@@ -7,7 +7,8 @@ import {
   ShoppingBasket, ShoppingCart, SlidersHorizontal, Smartphone, Sofa, Soup, Store, Sun, Timer, Trash2, Trees, TrendingUp, Undo2,
   User, UserPlus, Users, Wallet, WashingMachine, Wrench, X, SprayCan, Utensils, ShowerHead, Apple, Eraser,
   ArrowLeftRight, Bell, Building2, CircleDollarSign, Vault, Settings, Search,
-  Cloud, Lock, Share2, RefreshCw, Download, Upload, Camera, Sparkles, Scan, FileText, type LucideIcon,
+  Cloud, Lock, Share2, RefreshCw, Download, Upload, Camera, Sparkles, Scan, FileText,
+  Calculator, Keyboard, type LucideIcon,
 } from 'lucide-react';
 import type { Category } from '../lib/types';
 
@@ -102,6 +103,10 @@ export const UI_ICONS = {
   sparkles: Sparkles,
   receipt_text: FileText,
   smartphone: Smartphone,
+  calculator: Calculator,
+  dialpad: Calculator,
+  keyboard: Keyboard,
+  keyboard_hide: ChevronDown,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof UI_ICONS;

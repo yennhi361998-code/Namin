@@ -123,7 +123,6 @@ export function PurchaseSheet({ open, onClose, shoppingId, itemId }: { open: boo
             <FormField label="Item name" htmlFor="purchase-item-name" error={nameError}>
               <TextInput
                 id="purchase-item-name"
-                data-autofocus
                 value={customName}
                 onChange={(e) => {
                   setCustomName(e.target.value);
@@ -166,7 +165,6 @@ export function PurchaseSheet({ open, onClose, shoppingId, itemId }: { open: boo
         >
           <TextInput
             id="purchase-price"
-            data-autofocus={Boolean(entry || item)}
             prefix="₫"
             inputMode="decimal"
             value={price}

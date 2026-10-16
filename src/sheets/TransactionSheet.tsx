@@ -40,6 +40,8 @@ export function TransactionSheet({
     categoryId?: string;
     quantity?: number;
     unit?: string;
+    shoppingItemId?: string;
+    itemId?: string;
   };
 }) {
   const [existing] = useState(() => {
@@ -102,7 +104,7 @@ export function TransactionSheet({
   const [usagePerPurchaseUnit, setUsagePerPurchaseUnit] = useState(
     existing?.usagePerPurchaseUnit ? String(existing.usagePerPurchaseUnit) : '',
   );
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(existing?.itemId ?? null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(existing?.itemId ?? initialValues?.itemId ?? null);
   const [date, setDate] = useState<DateStr>(existing?.date ?? initialDate ?? today());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [unitPickerOpen, setUnitPickerOpen] = useState(false);
@@ -269,10 +271,11 @@ export function TransactionSheet({
     const targetScope: FinanceScope = initialScope === 'personal' ? 'personal' : (selectedAccount?.scope ?? 'household');
 
     // If an item, note, or unit is specified on an expense, and it is household scope, record it as a purchase so stock and units are updated
-    if (!existing && type === 'expense' && targetScope === 'household' && (note.trim() || effectiveItem || unit.trim())) {
+    if (!existing && type === 'expense' && targetScope === 'household' && (note.trim() || effectiveItem || unit.trim() || initialValues?.shoppingItemId)) {
       const itemName = note.trim() || effectiveItem?.name || selected?.name || 'Expense';
       recordPurchase({
-        itemId: effectiveItem?.id,
+        shoppingItemId: initialValues?.shoppingItemId,
+        itemId: effectiveItem?.id ?? initialValues?.itemId,
         name: itemName,
         category: effectiveItem?.category ?? guessCategory(itemName) ?? 'Other',
         quantity,
@@ -326,6 +329,9 @@ export function TransactionSheet({
       s.updateTransaction(existing.id, input);
     } else {
       s.addTransaction(input);
+      if (initialValues?.shoppingItemId) {
+        s.removeShoppingItem(initialValues.shoppingItemId);
+      }
     }
     onClose();
   };

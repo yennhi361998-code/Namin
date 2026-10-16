@@ -177,7 +177,6 @@ export function ShoppingSheet({ open, onClose, shoppingId }: { open: boolean; on
         <div>
           <input
             ref={nameInput}
-            data-autofocus
             value={name}
             onChange={(e) => {
               setName(e.target.value);

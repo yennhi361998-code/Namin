@@ -197,3 +197,20 @@ export function demoPersonalTransactions(householdId: string, memberId: string, 
   );
   return out;
 }
+
+const SPEND_KEYWORDS: [string, string[]][] = [
+  ['exp-food', ['bánh', 'sữa', 'thịt', 'cá', 'rau', 'củ', 'quả', 'trứng', 'gạo', 'dầu', 'mì', 'cơm', 'nước', 'trà', 'cà phê', 'cf', 'food', 'snack', 'drink', 'beer', 'bia', 'chè', 'bún', 'phở', 'hủ tíu', 'bread', 'meat', 'egg', 'milk', 'fruit', 'vegetable', 'rice', 'oil', 'sugar', 'salt', 'muối', 'đường', 'nước mắm', 'hạt nêm', 'tiêu', 'bột ngọt', 'chanh', 'tỏi', 'hành', 'gừng', 'ớt', 'táo', 'chuối', 'cam', 'quýt', 'bò', 'heo', 'gà', 'vịt', 'tôm', 'cua', 'mực']],
+  ['exp-beauty', ['son', 'phấn', 'kem', 'dưỡng', 'serum', 'shampoo', 'dầu gội', 'sữa tắm', 'lotion', 'lipstick', 'hair', 'nail', 'spa', 'makeup', 'nước hoa', 'mỹ phẩm', 'mặt nạ', 'chống nắng', 'toner', 'tẩy trang']],
+  ['exp-clothes', ['áo', 'quần', 'váy', 'đầm', 'giày', 'dép', 'túi', 'shirt', 'pants', 'dress', 'shoes', 'socks', 'tất', 'vớ', 'nón', 'mũ', 'khoác']],
+  ['exp-medical', ['thuốc', 'khẩu trang', 'vitamin', 'panadol', 'paracetamol', 'bông', 'y tế', 'medicine', 'pill', 'gạc', 'dược']],
+  ['exp-electric', ['điện', 'pin', 'bóng đèn', 'dây điện', 'sạc', 'ổ cắm', 'battery', 'bulb']],
+  ['exp-traffic', ['xăng', 'gas', 'vé xe', 'grab', 'be', 'taxi', 'parking', 'gửi xe', 'rửa xe', 'thay nhớt']],
+];
+
+export function guessSpendCategory(name: string): string {
+  const n = name.toLowerCase().trim();
+  for (const [catId, words] of SPEND_KEYWORDS) {
+    if (words.some((w) => n.includes(w))) return catId;
+  }
+  return DAILY_CATEGORY_ID;
+}

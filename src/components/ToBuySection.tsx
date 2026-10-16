@@ -1,23 +1,59 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ActionSheet, SwipeRow } from './overlay';
 import { ShoppingItemRow } from './rows';
 import { EmptyState, Icon } from './ui';
+import { guessSpendCategory } from '../lib/moneyCategories';
 import type { ShoppingItem } from '../lib/types';
 import { useStore } from '../store';
 import { removeFromList } from '../store/actions';
 import { useRestockMap } from '../store/selectors';
-import { openSheet } from '../store/ui';
+import { openSheet, toast } from '../store/ui';
 
 export function ToBuySection() {
   const shopping = useStore((s) => s.shopping);
+  const addToShopping = useStore((s) => s.addToShopping);
   const items = shopping.filter((x) => !x.completed);
   const navigate = useNavigate();
   const restock = useRestockMap();
+  const [quickText, setQuickText] = useState('');
+  const quickInputRef = useRef<HTMLInputElement>(null);
   const [menuFor, setMenuFor] = useState<ShoppingItem | null>(null);
   const [last, setLast] = useState<ShoppingItem | null>(null);
   if (menuFor && menuFor !== last) setLast(menuFor);
   const m = menuFor ?? last;
+
+  const handleQuickAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = quickText.trim();
+    if (!trimmed) return;
+    addToShopping({
+      name: trimmed,
+      quantity: 1,
+      category: 'Other',
+    });
+    setQuickText('');
+    toast({ title: `Added "${trimmed}" to list` });
+  };
+
+  const handleCheck = (item: ShoppingItem) => {
+    const linkedItem = item.itemId ? useStore.getState().items.find((i) => i.id === item.itemId) : undefined;
+    const catId = linkedItem?.spendCategoryId || guessSpendCategory(item.name);
+    openSheet({
+      type: 'transaction',
+      txType: 'expense',
+      scope: 'household',
+      initialValues: {
+        note: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        amount: item.estimatedPrice ?? undefined,
+        shoppingItemId: item.id,
+        itemId: item.itemId,
+        categoryId: catId,
+      },
+    });
+  };
 
   return (
     <section className="flex flex-col gap-space-md" aria-labelledby="tobuy-section-title">
@@ -32,7 +68,7 @@ export function ToBuySection() {
         </div>
         <button
           type="button"
-          onClick={() => openSheet({ type: 'shopping' })}
+          onClick={() => quickInputRef.current?.focus()}
           className="text-label-sm font-semibold text-link hover:underline flex items-center gap-1 min-h-[36px] px-2"
         >
           <Icon name="add" className="text-[16px]" />
@@ -40,12 +76,34 @@ export function ToBuySection() {
         </button>
       </div>
 
+      <form onSubmit={handleQuickAdd} className="flex items-center gap-2">
+        <div className="relative flex-1 flex items-center">
+          <Icon name="add" className="absolute left-3 text-[18px] text-ink-sub pointer-events-none" />
+          <input
+            ref={quickInputRef}
+            type="text"
+            value={quickText}
+            onChange={(e) => setQuickText(e.target.value)}
+            placeholder="Quick add item to buy..."
+            className="w-full h-10 pl-9 pr-3 bg-surface rounded-xl border border-line/70 focus:border-sky focus:outline-none text-body-md text-ink placeholder:text-ink-sub/70 shadow-2xs transition-all"
+          />
+        </div>
+        {quickText.trim() && (
+          <button
+            type="submit"
+            className="h-10 px-4 rounded-xl bg-sky text-ink font-semibold text-label-md transition-all active:scale-95 shadow-2xs flex items-center gap-1 cursor-pointer shrink-0"
+          >
+            Add
+          </button>
+        )}
+      </form>
+
       {items.length === 0 ? (
         <EmptyState
           message="Your shopping list is empty."
           action={{
             label: 'Add item',
-            onClick: () => openSheet({ type: 'shopping' }),
+            onClick: () => quickInputRef.current?.focus(),
           }}
         />
       ) : (
@@ -73,7 +131,7 @@ export function ToBuySection() {
               <ShoppingItemRow
                 item={x}
                 est={restock.get(x.itemId)}
-                onCheck={() => openSheet({ type: 'purchase', shoppingId: x.id })}
+                onCheck={() => handleCheck(x)}
                 onOpen={() => navigate(`/items/${x.itemId}`)}
               />
             </SwipeRow>
@@ -91,7 +149,7 @@ export function ToBuySection() {
                 {
                   label: 'Record purchase',
                   icon: 'shopping_cart_checkout',
-                  onSelect: () => openSheet({ type: 'purchase', shoppingId: m.id }),
+                  onSelect: () => handleCheck(m),
                 },
                 {
                   label: 'Edit',

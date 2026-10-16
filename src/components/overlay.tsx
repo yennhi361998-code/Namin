@@ -79,11 +79,10 @@ export function BottomSheet({
     return () => clearTimeout(t);
   }, [open]);
 
-  // Focus synchronously after mount so iOS still treats it as part of the tap and raises the keyboard.
+  // Focus the dialog panel container for accessibility and Escape key handling without raising the keyboard.
   useLayoutEffect(() => {
     if (!open || !mounted) return;
-    const el = panel.current?.querySelector<HTMLElement>('[data-autofocus]') ?? panel.current;
-    el?.focus({ preventScroll: true });
+    panel.current?.focus({ preventScroll: true });
   }, [open, mounted]);
 
   useEffect(() => {

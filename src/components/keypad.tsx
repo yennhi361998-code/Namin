@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { evaluate, hasOperator } from '../lib/calc';
 import { formatVnd } from '../lib/money';
 import { cx, Icon } from './ui';
@@ -40,9 +40,35 @@ export function AmountPad({
   accountName?: string;
   middleSlot?: ReactNode;
 }) {
+  const [isNoteFocused, setIsNoteFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const value = evaluate(expr);
   return (
     <div className="flex flex-col gap-1.5 pb-1">
+      {isNoteFocused && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-surface rounded-xl border border-line/60 shadow-xs">
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => inputRef.current?.blur()}
+            className="flex items-center gap-1.5 text-label-sm text-sky-dark font-medium py-1 px-1 active:opacity-70 cursor-pointer"
+            aria-label="Collapse keyboard and show number pad"
+          >
+            <Icon name="dialpad" className="text-[18px]" />
+            <span>Show number pad</span>
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => inputRef.current?.blur()}
+            className="h-8 px-3 rounded-lg bg-sky/20 text-sky-dark font-semibold text-label-sm active:bg-sky/30 transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            <Icon name="keyboard_hide" className="text-[18px]" />
+            <span>Done</span>
+          </button>
+        </div>
+      )}
+
       <div className="flex items-stretch gap-1.5">
         {accountSlot && (
           <div className="shrink-0 w-[calc((100%-3*6px)/4)] flex">
@@ -51,14 +77,28 @@ export function AmountPad({
         )}
         <div className="flex-1 min-w-0 bg-surface rounded-xl px-3 min-h-[56px] flex items-center gap-2.5 shadow-sm">
           <input
+            ref={inputRef}
             value={note}
             onChange={(e) => onNote(e.target.value)}
+            onFocus={() => setIsNoteFocused(true)}
+            onBlur={() => setIsNoteFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                inputRef.current?.blur();
+              }
+            }}
             placeholder={notePlaceholder}
             aria-label={notePlaceholder}
             maxLength={80}
             className="flex-1 min-w-0 min-h-[44px] bg-transparent text-body-md text-ink placeholder:text-ink-sub/80 focus:outline-none"
           />
-          <div className="flex flex-col items-end shrink-0 max-w-[65%]" aria-live="polite">
+          <div
+            onClick={() => {
+              if (isNoteFocused) inputRef.current?.blur();
+            }}
+            className="flex flex-col items-end shrink-0 max-w-[65%] cursor-pointer"
+            aria-live="polite"
+          >
             {error ? (
               <span className="text-label-md text-err-ink font-medium">{error}</span>
             ) : (
@@ -82,9 +122,10 @@ export function AmountPad({
         </div>
       </div>
 
-      {middleSlot}
+      {!isNoteFocused && middleSlot}
 
-      <div className="grid grid-cols-4 gap-1.5">
+      {!isNoteFocused && (
+        <div className="grid grid-cols-4 gap-1.5">
         {memberSlot ? (
           <>
             {memberSlot}
@@ -144,6 +185,7 @@ export function AmountPad({
           </>
         )}
       </div>
+      )}
     </div>
   );
 }

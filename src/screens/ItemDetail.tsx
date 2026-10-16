@@ -7,6 +7,7 @@ import { Badge, Card, CategoryDot, EmptyState, GhostButton, Icon, ListCard, Prim
 import { longDate, shortDate } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import { STATUS_LABEL, statusFromEstimate } from '../lib/restock';
+import { guessSpendCategory } from '../lib/moneyCategories';
 import { useStore } from '../store';
 import { useRestockMap } from '../store/selectors';
 import { openSheet, toast } from '../store/ui';
@@ -202,7 +203,24 @@ export function ItemDetail() {
               Add to shopping list
             </PrimaryButton>
           )}
-          <SecondaryButton icon="shopping_cart_checkout" onClick={() => openSheet(onList ? { type: 'purchase', shoppingId: onList.id } : { type: 'purchase', itemId: item.id })}>
+          <SecondaryButton
+            icon="shopping_cart_checkout"
+            onClick={() =>
+              openSheet({
+                type: 'transaction',
+                txType: 'expense',
+                scope: 'household',
+                initialValues: {
+                  note: item.name,
+                  quantity: 1,
+                  unit: item.unit,
+                  itemId: item.id,
+                  shoppingItemId: onList?.id,
+                  categoryId: item.spendCategoryId || guessSpendCategory(item.name),
+                },
+              })
+            }
+          >
             Record purchase
           </SecondaryButton>
           <GhostButton icon="edit" onClick={() => openSheet({ type: 'item', itemId: item.id })}>
@@ -218,7 +236,25 @@ export function ItemDetail() {
             {purchases.length > 0 && <span className="text-body-sm text-ink-sub">{purchases.length}</span>}
           </div>
           {purchases.length === 0 ? (
-            <EmptyState message="No purchases yet." action={{ label: 'Record purchase', onClick: () => openSheet({ type: 'purchase', itemId: item.id }) }} />
+            <EmptyState
+              message="No purchases yet."
+              action={{
+                label: 'Record purchase',
+                onClick: () =>
+                  openSheet({
+                    type: 'transaction',
+                    txType: 'expense',
+                    scope: 'household',
+                    initialValues: {
+                      note: item.name,
+                      quantity: 1,
+                      unit: item.unit,
+                      itemId: item.id,
+                      categoryId: item.spendCategoryId || guessSpendCategory(item.name),
+                    },
+                  }),
+              }}
+            />
           ) : (
             <ListCard>
               {purchases.map((p) => (

@@ -28,6 +28,8 @@ export type Sheet =
         categoryId?: string;
         quantity?: number;
         unit?: string;
+        shoppingItemId?: string;
+        itemId?: string;
       };
     }
   | { type: 'categories'; txType: TxType }

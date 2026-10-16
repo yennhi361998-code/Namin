@@ -98,7 +98,6 @@ function CategoryForm({ type, category, siblings, onDone }: { type: TxType; cate
               invalid={!!error}
               maxLength={24}
               autoComplete="off"
-              autoFocus={!category}
             />
           </FormField>
         </div>

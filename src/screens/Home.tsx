@@ -4,6 +4,7 @@ import { AssigneeFilter, BrandHeader, Fab } from '../components/shell';
 import { Checkbox, cx, EmptyState, Icon, NotePaper, SectionHeader } from '../components/ui';
 import { relativeDay, shortWeekday } from '../lib/dates';
 import { daysLeftLabel } from '../lib/restock';
+import { guessSpendCategory } from '../lib/moneyCategories';
 import { useStore } from '../store';
 import { toggleTask } from '../store/actions';
 import { useMembers, useRestockMap, useTaskLists } from '../store/selectors';
@@ -145,7 +146,24 @@ export function Home() {
                     <div className="shrink-0 flex items-center">
                       <Checkbox
                         checked={false}
-                        onChange={() => openSheet({ type: 'purchase', shoppingId: x.id })}
+                        onChange={() => {
+                          const linkedItem = x.itemId ? useStore.getState().items.find((i) => i.id === x.itemId) : undefined;
+                          const catId = linkedItem?.spendCategoryId || guessSpendCategory(x.name);
+                          openSheet({
+                            type: 'transaction',
+                            txType: 'expense',
+                            scope: 'household',
+                            initialValues: {
+                              note: x.name,
+                              quantity: x.quantity,
+                              unit: x.unit,
+                              amount: x.estimatedPrice ?? undefined,
+                              shoppingItemId: x.id,
+                              itemId: x.itemId,
+                              categoryId: catId,
+                            },
+                          });
+                        }}
                         label={`Mark ${x.name} purchased`}
                         shape="square"
                       />
