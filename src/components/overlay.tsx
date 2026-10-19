@@ -339,10 +339,20 @@ export interface SwipeAction {
   label: string;
   icon: IconName;
   onSelect: () => void;
-  tone: 'sky' | 'err';
+  tone?: 'sky' | 'err' | 'done' | 'warn' | 'indigo' | 'soft';
+  className?: string;
 }
 
 const ACTION_W = 76;
+
+const SWIPE_TONE_CLASSES: Record<string, string> = {
+  sky: 'bg-soft text-link active:bg-sky/40',
+  err: 'bg-err text-err-ink active:bg-red-200',
+  done: 'bg-done text-done-ink active:bg-emerald-200',
+  warn: 'bg-warn text-warn-ink active:bg-amber-200',
+  indigo: 'bg-[#E9EEF8] text-[#4A5F96] active:bg-indigo-100',
+  soft: 'bg-soft text-ink active:bg-line',
+};
 
 /**
  * Row that reveals trailing actions on a horizontal swipe and fires onLongPress on a
@@ -353,24 +363,29 @@ export function SwipeRow({
   onLongPress,
   children,
   surface = 'bg-surface',
+  actionWidth,
+  className,
 }: {
   actions: SwipeAction[];
   onLongPress?: () => void;
   children: ReactNode;
   /** Background of the sliding row (must be opaque to hide the actions behind it). */
   surface?: string;
+  actionWidth?: number;
+  className?: string;
 }) {
   const [x, setX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const start = useRef<{ x: number; y: number; base: number; axis: 'x' | 'y' | null } | null>(null);
   const suppressClick = useRef(false);
   const longTimer = useRef<number>();
-  const max = actions.length * ACTION_W;
+  const actionW = actionWidth ?? ACTION_W;
+  const max = actions.length * actionW;
 
   const clearLong = () => window.clearTimeout(longTimer.current);
 
   return (
-    <div className="relative overflow-hidden">
+    <div className={cx('relative overflow-hidden', className)}>
       <div className="absolute inset-y-0 right-0 flex" style={{ width: max }} aria-hidden={x === 0}>
         {actions.map((a) => (
           <button
@@ -381,10 +396,14 @@ export function SwipeRow({
               setX(0);
               a.onSelect();
             }}
-            className={cx('flex-1 flex flex-col items-center justify-center gap-0.5 text-caption font-medium', a.tone === 'err' ? 'bg-err text-err-ink' : 'bg-soft text-link')}
+            style={{ width: actionW }}
+            className={cx(
+              'flex flex-col items-center justify-center gap-0.5 text-caption font-medium shrink-0',
+              a.className || SWIPE_TONE_CLASSES[a.tone ?? 'sky'] || SWIPE_TONE_CLASSES.sky
+            )}
           >
-            <Icon name={a.icon} className="text-[20px]" />
-            {a.label}
+            <Icon name={a.icon} className="text-[18px]" />
+            <span className="text-[11px] font-semibold leading-tight">{a.label}</span>
           </button>
         ))}
       </div>

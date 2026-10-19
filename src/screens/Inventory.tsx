@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BrandHeader, Fab, ScreenTitle } from '../components/shell';
-import { Badge, Card, CategoryDot, EmptyState, Icon } from '../components/ui';
+import { SwipeRow, type SwipeAction } from '../components/overlay';
+import { Badge, CategoryDot, cx, EmptyState, Icon } from '../components/ui';
 import { guessSpendCategory } from '../lib/moneyCategories';
 import { estimateRestock, STATUS_LABEL, statusFromEstimate } from '../lib/restock';
 import { ROOMS, roomStyle, resolveItemRoom } from '../lib/rooms';
@@ -345,157 +346,143 @@ export function Inventory() {
               const linkedTasksCount = linkedTasksCountMap.get(item.id) ?? 0;
               const itemRoom = item.room || (roomName !== 'Other' ? roomName : null);
 
+              const isLow = status === 'running_low' || status === 'out' || (item.currentStock != null && item.currentStock <= 1);
+
+              const swipeActions: SwipeAction[] = [
+                {
+                  label: '- Use',
+                  icon: 'remove',
+                  tone: 'done',
+                  onSelect: () => {
+                    const current = item.currentStock != null ? item.currentStock : (item.quantity ?? 1) * (item.usagePerPurchaseUnit ?? 1);
+                    if (current <= 0) {
+                      toast({ title: 'Already out of stock', subtitle: `${item.name} has 0 left` });
+                      return;
+                    }
+                    const undo = useItem(item.id, 1);
+                    const nextStock = Math.max(0, current - 1);
+                    toast({
+                      title: `Used 1 ${usageUnit}`,
+                      subtitle: `${item.name} · ${nextStock} left`,
+                      action: { label: 'Undo', run: undo },
+                    });
+                  },
+                },
+                {
+                  label: 'Task',
+                  icon: 'checklist',
+                  tone: 'sky',
+                  onSelect: () =>
+                    openSheet({
+                      type: 'task',
+                      initialValues: {
+                        mappedItemId: item.id,
+                        mappedQuantity: 1,
+                        area: item.room || (roomName !== 'Other' ? roomName : null),
+                        title: `Use ${item.name}`,
+                      },
+                    }),
+                },
+                {
+                  label: 'Expense',
+                  icon: 'paid',
+                  tone: 'warn',
+                  onSelect: () =>
+                    openSheet({
+                      type: 'transaction',
+                      txType: 'expense',
+                      scope: 'household',
+                      initialValues: {
+                        note: item.name,
+                        quantity: 1,
+                        unit: item.unit,
+                        itemId: item.id,
+                        categoryId: item.spendCategoryId || guessSpendCategory(item.name),
+                      },
+                    }),
+                },
+                {
+                  label: onCart ? 'In cart' : '+Cart',
+                  icon: onCart ? 'check' : 'add_shopping_cart',
+                  tone: onCart ? 'soft' : 'indigo',
+                  onSelect: () => {
+                    if (onCart) {
+                      toast({ title: 'Already in shopping list', subtitle: item.name });
+                      return;
+                    }
+                    const res = addToShopping({ name: item.name, itemId: item.id });
+                    if (res.ok) toast({ title: 'Added to shopping list', subtitle: item.name });
+                  },
+                },
+              ];
+
               return (
-                <Card
+                <SwipeRow
                   key={item.id}
-                  onClick={() => navigate(`/items/${item.id}`)}
-                  className="p-3.5 flex flex-col gap-2.5 transition-all hover:border-line-strong active:scale-[0.99] cursor-pointer group"
+                  className="rounded-xl border border-line shadow-card overflow-hidden bg-surface transition-all hover:border-line-strong"
+                  surface="bg-surface"
+                  actionWidth={58}
+                  actions={swipeActions}
                 >
-                  {/* Top Row: Name and Stock */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-col min-w-0">
-                      <h3 className="text-title-sm text-ink font-semibold group-hover:text-link transition-colors truncate flex items-center gap-1.5">
-                        {itemRoom && (
-                          <span
-                            className="w-5 h-5 rounded-md inline-flex items-center justify-center shrink-0"
-                            style={{ background: roomStyle(itemRoom).bg, color: roomStyle(itemRoom).fg }}
-                            title={itemRoom}
-                          >
-                            <Icon name={roomStyle(itemRoom).icon} className="text-[12px]" />
+                  <div
+                    onClick={() => navigate(`/items/${item.id}`)}
+                    className="p-3.5 flex flex-col gap-2.5 cursor-pointer active:bg-canvas/50 transition-colors group"
+                  >
+                    {/* Top Row: Name and Stock */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col min-w-0">
+                        <h3 className="text-[15px] font-semibold text-ink group-hover:text-link transition-colors truncate flex items-center gap-1.5 leading-[20px]">
+                          {itemRoom && (
+                            <span
+                              className="w-5 h-5 rounded-md inline-flex items-center justify-center shrink-0"
+                              style={{ background: roomStyle(itemRoom).bg, color: roomStyle(itemRoom).fg }}
+                              title={itemRoom}
+                            >
+                              <Icon name={roomStyle(itemRoom).icon} className="text-[12px]" />
+                            </span>
+                          )}
+                          <span className="truncate">{item.name}</span>
+                        </h3>
+                        {/* Category Badge (only if non-Other and different from room) */}
+                        {item.category && item.category !== 'Other' && item.category !== itemRoom && (
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span className="inline-flex items-center gap-1 text-caption text-ink-sub bg-soft px-2 py-0.5 rounded-full border border-line/40">
+                              <CategoryDot category={item.category} size={8} />
+                              <span>{item.category}</span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Stock & Status Badge */}
+                      <div className="flex flex-col items-end shrink-0">
+                        <span className={cx('text-[12px] font-bold tabular-nums', isLow ? 'text-err-ink font-bold' : 'text-ink')}>
+                          {item.currentStock != null ? `${item.currentStock} ${usageUnit}` : 'Stock not set'}
+                        </span>
+                        {item.unit && item.usageUnit && item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1 && (
+                          <span className="text-[11px] text-ink-sub mt-0.5">
+                            1 {item.unit} = {item.usagePerPurchaseUnit} {item.usageUnit}
                           </span>
                         )}
-                        <span className="truncate">{item.name}</span>
-                      </h3>
-                      {/* Category Badge (only if non-Other and different from room) */}
-                      {item.category && item.category !== 'Other' && item.category !== itemRoom && (
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <span className="inline-flex items-center gap-1 text-caption text-ink-sub bg-soft px-2 py-0.5 rounded-full border border-line/40">
-                            <CategoryDot category={item.category} size={8} />
-                            <span>{item.category}</span>
-                          </span>
-                        </div>
-                      )}
+                        {status !== 'unknown' && STATUS_LABEL[status] && (
+                          <div className="mt-1">
+                            <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Stock & Status Badge */}
-                    <div className="flex flex-col items-end shrink-0">
-                      <span className="text-label-md font-bold text-ink tabular-nums">
-                        {item.currentStock != null ? `${item.currentStock} ${usageUnit}` : 'Stock not set'}
-                      </span>
-                      {status !== 'unknown' && STATUS_LABEL[status] && (
-                        <div className="mt-1">
-                          <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Middle Row: Stats & Details */}
-                  <div className="flex items-center justify-between text-caption text-ink-sub pt-2 border-t border-line/40 flex-wrap gap-2">
-                    <div className="flex items-center gap-3">
-                      {linkedTasksCount > 0 && (
+                    {/* Linked Tasks (if any) */}
+                    {linkedTasksCount > 0 && (
+                      <div className="flex items-center text-caption text-ink-sub pt-2 border-t border-line/40">
                         <span className="inline-flex items-center gap-1 font-medium text-sky-dark">
                           <Icon name="checklist" className="text-[14px]" />
                           {linkedTasksCount} {linkedTasksCount === 1 ? 'task' : 'tasks'} linked
                         </span>
-                      )}
-                      {item.unit && item.usageUnit && item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1 && (
-                        <span>
-                          1 {item.unit} = {item.usagePerPurchaseUnit} {item.usageUnit}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Quick Action Buttons (Aligned Right) */}
-                    <div className="flex items-center gap-1.5 ml-auto justify-end" onClick={(e) => e.stopPropagation()}>
-                      {/* Use Item (-1) Button */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const current = item.currentStock != null ? item.currentStock : (item.quantity ?? 1) * (item.usagePerPurchaseUnit ?? 1);
-                          if (current <= 0) {
-                            toast({ title: 'Already out of stock', subtitle: `${item.name} has 0 left` });
-                            return;
-                          }
-                          const undo = useItem(item.id, 1);
-                          const nextStock = Math.max(0, current - 1);
-                          toast({
-                            title: `Used 1 ${usageUnit}`,
-                            subtitle: `${item.name} · ${nextStock} left`,
-                            action: { label: 'Undo', run: undo },
-                          });
-                        }}
-                        title={`Use 1 ${usageUnit}`}
-                        aria-label={`Use 1 ${usageUnit}`}
-                        className="h-7 px-2.5 rounded-lg bg-soft hover:bg-soft/80 active:scale-95 text-caption font-semibold text-ink flex items-center gap-1 transition-all cursor-pointer"
-                      >
-                        <Icon name="remove" className="text-[13px]" />
-                        <span>Use</span>
-                      </button>
-
-                      {/* Link / Add Task Button (Icon only) */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openSheet({
-                            type: 'task',
-                            initialValues: {
-                              mappedItemId: item.id,
-                              mappedQuantity: 1,
-                              area: item.room || (roomName !== 'Other' ? roomName : null),
-                              title: `Use ${item.name}`,
-                            },
-                          })
-                        }
-                        title="Create linked task"
-                        aria-label="Create linked task"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-soft hover:bg-soft/80 active:bg-sky/20 text-sky-dark transition-colors cursor-pointer"
-                      >
-                        <Icon name="checklist" className="text-[15px]" />
-                      </button>
-
-                      {/* Log Purchase / Expense Button (Icon only) */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openSheet({
-                            type: 'transaction',
-                            txType: 'expense',
-                            scope: 'household',
-                            initialValues: {
-                              note: item.name,
-                              quantity: 1,
-                              unit: item.unit,
-                              itemId: item.id,
-                              categoryId: item.spendCategoryId || guessSpendCategory(item.name),
-                            },
-                          })
-                        }
-                        title="Record purchase expense"
-                        aria-label="Record purchase expense"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-soft hover:bg-soft/80 active:bg-header-ink/10 text-ink transition-colors cursor-pointer"
-                      >
-                        <Icon name="paid" className="text-[15px]" />
-                      </button>
-
-                      {/* Shopping Cart Button (Icon only) */}
-                      {!onCart && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const res = addToShopping({ name: item.name, itemId: item.id });
-                            if (res.ok) toast({ title: 'Added to shopping list', subtitle: item.name });
-                          }}
-                          title="Add to shopping list"
-                          aria-label="Add to shopping list"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-soft hover:bg-soft/80 text-ink-sub transition-colors cursor-pointer"
-                        >
-                          <Icon name="add_shopping_cart" className="text-[15px]" />
-                        </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                </Card>
+                </SwipeRow>
               );
             })}
           </div>
