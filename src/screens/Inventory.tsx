@@ -347,6 +347,8 @@ export function Inventory() {
               const itemRoom = item.room || (roomName !== 'Other' ? roomName : null);
 
               const isLow = status === 'running_low' || status === 'out' || (item.currentStock != null && item.currentStock <= 1);
+              const hasConversion = Boolean(item.unit && item.usageUnit && item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1);
+              const hasBottomRow = linkedTasksCount > 0 || hasConversion;
 
               const swipeActions: SwipeAction[] = [
                 {
@@ -459,11 +461,6 @@ export function Inventory() {
                         <span className={cx('text-[12px] font-bold tabular-nums', isLow ? 'text-err-ink font-bold' : 'text-ink')}>
                           {item.currentStock != null ? `${item.currentStock} ${usageUnit}` : 'Stock not set'}
                         </span>
-                        {item.unit && item.usageUnit && item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1 && (
-                          <span className="text-[11px] text-ink-sub mt-0.5">
-                            1 {item.unit} = {item.usagePerPurchaseUnit} {item.usageUnit}
-                          </span>
-                        )}
                         {status !== 'unknown' && STATUS_LABEL[status] && (
                           <div className="mt-1">
                             <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
@@ -472,13 +469,24 @@ export function Inventory() {
                       </div>
                     </div>
 
-                    {/* Linked Tasks (if any) */}
-                    {linkedTasksCount > 0 && (
-                      <div className="flex items-center text-caption text-ink-sub pt-2 border-t border-line/40">
-                        <span className="inline-flex items-center gap-1 font-medium text-sky-dark">
-                          <Icon name="checklist" className="text-[14px]" />
-                          {linkedTasksCount} {linkedTasksCount === 1 ? 'task' : 'tasks'} linked
-                        </span>
+                    {/* Details Row: Linked Tasks (Left) & Packaging Conversion (Right) on the same line */}
+                    {hasBottomRow && (
+                      <div className="flex items-center justify-between text-caption text-ink-sub pt-2 border-t border-line/40 gap-2">
+                        <div>
+                          {linkedTasksCount > 0 && (
+                            <span className="inline-flex items-center gap-1 font-medium text-sky-dark">
+                              <Icon name="checklist" className="text-[14px]" />
+                              {linkedTasksCount} {linkedTasksCount === 1 ? 'task' : 'tasks'} linked
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          {hasConversion && (
+                            <span className="text-[11px] text-ink-sub">
+                              1 {item.unit} = {item.usagePerPurchaseUnit} {item.usageUnit}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
