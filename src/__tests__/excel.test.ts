@@ -285,6 +285,70 @@ describe('Excel Import & Export Logic', () => {
     const tx = useStore.getState().transactions.find((t) => t.id === 'tx-old-unlinked');
     expect(tx?.accountId).toBe('acc-real-vpbank');
   });
+
+  it('safely handles transactions and tasks with undefined or null note/title without throwing', () => {
+    // Inject a malformed transaction into store
+    useStore.setState((s) => ({
+      transactions: [
+        ...s.transactions,
+        {
+          id: 'tx-null-note',
+          householdId: s.household.id,
+          type: 'expense',
+          scope: 'personal',
+          amount: 50000,
+          date: '2026-10-01',
+          note: undefined as any,
+          memberId: null,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      tasks: [
+        ...s.tasks,
+        {
+          id: 'task-null-title',
+          householdId: s.household.id,
+          title: undefined as any,
+          dueDate: '2026-10-01',
+          completed: false,
+          completedAt: null,
+          nextOccurrenceId: null,
+          seriesId: 's-null',
+          createdAt: new Date().toISOString(),
+          notes: '',
+        } as any,
+      ],
+    }));
+
+    const preview: ImportPreviewData = {
+      filename: 'null_note_test.xlsx',
+      ourWalletTxs: [
+        {
+          id: 'tx-incoming-null-note',
+          householdId: useStore.getState().household.id,
+          type: 'expense',
+          scope: 'household',
+          amount: 60000,
+          date: '2026-10-05',
+          note: undefined as any,
+          memberId: null,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      myWalletTxs: [],
+      tasks: [],
+      shoppingItems: [],
+      inventoryItems: [],
+    };
+
+    expect(() => {
+      commitImport(preview, { cleanPersonalScope: true });
+    }).not.toThrow();
+
+    expect(() => {
+      commitImport(preview, { cleanPersonalScope: false });
+    }).not.toThrow();
+  });
 });
 
 

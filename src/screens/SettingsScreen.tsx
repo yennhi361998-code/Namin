@@ -6,7 +6,7 @@ import { formatVnd } from '../lib/money';
 import type { FinanceScope } from '../lib/types';
 import { useStore } from '../store';
 import { openSheet, toast } from '../store/ui';
-import { useSync } from '../lib/sync';
+import { useSync, setBulkImporting, bulkSyncImportToCloud } from '../lib/sync';
 import { exportToExcel, parseExcelFile, commitImport, type ImportPreviewData } from '../lib/excel';
 import { getGeminiApiKey, setGeminiApiKey } from '../lib/vision';
 
@@ -92,13 +92,30 @@ export function SettingsScreen() {
   const handleConfirmImport = async () => {
     if (!importPreview || isImporting) return;
     setIsImporting(true);
+    setBulkImporting(true);
     try {
-      // Short delay so user can see "Importing data..." with spinner before popup closes
-      await new Promise((r) => setTimeout(r, 600));
+      // Short delay so user can see "Importing data..." with spinner
+      await new Promise((r) => setTimeout(r, 60));
 
       const newAccs = importPreview.newAccounts?.length || 0;
       const newCats = importPreview.newCategories?.length || 0;
       const result = commitImport(importPreview, { cleanPersonalScope: cleanPersonalBeforeImport });
+
+      // If user is connected to cloud household, push imported data via batch commit
+      const syncState = useSync.getState();
+      if (syncState.user && syncState.householdId) {
+        try {
+          await bulkSyncImportToCloud({
+            userId: syncState.user.uid,
+            householdId: syncState.householdId,
+            importPreview,
+            cleanPersonalScope: cleanPersonalBeforeImport,
+          });
+        } catch (syncErr) {
+          console.warn('Cloud sync of imported data failed (will sync later):', syncErr);
+        }
+      }
+
       const extras: string[] = [];
       if (newAccs > 0) extras.push(`${newAccs} accounts`);
       if (newCats > 0) extras.push(`${newCats} categories`);
@@ -116,6 +133,7 @@ export function SettingsScreen() {
       console.error('Import commit failed:', err);
       toast({ title: 'Import failed', subtitle: err.message, tone: 'error' });
     } finally {
+      setBulkImporting(false);
       setIsImporting(false);
     }
   };

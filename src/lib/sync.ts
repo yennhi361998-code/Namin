@@ -20,6 +20,7 @@ import {
   getDocs,
   onSnapshot,
   arrayUnion,
+  writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
@@ -306,9 +307,17 @@ export function sanitizeForFirestore<T>(data: T): T {
 }
 
 async function uploadCollection(parentCol: string, parentId: string, subCol: string, items: { id: string }[]) {
-  for (const item of items) {
-    if (!item.id) continue;
-    await setDoc(doc(db, parentCol, parentId, subCol, item.id), sanitizeForFirestore(item));
+  const validItems = items.filter((item) => item && item.id);
+  if (validItems.length === 0) return;
+
+  const CHUNK_SIZE = 450;
+  for (let i = 0; i < validItems.length; i += CHUNK_SIZE) {
+    const chunk = validItems.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+    for (const item of chunk) {
+      batch.set(doc(db, parentCol, parentId, subCol, item.id), sanitizeForFirestore(item));
+    }
+    await batch.commit();
   }
 }
 
@@ -318,9 +327,18 @@ async function uploadCollection(parentCol: string, parentId: string, subCol: str
 
 let activeUnsubscribes: Unsubscribe[] = [];
 let isApplyingRemote = false;
+let isBulkImporting = false;
 let storeUnsubscribe: (() => void) | null = null;
 let activeUserId: string | null = null;
 let activeHouseholdId: string | null = null;
+
+export function setBulkImporting(val: boolean) {
+  isBulkImporting = val;
+}
+
+export function getIsBulkImporting() {
+  return isBulkImporting;
+}
 
 // Keep track of partitioned local slices so we can reconstruct Zustand store state
 let remoteHouseholdAccounts: Account[] = [];
@@ -511,6 +529,7 @@ export function startSyncListeners(userId: string, householdId: string) {
 }
 
 function updateCombinedAccounts() {
+  if (isBulkImporting) return;
   isApplyingRemote = true;
   try {
     const combined = [...remoteHouseholdAccounts, ...remotePersonalAccounts];
@@ -523,6 +542,7 @@ function updateCombinedAccounts() {
 }
 
 function updateCombinedTransactions() {
+  if (isBulkImporting) return;
   isApplyingRemote = true;
   try {
     const combined = [...remoteHouseholdTxs, ...remotePersonalTxs];
@@ -542,99 +562,66 @@ function setupStoreSyncPush(userId: string, householdId: string) {
   let prev = useStore.getState();
 
   storeUnsubscribe = useStore.subscribe((next) => {
-    if (isApplyingRemote) {
+    if (isApplyingRemote || isBulkImporting) {
       prev = next;
       return;
     }
 
     // A. Tasks diff
     if (next.tasks !== prev.tasks) {
-      syncArrayDiff(prev.tasks, next.tasks, {
-        onSet: (t) => setDoc(doc(db, 'households', householdId, 'tasks', t.id), sanitizeForFirestore(t)),
-        onDelete: (id) => deleteDoc(doc(db, 'households', householdId, 'tasks', id)),
-      });
+      syncBatchDiff(prev.tasks, next.tasks, (id) => doc(db, 'households', householdId, 'tasks', id));
     }
 
     // B. Checklist diff
     if (next.checklist !== prev.checklist) {
-      syncArrayDiff(prev.checklist, next.checklist, {
-        onSet: (c) => setDoc(doc(db, 'households', householdId, 'checklist', c.id), sanitizeForFirestore(c)),
-        onDelete: (id) => deleteDoc(doc(db, 'households', householdId, 'checklist', id)),
-      });
+      syncBatchDiff(prev.checklist, next.checklist, (id) => doc(db, 'households', householdId, 'checklist', id));
     }
 
     // C. Shopping diff
     if (next.shopping !== prev.shopping) {
-      syncArrayDiff(prev.shopping, next.shopping, {
-        onSet: (s) => setDoc(doc(db, 'households', householdId, 'shopping', s.id), sanitizeForFirestore(s)),
-        onDelete: (id) => deleteDoc(doc(db, 'households', householdId, 'shopping', id)),
-      });
+      syncBatchDiff(prev.shopping, next.shopping, (id) => doc(db, 'households', householdId, 'shopping', id));
     }
 
     // D. Items diff
     if (next.items !== prev.items) {
-      syncArrayDiff(prev.items, next.items, {
-        onSet: (i) => setDoc(doc(db, 'households', householdId, 'items', i.id), sanitizeForFirestore(i)),
-        onDelete: (id) => deleteDoc(doc(db, 'households', householdId, 'items', id)),
-      });
+      syncBatchDiff(prev.items, next.items, (id) => doc(db, 'households', householdId, 'items', id));
     }
 
     // E. Purchases diff
     if (next.purchases !== prev.purchases) {
-      syncArrayDiff(prev.purchases, next.purchases, {
-        onSet: (p) => setDoc(doc(db, 'households', householdId, 'purchases', p.id), sanitizeForFirestore(p)),
-        onDelete: (id) => deleteDoc(doc(db, 'households', householdId, 'purchases', id)),
-      });
+      syncBatchDiff(prev.purchases, next.purchases, (id) => doc(db, 'households', householdId, 'purchases', id));
     }
 
     // F. Money Categories diff
     if (next.moneyCategories !== prev.moneyCategories) {
-      syncArrayDiff(prev.moneyCategories, next.moneyCategories, {
-        onSet: (c) => setDoc(doc(db, 'households', householdId, 'moneyCategories', c.id), sanitizeForFirestore(c)),
-        onDelete: (id) => deleteDoc(doc(db, 'households', householdId, 'moneyCategories', id)),
-      });
+      syncBatchDiff(prev.moneyCategories, next.moneyCategories, (id) => doc(db, 'households', householdId, 'moneyCategories', id));
     }
 
     // G. Members diff
     if (next.members !== prev.members) {
-      syncArrayDiff(prev.members, next.members, {
-        onSet: (m) => setDoc(doc(db, 'households', householdId, 'members', m.id), sanitizeForFirestore(m)),
-        onDelete: (id) => deleteDoc(doc(db, 'households', householdId, 'members', id)),
-      });
+      syncBatchDiff(prev.members, next.members, (id) => doc(db, 'households', householdId, 'members', id));
     }
 
     // H. Accounts diff (Partitioned by scope)
     if (next.accounts !== prev.accounts) {
       const prevShared = prev.accounts.filter((a) => a.scope !== 'personal');
       const nextShared = next.accounts.filter((a) => a.scope !== 'personal');
-      syncArrayDiff(prevShared, nextShared, {
-        onSet: (a) => setDoc(doc(db, 'households', householdId, 'accounts', a.id), sanitizeForFirestore(a)),
-        onDelete: (id) => deleteDoc(doc(db, 'households', householdId, 'accounts', id)),
-      });
+      syncBatchDiff(prevShared, nextShared, (id) => doc(db, 'households', householdId, 'accounts', id));
 
       const prevPersonal = prev.accounts.filter((a) => a.scope === 'personal');
       const nextPersonal = next.accounts.filter((a) => a.scope === 'personal');
-      syncArrayDiff(prevPersonal, nextPersonal, {
-        onSet: (a) => setDoc(doc(db, 'users', userId, 'personalAccounts', a.id), sanitizeForFirestore(a)),
-        onDelete: (id) => deleteDoc(doc(db, 'users', userId, 'personalAccounts', id)),
-      });
+      syncBatchDiff(prevPersonal, nextPersonal, (id) => doc(db, 'users', userId, 'personalAccounts', id));
     }
 
     // I. Transactions diff (Partitioned by scope)
     if (next.transactions !== prev.transactions) {
       const prevShared = prev.transactions.filter((t) => t.scope !== 'personal');
       const nextShared = next.transactions.filter((t) => t.scope !== 'personal');
-      syncArrayDiff(prevShared, nextShared, {
-        onSet: (t) => setDoc(doc(db, 'households', householdId, 'transactions', t.id), sanitizeForFirestore(t)),
-        onDelete: (id) => deleteDoc(doc(db, 'households', householdId, 'transactions', id)),
-      });
+      syncBatchDiff(prevShared, nextShared, (id) => doc(db, 'households', householdId, 'transactions', id));
 
       const prevPersonal = prev.transactions.filter((t) => t.scope === 'personal');
       const nextPersonal = next.transactions.filter((t) => t.scope === 'personal');
-      syncArrayDiff(prevPersonal, nextPersonal, {
-        onSet: (t) => setDoc(doc(db, 'users', userId, 'personalTransactions', t.id), sanitizeForFirestore(t)),
-        onDelete: (id) => deleteDoc(doc(db, 'users', userId, 'personalTransactions', id)),
-      });
+      syncBatchDiff(prevPersonal, nextPersonal, (id) => doc(db, 'users', userId, 'personalTransactions', id));
     }
 
     // J. Household metadata diff (Name, Budget)
@@ -649,7 +636,66 @@ function setupStoreSyncPush(userId: string, householdId: string) {
   });
 }
 
-function syncArrayDiff<T extends { id: string }>(
+function syncBatchDiff<T extends { id: string }>(
+  prevList: T[],
+  nextList: T[],
+  getDocRef: (id: string) => any,
+) {
+  const prevMap = new Map(prevList.map((x) => [x.id, x]));
+  const nextMap = new Map(nextList.map((x) => [x.id, x]));
+
+  const toSet: T[] = [];
+  for (const item of nextList) {
+    const prevItem = prevMap.get(item.id);
+    if (!prevItem || JSON.stringify(prevItem) !== JSON.stringify(item)) {
+      toSet.push(item);
+    }
+  }
+
+  const toDelete: string[] = [];
+  for (const item of prevList) {
+    if (!nextMap.has(item.id)) {
+      toDelete.push(item.id);
+    }
+  }
+
+  if (toSet.length === 0 && toDelete.length === 0) return;
+
+  // Single or small operation: run directly
+  if (toSet.length + toDelete.length <= 3) {
+    for (const item of toSet) {
+      setDoc(getDocRef(item.id), sanitizeForFirestore(item)).catch((err) => console.error(`Error saving item ${item.id}:`, err));
+    }
+    for (const id of toDelete) {
+      deleteDoc(getDocRef(id)).catch((err) => console.error(`Error deleting item ${id}:`, err));
+    }
+    return;
+  }
+
+  // Large or bulk mutations: batch in chunks of 450 items
+  const ops: Array<{ type: 'set'; item: T } | { type: 'delete'; id: string }> = [
+    ...toSet.map((item) => ({ type: 'set' as const, item })),
+    ...toDelete.map((id) => ({ type: 'delete' as const, id })),
+  ];
+
+  const CHUNK_SIZE = 450;
+  (async () => {
+    for (let i = 0; i < ops.length; i += CHUNK_SIZE) {
+      const chunk = ops.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      for (const op of chunk) {
+        if (op.type === 'set') {
+          batch.set(getDocRef(op.item.id), sanitizeForFirestore(op.item));
+        } else {
+          batch.delete(getDocRef(op.id));
+        }
+      }
+      await batch.commit().catch((err) => console.error('Batch sync error:', err));
+    }
+  })();
+}
+
+export function syncArrayDiff<T extends { id: string }>(
   prevList: T[],
   nextList: T[],
   callbacks: { onSet: (item: T) => Promise<any>; onDelete: (id: string) => Promise<any> },
@@ -670,6 +716,88 @@ function syncArrayDiff<T extends { id: string }>(
     if (!nextMap.has(item.id)) {
       callbacks.onDelete(item.id).catch((err) => console.error(`Error deleting item ${item.id}:`, err));
     }
+  }
+}
+
+export interface BulkSyncImportParams {
+  userId: string;
+  householdId: string;
+  importPreview: {
+    ourWalletTxs: Transaction[];
+    myWalletTxs: Transaction[];
+    newAccounts?: Account[];
+    updatedAccounts?: Array<Partial<Account> & { id: string }>;
+    newCategories?: MoneyCategory[];
+    tasks: Task[];
+  };
+  cleanPersonalScope?: boolean;
+}
+
+/**
+ * Pushes bulk-imported workbook entities to Firestore efficiently via batched writes
+ * without causing reactive snapshot feedback loops.
+ */
+export async function bulkSyncImportToCloud(params: BulkSyncImportParams): Promise<void> {
+  const { userId, householdId, importPreview, cleanPersonalScope } = params;
+  const state = useStore.getState();
+
+  try {
+    // 1. Sync accounts if any new or updated
+    const sharedAccounts = state.accounts.filter((a) => a.scope !== 'personal');
+    const personalAccounts = state.accounts.filter((a) => a.scope === 'personal');
+    if ((importPreview.newAccounts && importPreview.newAccounts.length > 0) || (importPreview.updatedAccounts && importPreview.updatedAccounts.length > 0)) {
+      await uploadCollection('households', householdId, 'accounts', sharedAccounts);
+      await uploadCollection('users', userId, 'personalAccounts', personalAccounts);
+      remoteHouseholdAccounts = sharedAccounts;
+      remotePersonalAccounts = personalAccounts;
+    }
+
+    // 2. Sync categories if any new
+    if (importPreview.newCategories && importPreview.newCategories.length > 0) {
+      await uploadCollection('households', householdId, 'moneyCategories', state.moneyCategories);
+    }
+
+    // 3. Sync tasks if any
+    if (importPreview.tasks && importPreview.tasks.length > 0) {
+      const newTasksOnly = state.tasks.slice(state.tasks.length - importPreview.tasks.length);
+      await uploadCollection('households', householdId, 'tasks', newTasksOnly);
+    }
+
+    // 4. Sync Transactions
+    if (cleanPersonalScope) {
+      // Query and delete previous personal transactions from Firestore in chunks
+      const q = collection(db, 'users', userId, 'personalTransactions');
+      const snap = await getDocs(q);
+      const toDeleteIds = snap.docs.map((d) => d.id);
+      if (toDeleteIds.length > 0) {
+        const CHUNK_SIZE = 450;
+        for (let i = 0; i < toDeleteIds.length; i += CHUNK_SIZE) {
+          const chunk = toDeleteIds.slice(i, i + CHUNK_SIZE);
+          const batch = writeBatch(db);
+          for (const id of chunk) {
+            batch.delete(doc(db, 'users', userId, 'personalTransactions', id));
+          }
+          await batch.commit();
+        }
+      }
+    }
+
+    // Upload personal transactions in batched chunks
+    const personalTxs = state.transactions.filter((t) => t.scope === 'personal');
+    await uploadCollection('users', userId, 'personalTransactions', personalTxs);
+    remotePersonalTxs = personalTxs;
+
+    // Upload shared transactions if any in import
+    if (importPreview.ourWalletTxs.length > 0) {
+      const sharedTxs = state.transactions.filter((t) => t.scope !== 'personal');
+      await uploadCollection('households', householdId, 'transactions', sharedTxs);
+      remoteHouseholdTxs = sharedTxs;
+    }
+
+    useSync.setState({ lastSyncedAt: new Date() });
+  } catch (err) {
+    console.error('[bulkSyncImportToCloud] Error during cloud sync push:', err);
+    throw err;
   }
 }
 

@@ -462,8 +462,9 @@ export function commitImport(
 
   const allIncoming = [...data.ourWalletTxs, ...data.myWalletTxs];
   for (const t of allIncoming) {
-    const keyA = `${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}_${t.scope}`;
-    const keyB = `${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}`;
+    const noteClean = (t.note || '').trim().toLowerCase();
+    const keyA = `${t.date}_${t.amount}_${noteClean}_${t.type}_${t.scope}`;
+    const keyB = `${t.date}_${t.amount}_${noteClean}_${t.type}`;
     if (!incomingByKeyA.has(keyA)) incomingByKeyA.set(keyA, t);
     if (!incomingByKeyB.has(keyB)) incomingByKeyB.set(keyB, t);
   }
@@ -476,10 +477,10 @@ export function commitImport(
     // Keep household transactions, cleanly replace personal transactions
     const nonPersonalTxs = state.transactions.filter((t) => t.scope !== 'personal');
     const existingOurKey = new Set(
-      nonPersonalTxs.map((t) => `${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}`)
+      nonPersonalTxs.map((t) => `${t.date}_${t.amount}_${(t.note || '').trim().toLowerCase()}_${t.type}`)
     );
     const newOurTxs = data.ourWalletTxs.filter(
-      (t) => !existingOurKey.has(`${t.date}_${t.amount}_${t.note.trim().toLowerCase()}_${t.type}`)
+      (t) => !existingOurKey.has(`${t.date}_${t.amount}_${(t.note || '').trim().toLowerCase()}_${t.type}`)
     );
     finalTransactions = [...nonPersonalTxs, ...newOurTxs, ...data.myWalletTxs];
     addedCount = newOurTxs.length + data.myWalletTxs.length;
@@ -488,8 +489,9 @@ export function commitImport(
     const matchedIncomingIds = new Set<string>();
 
     const updatedExistingTxs = state.transactions.map((existing) => {
-      const keyA = `${existing.date}_${existing.amount}_${existing.note.trim().toLowerCase()}_${existing.type}_${existing.scope}`;
-      const keyB = `${existing.date}_${existing.amount}_${existing.note.trim().toLowerCase()}_${existing.type}`;
+      const existingNoteClean = (existing.note || '').trim().toLowerCase();
+      const keyA = `${existing.date}_${existing.amount}_${existingNoteClean}_${existing.type}_${existing.scope}`;
+      const keyB = `${existing.date}_${existing.amount}_${existingNoteClean}_${existing.type}`;
       const incoming = incomingByKeyA.get(keyA) || incomingByKeyB.get(keyB);
 
       if (!incoming) return existing;
@@ -536,12 +538,12 @@ export function commitImport(
   }
 
   // Deduplicate tasks by (title + dueDate)
-  const existingTaskKey = new Set(state.tasks.map((t) => `${t.title.trim().toLowerCase()}_${t.dueDate}`));
-  const newTasks = data.tasks.filter((t) => !existingTaskKey.has(`${t.title.trim().toLowerCase()}_${t.dueDate}`));
+  const existingTaskKey = new Set(state.tasks.map((t) => `${(t.title || '').trim().toLowerCase()}_${t.dueDate}`));
+  const newTasks = data.tasks.filter((t) => !existingTaskKey.has(`${(t.title || '').trim().toLowerCase()}_${t.dueDate}`));
 
   // Deduplicate new categories
-  const existingCatKeys = new Set(state.moneyCategories.map((c) => `${c.name.toLowerCase().trim()}_${c.type}`));
-  const uniqueCategories = newCategories.filter((c) => !existingCatKeys.has(`${c.name.toLowerCase().trim()}_${c.type}`));
+  const existingCatKeys = new Set(state.moneyCategories.map((c) => `${(c.name || '').toLowerCase().trim()}_${c.type}`));
+  const uniqueCategories = newCategories.filter((c) => !existingCatKeys.has(`${(c.name || '').toLowerCase().trim()}_${c.type}`));
 
   useStore.setState({
     accounts: mergedAccounts,

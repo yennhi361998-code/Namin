@@ -57,4 +57,15 @@ describe('Firebase Sync Logic', () => {
     expect(personalTxs.length).toBe(1);
     expect(personalTxs[0].note).toBe('Personal coffee');
   });
+
+  it('manages isBulkImporting state correctly to coordinate sync push', async () => {
+    const { setBulkImporting, getIsBulkImporting } = await import('../lib/sync');
+    expect(getIsBulkImporting()).toBe(false);
+
+    setBulkImporting(true);
+    expect(getIsBulkImporting()).toBe(true);
+
+    setBulkImporting(false);
+    expect(getIsBulkImporting()).toBe(false);
+  });
 });
