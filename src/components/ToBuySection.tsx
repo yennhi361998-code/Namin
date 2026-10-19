@@ -69,7 +69,7 @@ export function ToBuySection() {
   };
 
   return (
-    <section className="flex flex-col gap-space-md" aria-labelledby="tobuy-section-title">
+    <section className="flex flex-col" aria-labelledby="tobuy-section-title">
       <div className="flex items-center justify-between">
         <div className="flex items-baseline gap-1.5">
           <span id="tobuy-section-title" className="font-semibold text-body-md text-ink">
@@ -89,36 +89,34 @@ export function ToBuySection() {
         </button>
       </div>
 
-      <div className="flex flex-col">
-        {isAdding && (
-          <div className="p-3.5 flex items-start gap-3 bg-surface/80 rounded-xl border border-sky/40 shadow-xs transition-all mb-1">
-            <div className="mt-px shrink-0">
-              <Checkbox checked={false} onChange={() => {}} label="New item" shape="square" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <input
-                ref={quickInputRef}
-                type="text"
-                value={quickText}
-                onChange={(e) => setQuickText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    commitItem(true);
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setQuickText('');
-                    setIsAdding(false);
-                  }
-                }}
-                onBlur={() => commitItem(false)}
-                placeholder="Item name..."
-                className="w-full bg-transparent text-body-md text-ink placeholder:text-ink-sub/60 focus:outline-none"
-              />
-            </div>
+      {isAdding && (
+        <div className="p-3.5 flex items-start gap-3 bg-surface/80 rounded-xl border border-sky/40 shadow-xs transition-all my-2">
+          <div className="mt-px shrink-0">
+            <Checkbox checked={false} onChange={() => {}} label="New item" shape="square" />
           </div>
-        )}
-      </div>
+          <div className="flex-1 min-w-0">
+            <input
+              ref={quickInputRef}
+              type="text"
+              value={quickText}
+              onChange={(e) => setQuickText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitItem(true);
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setQuickText('');
+                  setIsAdding(false);
+                }
+              }}
+              onBlur={() => commitItem(false)}
+              placeholder="Item name..."
+              className="w-full bg-transparent text-body-md text-ink placeholder:text-ink-sub/60 focus:outline-none"
+            />
+          </div>
+        </div>
+      )}
 
         {items.length === 0 && !isAdding ? (
           <div className="py-8 text-center text-body-sm text-ink-sub">
