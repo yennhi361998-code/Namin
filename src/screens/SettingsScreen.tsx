@@ -119,6 +119,7 @@ export function SettingsScreen() {
       const extras: string[] = [];
       if (newAccs > 0) extras.push(`${newAccs} accounts`);
       if (newCats > 0) extras.push(`${newCats} categories`);
+      if (result.addedItems > 0) extras.push(`${result.addedItems} items`);
       const extrasStr = extras.length > 0 ? `, ${extras.join(', ')}` : '';
       const summaryMsg = result.updatedTxs > 0
         ? `Linked ${result.updatedTxs} transactions, added ${result.addedTxs} new${extrasStr}.`

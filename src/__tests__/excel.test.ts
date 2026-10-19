@@ -349,6 +349,59 @@ describe('Excel Import & Export Logic', () => {
       commitImport(preview, { cleanPersonalScope: false });
     }).not.toThrow();
   });
+
+  it('correctly imports and deduplicates inventory items with room assignments', () => {
+    const initialState = useStore.getState();
+    const existingCount = initialState.items.length;
+    const existingItem = initialState.items[0];
+
+    const preview: ImportPreviewData = {
+      filename: 'inventory_test.xlsx',
+      ourWalletTxs: [],
+      myWalletTxs: [],
+      tasks: [],
+      shoppingItems: [],
+      inventoryItems: [
+        // Duplicate item by name (different casing)
+        {
+          id: 'item-dup-1',
+          householdId: initialState.household.id,
+          name: existingItem.name.toUpperCase(),
+          category: 'Other',
+          room: 'Kitchen',
+          unit: 'pack',
+          quantity: 1,
+          currentStock: 10,
+          status: 'in_stock',
+          expectedUsageDays: null,
+          notes: '',
+        },
+        // Brand new inventory item
+        {
+          id: 'item-new-1',
+          householdId: initialState.household.id,
+          name: 'Extra Fabric Softener Brand X',
+          category: 'Cleaning',
+          room: 'Laundry',
+          unit: 'bottle',
+          quantity: 1,
+          currentStock: 2,
+          status: 'in_stock',
+          expectedUsageDays: null,
+          notes: '',
+        },
+      ],
+    };
+
+    const result = commitImport(preview);
+    expect(result.addedItems).toBe(1);
+
+    const updatedItems = useStore.getState().items;
+    expect(updatedItems.length).toBe(existingCount + 1);
+    const added = updatedItems.find((i) => i.name === 'Extra Fabric Softener Brand X');
+    expect(added).toBeDefined();
+    expect(added?.room).toBe('Laundry');
+  });
 });
 
 

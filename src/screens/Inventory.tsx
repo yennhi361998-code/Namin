@@ -343,6 +343,7 @@ export function Inventory() {
               const usageUnit = item.usageUnit?.trim() || item.unit || 'units';
               const onCart = shoppingMap.has(item.id);
               const linkedTasksCount = linkedTasksCountMap.get(item.id) ?? 0;
+              const itemRoom = item.room || (roomName !== 'Other' ? roomName : null);
 
               return (
                 <Card
@@ -353,27 +354,27 @@ export function Inventory() {
                   {/* Top Row: Name and Stock */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex flex-col min-w-0">
-                      <h3 className="text-title-sm text-ink font-semibold group-hover:text-link transition-colors truncate">
-                        {item.name}
-                      </h3>
-                      {/* Room & Category Badges */}
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        {item.room && (
+                      <h3 className="text-title-sm text-ink font-semibold group-hover:text-link transition-colors truncate flex items-center gap-1.5">
+                        {itemRoom && (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-medium"
-                            style={{ background: roomStyle(item.room).bg, color: roomStyle(item.room).fg }}
+                            className="w-5 h-5 rounded-md inline-flex items-center justify-center shrink-0"
+                            style={{ background: roomStyle(itemRoom).bg, color: roomStyle(itemRoom).fg }}
+                            title={itemRoom}
                           >
-                            <Icon name={roomStyle(item.room).icon} className="text-[12px]" />
-                            <span>{item.room}</span>
+                            <Icon name={roomStyle(itemRoom).icon} className="text-[12px]" />
                           </span>
                         )}
-                        {(!item.room || item.category !== item.room) && (
+                        <span className="truncate">{item.name}</span>
+                      </h3>
+                      {/* Category Badge (only if non-Other and different from room) */}
+                      {item.category && item.category !== 'Other' && item.category !== itemRoom && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span className="inline-flex items-center gap-1 text-caption text-ink-sub bg-soft px-2 py-0.5 rounded-full border border-line/40">
                             <CategoryDot category={item.category} size={8} />
                             <span>{item.category}</span>
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Stock & Status Badge */}
@@ -392,13 +393,11 @@ export function Inventory() {
                   {/* Middle Row: Stats & Details */}
                   <div className="flex items-center justify-between text-caption text-ink-sub pt-2 border-t border-line/40 flex-wrap gap-2">
                     <div className="flex items-center gap-3">
-                      {linkedTasksCount > 0 ? (
+                      {linkedTasksCount > 0 && (
                         <span className="inline-flex items-center gap-1 font-medium text-sky-dark">
                           <Icon name="checklist" className="text-[14px]" />
                           {linkedTasksCount} {linkedTasksCount === 1 ? 'task' : 'tasks'} linked
                         </span>
-                      ) : (
-                        <span className="text-ink-sub/70">No tasks linked</span>
                       )}
                       {item.unit && item.usageUnit && item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1 && (
                         <span>

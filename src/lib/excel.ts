@@ -130,16 +130,19 @@ export function exportToExcel() {
   // 6. Sheet: Household_Inventory
   const inventoryRows = state.items.map((i) => ({
     'Item Name': i.name,
+    'Room': i.room || '',
     'Category': i.category,
     'Current Stock': i.currentStock ?? 0,
     'Unit': i.unit,
+    'Usage Unit': i.usageUnit || '',
+    'Usage Per Purchase Unit': i.usagePerPurchaseUnit || '',
     'Status': i.status,
     'Notes': i.notes || '',
   }));
   const inventoryWs = XLSX.utils.json_to_sheet(inventoryRows.length ? inventoryRows : [
-    { 'Item Name': '', 'Category': '', 'Current Stock': 0, 'Unit': '', 'Status': '', 'Notes': '' }
+    { 'Item Name': '', 'Room': '', 'Category': '', 'Current Stock': 0, 'Unit': '', 'Usage Unit': '', 'Usage Per Purchase Unit': '', 'Status': '', 'Notes': '' }
   ]);
-  inventoryWs['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 25 }];
+  inventoryWs['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 25 }];
   XLSX.utils.book_append_sheet(wb, inventoryWs, 'Household_Inventory');
 
   // Download workbook
@@ -408,6 +411,37 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
         });
       }
     }
+
+    // D. Inventory sheet
+    else if (lowerSheet.includes('inventory') || lowerSheet.includes('kho') || lowerSheet.includes('đồ dùng')) {
+      for (const row of rawRows) {
+        const name = String(row['Item Name'] || row['Tên'] || row['Tên đồ dùng'] || '').trim();
+        if (!name) continue;
+        const room = String(row['Room'] || row['Phòng'] || row['Khu vực'] || '').trim() || null;
+        const rawCat = String(row['Category'] || row['Danh mục'] || 'Other').trim() as any;
+        const currentStock = cleanNumber(row['Current Stock'] || row['Số lượng'] || row['Tồn kho']);
+        const unit = String(row['Unit'] || row['Đơn vị'] || '').trim();
+        const usageUnit = String(row['Usage Unit'] || row['Đơn vị dùng'] || '').trim();
+        const usagePerPurchaseUnit = cleanNumber(row['Usage Per Purchase Unit'] || row['Quy đổi']);
+        const notes = String(row['Notes'] || row['Ghi chú'] || '').trim();
+
+        inventoryItems.push({
+          id: uid(),
+          householdId: state.household.id,
+          name,
+          category: rawCat || 'Other',
+          room,
+          unit,
+          usageUnit: usageUnit || undefined,
+          usagePerPurchaseUnit: usagePerPurchaseUnit > 0 ? usagePerPurchaseUnit : undefined,
+          currentStock: currentStock >= 0 ? currentStock : null,
+          expectedUsageDays: null,
+          status: 'in_stock',
+          quantity: 1,
+          notes,
+        });
+      }
+    }
   }
 
   return {
@@ -434,7 +468,7 @@ export interface CommitImportOptions {
 export function commitImport(
   data: ImportPreviewData,
   options: CommitImportOptions = {}
-): { addedTxs: number; updatedTxs: number; addedTasks: number } {
+): { addedTxs: number; updatedTxs: number; addedTasks: number; addedItems: number } {
   const state = useStore.getState();
 
   const newAccounts = data.newAccounts || [];
@@ -545,17 +579,23 @@ export function commitImport(
   const existingCatKeys = new Set(state.moneyCategories.map((c) => `${(c.name || '').toLowerCase().trim()}_${c.type}`));
   const uniqueCategories = newCategories.filter((c) => !existingCatKeys.has(`${(c.name || '').toLowerCase().trim()}_${c.type}`));
 
+  // Deduplicate inventory items by name
+  const existingItemNames = new Set(state.items.map((i) => i.name.toLowerCase().trim()));
+  const newItems = (data.inventoryItems || []).filter((i) => !existingItemNames.has(i.name.toLowerCase().trim()));
+
   useStore.setState({
     accounts: mergedAccounts,
     moneyCategories: [...state.moneyCategories, ...uniqueCategories],
     transactions: finalTransactions,
     tasks: [...state.tasks, ...newTasks],
+    items: [...state.items, ...newItems],
   });
 
   return {
     addedTxs: addedCount,
     updatedTxs: updatedCount,
     addedTasks: newTasks.length,
+    addedItems: newItems.length,
   };
 }
 

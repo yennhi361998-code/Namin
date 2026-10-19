@@ -2,9 +2,9 @@ import { useRef, useState } from 'react';
 import { FormField, TextArea, TextInput } from '../components/forms';
 import { BottomSheet } from '../components/overlay';
 import { ChipGroup, Icon, PrimaryButton } from '../components/ui';
-import { CATEGORY_COLOR, guessCategory } from '../lib/categories';
+import { guessCategory } from '../lib/categories';
 import { ROOMS } from '../lib/rooms';
-import { CATEGORIES, type Category } from '../lib/types';
+import type { Category } from '../lib/types';
 import { useStore } from '../store';
 import { toast } from '../store/ui';
 
@@ -16,8 +16,6 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
   const isEditing = Boolean(item);
   const [name, setName] = useState(item?.name ?? '');
   const [room, setRoom] = useState<string | null>(item?.room ?? null);
-  const [category, setCategory] = useState<Category>(item?.category ?? 'Other');
-  const [hasManuallySetCategory, setHasManuallySetCategory] = useState(Boolean(item));
   const [hasManuallySetRoom, setHasManuallySetRoom] = useState(Boolean(item?.room));
   const [unit, setUnit] = useState(item?.unit ?? '');
   const [usageUnit, setUsageUnit] = useState(item?.usageUnit ?? '');
@@ -37,17 +35,21 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
   const handleNameChange = (val: string) => {
     setName(val);
     setNameError(null);
-    if (!isEditing) {
+    if (!isEditing && !hasManuallySetRoom) {
       const guessed = guessCategory(val);
-      if (guessed && !hasManuallySetCategory) {
-        setCategory(guessed);
-      }
-      if (!hasManuallySetRoom) {
-        if (guessed === 'Kitchen') setRoom('Kitchen');
-        else if (guessed === 'Bathroom') setRoom('Bathroom');
-        else if (guessed === 'Cleaning') setRoom('Laundry');
-      }
+      if (guessed === 'Kitchen') setRoom('Kitchen');
+      else if (guessed === 'Bathroom') setRoom('Bathroom');
+      else if (guessed === 'Cleaning') setRoom('Laundry');
     }
+  };
+
+  const inferCategory = (targetRoom: string | null, targetName: string): Category => {
+    if (targetRoom === 'Kitchen') return 'Kitchen';
+    if (targetRoom === 'Bathroom') return 'Bathroom';
+    if (targetRoom === 'Laundry') return 'Cleaning';
+    const guessed = guessCategory(targetName);
+    if (guessed) return guessed;
+    return 'Other';
   };
 
   const save = () => {
@@ -61,11 +63,13 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
     const ratioNum = showConversion && usagePerPurchaseUnit.trim() ? Number(usagePerPurchaseUnit) : null;
     submitted.current = true;
 
+    const resolvedCategory: Category = item?.category ?? inferCategory(room, name.trim());
+
     if (isEditing && item) {
       updateItem(item.id, {
         name: name.trim(),
         room,
-        category,
+        category: resolvedCategory,
         unit: unit.trim(),
         usageUnit: showConversion && usageUnit.trim() ? usageUnit.trim() : undefined,
         usagePerPurchaseUnit: ratioNum,
@@ -78,7 +82,7 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
       addItem({
         name: name.trim(),
         room,
-        category,
+        category: resolvedCategory,
         unit: unit.trim(),
         usageUnit: showConversion && usageUnit.trim() ? usageUnit.trim() : undefined,
         usagePerPurchaseUnit: ratioNum,
@@ -137,18 +141,6 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
                 iconColor: r.fg,
               })),
             ]}
-          />
-        </FormField>
-
-        <FormField label="Category">
-          <ChipGroup
-            label="Category"
-            value={category}
-            onChange={(c) => {
-              setCategory(c);
-              setHasManuallySetCategory(true);
-            }}
-            options={CATEGORIES.map((c) => ({ label: c, value: c, dot: CATEGORY_COLOR[c] }))}
           />
         </FormField>
 

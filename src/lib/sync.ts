@@ -702,6 +702,7 @@ export interface BulkSyncImportParams {
     updatedAccounts?: Array<Partial<Account> & { id: string }>;
     newCategories?: MoneyCategory[];
     tasks: Task[];
+    inventoryItems?: HouseholdItem[];
   };
   cleanPersonalScope?: boolean;
 }
@@ -740,6 +741,11 @@ export async function bulkSyncImportToCloud(params: BulkSyncImportParams): Promi
       const sharedTxs = state.transactions.filter((t) => t.scope !== 'personal');
       await uploadCollection('households', householdId, 'transactions', sharedTxs);
       remoteHouseholdTxs = sharedTxs;
+    }
+
+    // 5. Sync inventory items if any
+    if (importPreview.inventoryItems && importPreview.inventoryItems.length > 0) {
+      await uploadCollection('households', householdId, 'items', state.items);
     }
 
     useSync.setState({ lastSyncedAt: new Date() });
