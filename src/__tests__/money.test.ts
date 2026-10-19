@@ -95,5 +95,53 @@ describe('money totals', () => {
     expect(reordered.indexOf(id3)).toBeLessThan(reordered.indexOf(id1));
     expect(reordered.indexOf(id1)).toBeLessThan(reordered.indexOf(id2));
   });
+
+  it('verifies Every 3 days preset is removed from RECURRENCE_PRESETS', async () => {
+    const { RECURRENCE_PRESETS } = await import('../lib/recurrence');
+    expect(RECURRENCE_PRESETS.some((p) => p.label === 'Every 3 days')).toBe(false);
+  });
+
+  it('adjusting account balance creates an adjustment transaction under Others', async () => {
+    const { calculateAccountBalances } = await import('../store/selectors');
+    const s = useStore.getState();
+    const accId = s.addAccount('Test Bank', 'account_balance', '#4B7BFF', 'household', 'asset', 1_500_000);
+
+    const initialBalances = calculateAccountBalances({
+      accounts: useStore.getState().accounts,
+      transactions: useStore.getState().transactions,
+      purchases: useStore.getState().purchases,
+    });
+    expect(initialBalances[accId]).toBe(1_500_000);
+
+    // User adjusts balance from 1,500,000 to 1,000,000 (diff: -500,000)
+    const diff = 1_000_000 - initialBalances[accId];
+    expect(diff).toBe(-500_000);
+
+    const othersCat = useStore.getState().moneyCategories.find((c) => c.type === 'expense' && /other|khác/i.test(c.name));
+    expect(othersCat).toBeDefined();
+
+    s.addTransaction({
+      type: 'expense',
+      scope: 'household',
+      categoryId: othersCat!.id,
+      amount: Math.abs(diff),
+      date: today(),
+      note: 'Balance adjustment',
+      accountId: accId,
+    });
+
+    const updatedBalances = calculateAccountBalances({
+      accounts: useStore.getState().accounts,
+      transactions: useStore.getState().transactions,
+      purchases: useStore.getState().purchases,
+    });
+    expect(updatedBalances[accId]).toBe(1_000_000);
+
+    const adjTx = useStore.getState().transactions.find((t) => t.accountId === accId && t.note === 'Balance adjustment');
+    expect(adjTx).toBeDefined();
+    expect(adjTx?.amount).toBe(500_000);
+    expect(adjTx?.type).toBe('expense');
+  });
 });
+
 

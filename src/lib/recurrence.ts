@@ -41,7 +41,6 @@ function ordinal(n: number): string {
 export const RECURRENCE_PRESETS: { label: string; value: Recurrence | null }[] = [
   { label: 'Never', value: null },
   { label: 'Daily', value: { unit: 'day', interval: 1 } },
-  { label: 'Every 3 days', value: { unit: 'day', interval: 3 } },
   { label: 'Weekly', value: { unit: 'week', interval: 1 } },
   { label: 'Every 2 weeks', value: { unit: 'week', interval: 2 } },
   { label: 'Monthly', value: { unit: 'month', interval: 1 } },

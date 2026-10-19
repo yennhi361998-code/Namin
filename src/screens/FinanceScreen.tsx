@@ -468,6 +468,7 @@ export function FinanceScreen({
     let debts = 0;
     for (const acc of scopedAccounts) {
       if (acc.excludeFromTotal) continue;
+      if (acc.archived && !showHiddenAccounts) continue;
       const bal = accountBalances[acc.id] ?? 0;
       if (acc.nature === 'debt') {
         debts += bal < 0 ? Math.abs(bal) : bal;
@@ -480,7 +481,7 @@ export function FinanceScreen({
       totalDebts: debts,
       netWorth: assets - debts,
     };
-  }, [scopedAccounts, accountBalances]);
+  }, [scopedAccounts, accountBalances, showHiddenAccounts]);
 
   // Selected Wallet Drilldown
   const selectedWallet = useMemo(() => {

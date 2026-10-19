@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { BottomSheet } from '../components/overlay';
 import { cx, Icon, PrimaryButton } from '../components/ui';
 import { FormField, TextInput } from '../components/forms';
+import { today } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import { useStore } from '../store';
+import { useAccountBalances } from '../store/selectors';
 import { toast } from '../store/ui';
-import type { AccountNature, FinanceScope } from '../lib/types';
+import type { AccountNature, FinanceScope, TxType } from '../lib/types';
 
 const ACCOUNT_COLORS = [
   '#3FA88B', // Green / Cash
@@ -47,17 +49,22 @@ export function AccountSheet({
   initialScope?: FinanceScope;
 }) {
   const accounts = useStore((s) => s.accounts ?? []);
+  const moneyCategories = useStore((s) => s.moneyCategories ?? []);
   const addAccount = useStore((s) => s.addAccount);
   const updateAccount = useStore((s) => s.updateAccount);
+  const addTransaction = useStore((s) => s.addTransaction);
+  const accountBalances = useAccountBalances();
 
   const existing = accountId ? accounts.find((a) => a.id === accountId) : undefined;
+  const currentBalance = existing ? (accountBalances[existing.id] ?? (existing.initialBalance ?? 0)) : 0;
 
   const [name, setName] = useState(existing?.name ?? '');
-  const [initialBalance, setInitialBalance] = useState<string>(
-    existing?.initialBalance != null && existing.initialBalance !== 0
-      ? String(Math.abs(existing.initialBalance))
-      : ''
-  );
+  const [initialBalance, setInitialBalance] = useState<string>(() => {
+    if (existing) {
+      return currentBalance !== 0 ? String(Math.abs(currentBalance)) : '';
+    }
+    return '';
+  });
   const [scope, setScope] = useState<FinanceScope>(existing?.scope ?? initialScope);
   const [nature, setNature] = useState<AccountNature>(
     existing?.nature ?? (existing?.name.toLowerCase().includes('credit') ? 'debt' : 'asset')
@@ -73,11 +80,8 @@ export function AccountSheet({
     if (open) {
       if (existing) {
         setName(existing.name || '');
-        setInitialBalance(
-          existing.initialBalance != null && existing.initialBalance !== 0
-            ? String(Math.abs(existing.initialBalance))
-            : ''
-        );
+        const curBal = accountBalances[existing.id] ?? (existing.initialBalance ?? 0);
+        setInitialBalance(curBal !== 0 ? String(Math.abs(curBal)) : '');
         setScope(existing.scope ?? initialScope);
         setNature(existing.nature ?? (existing.name.toLowerCase().includes('credit') ? 'debt' : 'asset'));
         setExcludeFromTotal(existing.excludeFromTotal ?? false);
@@ -97,7 +101,7 @@ export function AccountSheet({
         setError(null);
       }
     }
-  }, [open, accountId, existing, initialScope]);
+  }, [open, accountId, existing, initialScope, accountBalances]);
 
   const handleSave = () => {
     const trimmed = name.trim();
@@ -106,25 +110,49 @@ export function AccountSheet({
       return;
     }
 
-    const parsedInit = parseInt(initialBalance.replace(/\D/g, '') || '0', 10);
-    const absInitial = Number.isNaN(parsedInit) ? 0 : parsedInit;
-    const finalInitialBalance = nature === 'debt' && absInitial > 0 ? -absInitial : absInitial;
+    const parsedVal = parseInt(initialBalance.replace(/\D/g, '') || '0', 10);
+    const absVal = Number.isNaN(parsedVal) ? 0 : parsedVal;
+    const targetBalance = nature === 'debt' && absVal > 0 ? -absVal : absVal;
 
     if (existing) {
+      const curBal = accountBalances[existing.id] ?? (existing.initialBalance ?? 0);
+      const diff = targetBalance - curBal;
+
+      if (diff !== 0) {
+        // Create an automatic adjustment transaction under "Others" category
+        const isExpense = diff < 0;
+        const txType: TxType = isExpense ? 'expense' : 'income';
+        const othersCat =
+          moneyCategories.find((c) => c.type === txType && !c.archived && /other|khác/i.test(c.name)) ??
+          moneyCategories.find((c) => c.type === txType && /other|khác/i.test(c.name)) ??
+          moneyCategories.find((c) => c.type === txType && !c.archived) ??
+          moneyCategories.find((c) => c.type === txType);
+
+        addTransaction({
+          type: txType,
+          scope,
+          categoryId: othersCat?.id ?? null,
+          amount: Math.abs(diff),
+          date: today(),
+          note: 'Balance adjustment',
+          accountId: existing.id,
+          toAccountId: null,
+        });
+      }
+
       updateAccount(existing.id, {
         name: trimmed,
         color,
         icon,
         scope,
         nature,
-        initialBalance: finalInitialBalance,
         excludeFromTotal,
         archived,
       });
       toast({ title: 'Account updated', subtitle: trimmed });
       onClose();
     } else {
-      const id = addAccount(trimmed, icon, color, scope, nature, finalInitialBalance, excludeFromTotal, archived);
+      const id = addAccount(trimmed, icon, color, scope, nature, targetBalance, excludeFromTotal, archived);
       toast({ title: 'New account created', subtitle: trimmed });
       onCreated?.(id);
       onClose();
@@ -151,8 +179,16 @@ export function AccountSheet({
           />
         </FormField>
 
-        {/* Initial Balance Input */}
-        <FormField label="Initial balance (VND)" htmlFor="account-initial-balance" hint="Starting balance when opening this account">
+        {/* Balance Input */}
+        <FormField
+          label={existing ? 'Current balance (VND)' : 'Initial balance (VND)'}
+          htmlFor="account-initial-balance"
+          hint={
+            existing
+              ? 'Changing this will create an adjustment transaction in Others'
+              : 'Starting balance when opening this account'
+          }
+        >
           <TextInput
             id="account-initial-balance"
             placeholder="0"

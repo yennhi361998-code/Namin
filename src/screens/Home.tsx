@@ -74,7 +74,7 @@ export function Home() {
           />
           <div className="divide-y divide-black/[0.06] -mx-1">
             {upNext.map((t) => {
-              const who = t.assigneeId ? members.get(t.assigneeId)?.name : 'Anyone';
+              const who = t.assigneeId ? members.get(t.assigneeId)?.name : 'All';
               return (
                 <button
                   key={t.id}

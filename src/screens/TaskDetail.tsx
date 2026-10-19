@@ -80,7 +80,7 @@ export function TaskDetail() {
                 {assignee.name}
               </>
             ) : (
-              'Anyone'
+              'All'
             )}
           </InfoRow>
           <InfoRow icon="event" label="Due">

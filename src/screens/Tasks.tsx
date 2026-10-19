@@ -116,7 +116,7 @@ export function Tasks() {
               <SectionHeader id="today-upnext" title="Up next" />
               <div className="divide-y divide-black/[0.06] -mx-1 bg-surface rounded-2xl shadow-card border border-line/40 px-3 py-1">
                 {upNext.map((task) => {
-                  const who = task.assigneeId ? members.get(task.assigneeId)?.name : 'Anyone';
+                  const who = task.assigneeId ? members.get(task.assigneeId)?.name : 'All';
                   return (
                     <button
                       key={task.id}

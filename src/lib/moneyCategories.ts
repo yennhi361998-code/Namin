@@ -26,6 +26,7 @@ const DEFAULTS: { id: string; type: TxType; name: string; icon: CategoryIconName
   { id: 'exp-medical', type: 'expense', name: 'Medical', icon: 'pill' },
   { id: 'exp-electric', type: 'expense', name: 'Electric', icon: 'electric-plug' },
   { id: 'exp-entertainment', type: 'expense', name: 'Entertainment', icon: 'clapper-board' },
+  { id: 'exp-others', type: 'expense', name: 'Others', icon: 'coin' },
   { id: 'inc-salary', type: 'income', name: 'Salary', icon: 'briefcase' },
   { id: 'inc-bonus', type: 'income', name: 'Bonus', icon: 'money-bag' },
   { id: 'inc-interest', type: 'income', name: 'Interest', icon: 'bank' },

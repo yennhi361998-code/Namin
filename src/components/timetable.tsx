@@ -77,7 +77,7 @@ export function WeekTimetable({
                 {entries.map((e) => {
                   const task = e.task;
                   const room = task.area ? roomStyle(task.area) : null;
-                  const who = task.assigneeId ? members.get(task.assigneeId)?.name : 'Anyone';
+                  const who = task.assigneeId ? members.get(task.assigneeId)?.name : 'All';
                   return (
                     <button
                       key={task.id}
