@@ -406,8 +406,8 @@ export function Inventory() {
                       )}
                     </div>
 
-                    {/* Quick Action Buttons */}
-                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    {/* Quick Action Buttons (Aligned Right) */}
+                    <div className="flex items-center gap-1.5 ml-auto justify-end" onClick={(e) => e.stopPropagation()}>
                       {/* Use Item (-1) Button */}
                       <button
                         type="button"
@@ -426,13 +426,14 @@ export function Inventory() {
                           });
                         }}
                         title={`Use 1 ${usageUnit}`}
-                        className="px-2 py-1 rounded-lg bg-soft hover:bg-soft/80 active:scale-95 text-caption font-semibold text-ink flex items-center gap-1 transition-all cursor-pointer"
+                        aria-label={`Use 1 ${usageUnit}`}
+                        className="h-7 px-2.5 rounded-lg bg-soft hover:bg-soft/80 active:scale-95 text-caption font-semibold text-ink flex items-center gap-1 transition-all cursor-pointer"
                       >
                         <Icon name="remove" className="text-[13px]" />
                         <span>Use</span>
                       </button>
 
-                      {/* Link / Add Task Button */}
+                      {/* Link / Add Task Button (Icon only) */}
                       <button
                         type="button"
                         onClick={() =>
@@ -447,13 +448,13 @@ export function Inventory() {
                           })
                         }
                         title="Create linked task"
-                        className="px-2 py-1 rounded-lg bg-soft hover:bg-soft/80 active:bg-sky/20 text-caption font-semibold text-sky-dark flex items-center gap-1 transition-colors cursor-pointer"
+                        aria-label="Create linked task"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-soft hover:bg-soft/80 active:bg-sky/20 text-sky-dark transition-colors cursor-pointer"
                       >
-                        <Icon name="checklist" className="text-[13px]" />
-                        <span>+ Task</span>
+                        <Icon name="checklist" className="text-[15px]" />
                       </button>
 
-                      {/* Log Purchase / Expense Button */}
+                      {/* Log Purchase / Expense Button (Icon only) */}
                       <button
                         type="button"
                         onClick={() =>
@@ -471,13 +472,13 @@ export function Inventory() {
                           })
                         }
                         title="Record purchase expense"
-                        className="px-2 py-1 rounded-lg bg-soft hover:bg-soft/80 active:bg-header-ink/10 text-caption font-semibold text-ink flex items-center gap-1 transition-colors cursor-pointer"
+                        aria-label="Record purchase expense"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-soft hover:bg-soft/80 active:bg-header-ink/10 text-ink transition-colors cursor-pointer"
                       >
-                        <Icon name="paid" className="text-[13px]" />
-                        <span>+ Expense</span>
+                        <Icon name="paid" className="text-[15px]" />
                       </button>
 
-                      {/* Shopping Cart Button */}
+                      {/* Shopping Cart Button (Icon only) */}
                       {!onCart && (
                         <button
                           type="button"
@@ -486,10 +487,10 @@ export function Inventory() {
                             if (res.ok) toast({ title: 'Added to shopping list', subtitle: item.name });
                           }}
                           title="Add to shopping list"
-                          className="px-2 py-1 rounded-lg bg-soft hover:bg-soft/80 text-caption font-medium text-ink-sub flex items-center gap-1 transition-colors cursor-pointer"
+                          aria-label="Add to shopping list"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-soft hover:bg-soft/80 text-ink-sub transition-colors cursor-pointer"
                         >
-                          <Icon name="add_shopping_cart" className="text-[13px]" />
-                          <span>+ Cart</span>
+                          <Icon name="add_shopping_cart" className="text-[15px]" />
                         </button>
                       )}
                     </div>
