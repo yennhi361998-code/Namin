@@ -177,21 +177,14 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
       const sharedTxs = storeState.transactions.filter((t) => t.scope !== 'personal');
       await uploadCollection('households', hid, 'transactions', sharedTxs);
 
-      // 3. Upload user profile and private personal wallet
+      // 3. Upload user profile (personal wallet stays strictly local on device)
       await setDoc(doc(db, 'users', user.uid), sanitizeForFirestore({
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || user.email?.split('@')[0] || 'User',
         householdId: hid,
-        personalBudget: storeState.personalBudget ?? null,
         updatedAt: new Date().toISOString(),
       }));
-
-      const personalAccounts = storeState.accounts.filter((a) => a.scope === 'personal');
-      await uploadCollection('users', user.uid, 'personalAccounts', personalAccounts);
-
-      const personalTxs = storeState.transactions.filter((t) => t.scope === 'personal');
-      await uploadCollection('users', user.uid, 'personalTransactions', personalTxs);
 
       // Update sync state
       set({
@@ -340,11 +333,9 @@ export function getIsBulkImporting() {
   return isBulkImporting;
 }
 
-// Keep track of partitioned local slices so we can reconstruct Zustand store state
+// Keep track of partitioned shared household slices from Firestore
 let remoteHouseholdAccounts: Account[] = [];
-let remotePersonalAccounts: Account[] = [];
 let remoteHouseholdTxs: Transaction[] = [];
-let remotePersonalTxs: Transaction[] = [];
 
 export function getActiveSyncContext() {
   return { userId: activeUserId, householdId: activeHouseholdId };
@@ -510,21 +501,7 @@ export function startSyncListeners(userId: string, householdId: string) {
   });
   activeUnsubscribes.push(hTxUnsub);
 
-  // 11. User's Private Personal Accounts listener (STRICTLY PRIVATE)
-  const pAccUnsub = onSnapshot(collection(db, 'users', userId, 'personalAccounts'), (snapshot) => {
-    remotePersonalAccounts = snapshot.docs.map((d) => ({ ...(d.data() as Account), scope: 'personal' }));
-    updateCombinedAccounts();
-  });
-  activeUnsubscribes.push(pAccUnsub);
-
-  // 12. User's Private Personal Transactions listener (STRICTLY PRIVATE)
-  const pTxUnsub = onSnapshot(collection(db, 'users', userId, 'personalTransactions'), (snapshot) => {
-    remotePersonalTxs = snapshot.docs.map((d) => ({ ...(d.data() as Transaction), scope: 'personal' }));
-    updateCombinedTransactions();
-  });
-  activeUnsubscribes.push(pTxUnsub);
-
-  // 13. Listen to local Zustand store mutations and sync to Firestore
+  // Listen to local Zustand store mutations and sync shared household data to Firestore
   setupStoreSyncPush(userId, householdId);
 }
 
@@ -532,7 +509,9 @@ function updateCombinedAccounts() {
   if (isBulkImporting) return;
   isApplyingRemote = true;
   try {
-    const combined = [...remoteHouseholdAccounts, ...remotePersonalAccounts];
+    // Preserve local personal accounts strictly on this device
+    const localPersonal = useStore.getState().accounts.filter((a) => a.scope === 'personal');
+    const combined = [...remoteHouseholdAccounts, ...localPersonal];
     if (combined.length > 0) {
       useStore.setState({ accounts: combined });
     }
@@ -545,7 +524,9 @@ function updateCombinedTransactions() {
   if (isBulkImporting) return;
   isApplyingRemote = true;
   try {
-    const combined = [...remoteHouseholdTxs, ...remotePersonalTxs];
+    // Preserve local personal transactions strictly on this device
+    const localPersonal = useStore.getState().transactions.filter((t) => t.scope === 'personal');
+    const combined = [...remoteHouseholdTxs, ...localPersonal];
     useStore.setState({ transactions: combined });
     useSync.setState({ lastSyncedAt: new Date() });
   } finally {
@@ -556,7 +537,7 @@ function updateCombinedTransactions() {
 /**
  * Subscribes to local Zustand store updates and pushes changes to Firestore.
  */
-function setupStoreSyncPush(userId: string, householdId: string) {
+function setupStoreSyncPush(_userId: string, householdId: string) {
   if (storeUnsubscribe) storeUnsubscribe();
 
   let prev = useStore.getState();
@@ -602,26 +583,18 @@ function setupStoreSyncPush(userId: string, householdId: string) {
       syncBatchDiff(prev.members, next.members, (id) => doc(db, 'households', householdId, 'members', id));
     }
 
-    // H. Accounts diff (Partitioned by scope)
+    // H. Accounts diff (Only shared household accounts sync to Cloud)
     if (next.accounts !== prev.accounts) {
       const prevShared = prev.accounts.filter((a) => a.scope !== 'personal');
       const nextShared = next.accounts.filter((a) => a.scope !== 'personal');
       syncBatchDiff(prevShared, nextShared, (id) => doc(db, 'households', householdId, 'accounts', id));
-
-      const prevPersonal = prev.accounts.filter((a) => a.scope === 'personal');
-      const nextPersonal = next.accounts.filter((a) => a.scope === 'personal');
-      syncBatchDiff(prevPersonal, nextPersonal, (id) => doc(db, 'users', userId, 'personalAccounts', id));
     }
 
-    // I. Transactions diff (Partitioned by scope)
+    // I. Transactions diff (Only shared household transactions sync to Cloud)
     if (next.transactions !== prev.transactions) {
       const prevShared = prev.transactions.filter((t) => t.scope !== 'personal');
       const nextShared = next.transactions.filter((t) => t.scope !== 'personal');
       syncBatchDiff(prevShared, nextShared, (id) => doc(db, 'households', householdId, 'transactions', id));
-
-      const prevPersonal = prev.transactions.filter((t) => t.scope === 'personal');
-      const nextPersonal = next.transactions.filter((t) => t.scope === 'personal');
-      syncBatchDiff(prevPersonal, nextPersonal, (id) => doc(db, 'users', userId, 'personalTransactions', id));
     }
 
     // J. Household metadata diff (Name, Budget)
@@ -738,18 +711,17 @@ export interface BulkSyncImportParams {
  * without causing reactive snapshot feedback loops.
  */
 export async function bulkSyncImportToCloud(params: BulkSyncImportParams): Promise<void> {
-  const { userId, householdId, importPreview, cleanPersonalScope } = params;
+  const { householdId, importPreview } = params;
   const state = useStore.getState();
 
   try {
-    // 1. Sync accounts if any new or updated
+    // 1. Sync shared accounts if any new or updated (personal accounts stay strictly on device)
     const sharedAccounts = state.accounts.filter((a) => a.scope !== 'personal');
-    const personalAccounts = state.accounts.filter((a) => a.scope === 'personal');
-    if ((importPreview.newAccounts && importPreview.newAccounts.length > 0) || (importPreview.updatedAccounts && importPreview.updatedAccounts.length > 0)) {
+    const hasSharedNew = Boolean(importPreview.newAccounts && importPreview.newAccounts.some((a) => a.scope !== 'personal'));
+    const hasSharedUpdated = Boolean(importPreview.updatedAccounts && importPreview.updatedAccounts.some((a) => a.scope !== 'personal'));
+    if (hasSharedNew || hasSharedUpdated) {
       await uploadCollection('households', householdId, 'accounts', sharedAccounts);
-      await uploadCollection('users', userId, 'personalAccounts', personalAccounts);
       remoteHouseholdAccounts = sharedAccounts;
-      remotePersonalAccounts = personalAccounts;
     }
 
     // 2. Sync categories if any new
@@ -763,31 +735,7 @@ export async function bulkSyncImportToCloud(params: BulkSyncImportParams): Promi
       await uploadCollection('households', householdId, 'tasks', newTasksOnly);
     }
 
-    // 4. Sync Transactions
-    if (cleanPersonalScope) {
-      // Query and delete previous personal transactions from Firestore in chunks
-      const q = collection(db, 'users', userId, 'personalTransactions');
-      const snap = await getDocs(q);
-      const toDeleteIds = snap.docs.map((d) => d.id);
-      if (toDeleteIds.length > 0) {
-        const CHUNK_SIZE = 450;
-        for (let i = 0; i < toDeleteIds.length; i += CHUNK_SIZE) {
-          const chunk = toDeleteIds.slice(i, i + CHUNK_SIZE);
-          const batch = writeBatch(db);
-          for (const id of chunk) {
-            batch.delete(doc(db, 'users', userId, 'personalTransactions', id));
-          }
-          await batch.commit();
-        }
-      }
-    }
-
-    // Upload personal transactions in batched chunks
-    const personalTxs = state.transactions.filter((t) => t.scope === 'personal');
-    await uploadCollection('users', userId, 'personalTransactions', personalTxs);
-    remotePersonalTxs = personalTxs;
-
-    // Upload shared transactions if any in import
+    // 4. Sync shared transactions ONLY (personal transactions stay strictly on this device)
     if (importPreview.ourWalletTxs.length > 0) {
       const sharedTxs = state.transactions.filter((t) => t.scope !== 'personal');
       await uploadCollection('households', householdId, 'transactions', sharedTxs);
