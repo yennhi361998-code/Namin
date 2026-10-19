@@ -21,3 +21,11 @@ export function roomStyle(name: string) {
 export function roomIcon(name: string): IconName {
   return roomStyle(name).icon;
 }
+
+export function resolveItemRoom(item: { room?: string | null; category?: string | null }): string {
+  if (item.room) return item.room;
+  if (item.category === 'Kitchen') return 'Kitchen';
+  if (item.category === 'Bathroom') return 'Bathroom';
+  if (item.category === 'Cleaning') return 'Laundry';
+  return 'Other';
+}

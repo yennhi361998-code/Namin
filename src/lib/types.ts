@@ -96,6 +96,8 @@ export interface HouseholdItem {
   notes: string;
   /** Spending category its purchases go to by default (remembered from the last purchase). */
   spendCategoryId?: string | null;
+  /** Optional room/area tag (e.g. Kitchen, Living, Bathroom, etc.). */
+  room?: string | null;
 }
 
 export function getUsageUnit(item: Pick<HouseholdItem, 'unit'> & { usageUnit?: string }): string {

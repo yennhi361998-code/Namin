@@ -11,10 +11,16 @@ import { cx, Icon, MemberAvatar } from './ui';
 const TABS: { to: string; label: string; icon: IconName; match: (p: string) => boolean }[] = [
   { to: '/tasks', label: 'Tasks', icon: 'check_circle', match: (p: string) => p.startsWith('/tasks') },
   {
+    to: '/inventory',
+    label: 'Inventory',
+    icon: 'inventory_2',
+    match: (p: string) => p.startsWith('/inventory') || p.startsWith('/items'),
+  },
+  {
     to: '/our-wallet',
     label: 'Our Wallet',
     icon: 'roofing',
-    match: (p: string) => p.startsWith('/our-wallet') || p.startsWith('/shopping') || p.startsWith('/items') || p.startsWith('/spending') || p.startsWith('/charts'),
+    match: (p: string) => p.startsWith('/our-wallet') || p.startsWith('/shopping') || p.startsWith('/spending') || p.startsWith('/charts'),
   },
   {
     to: '/my-wallet',
@@ -51,7 +57,7 @@ export function BottomNavigation() {
 
   return (
     <nav
-      className="fixed z-40 inset-x-0 mx-auto w-[calc(100%-32px)] max-w-[360px] bg-surface/90 dark:bg-surface/90 backdrop-blur-xl border border-line/80 rounded-full shadow-float transition-[bottom] duration-200 ease-out"
+      className="fixed z-40 inset-x-0 mx-auto w-[calc(100%-32px)] max-w-[380px] bg-surface/90 dark:bg-surface/90 backdrop-blur-xl border border-line/80 rounded-full shadow-float transition-[bottom] duration-200 ease-out"
       style={{
         bottom: isStandalone ? 'max(14px, env(safe-area-inset-bottom))' : '14px',
       }}
@@ -69,7 +75,7 @@ export function BottomNavigation() {
               aria-current={active ? 'page' : undefined}
               title={t.label}
               className={cx(
-                'flex-1 max-w-[104px] h-full rounded-full flex items-center justify-center transition-all duration-200',
+                'flex-1 max-w-[90px] h-full rounded-full flex items-center justify-center transition-all duration-200',
                 active
                   ? 'bg-header text-header-ink shadow-xs font-semibold'
                   : 'text-ink-sub/70 hover:text-ink active:scale-95'

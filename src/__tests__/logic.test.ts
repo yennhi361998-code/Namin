@@ -551,6 +551,94 @@ describe('date cycle and range navigation', () => {
     expect(longDate(undefined as any)).toBe('—');
     expect(weekdayName(undefined as any)).toBe('');
   });
+
+  it('manages inventory items with room, stock, addItem, and deleteItem', async () => {
+    const { useStore } = await import('../store');
+    const { resolveItemRoom } = await import('../lib/rooms');
+
+    const addItem = useStore.getState().addItem;
+    const updateItem = useStore.getState().updateItem;
+    const deleteItem = useStore.getState().deleteItem;
+
+    // 1. Add item with room
+    const itemId = addItem({
+      name: 'Air Purifier Filter',
+      room: 'Living',
+      category: 'Maintenance',
+      unit: 'piece',
+      currentStock: 3,
+    });
+
+    let item = useStore.getState().items.find((i) => i.id === itemId);
+    expect(item).toBeDefined();
+    expect(item?.name).toBe('Air Purifier Filter');
+    expect(item?.room).toBe('Living');
+    expect(item?.currentStock).toBe(3);
+    expect(resolveItemRoom(item!)).toBe('Living');
+
+    // 2. Room fallback when room is not set
+    const fallbackItem = { id: 'test', householdId: 'h', name: 'Sponge', category: 'Kitchen' as const, quantity: 1, unit: 'pack', currentStock: 2, status: 'in_stock' as const, expectedUsageDays: null, notes: '' };
+    expect(resolveItemRoom(fallbackItem)).toBe('Kitchen');
+
+    const bathroomItem = { id: 'test2', householdId: 'h', name: 'Shampoo', category: 'Bathroom' as const, quantity: 1, unit: 'bottle', currentStock: 1, status: 'in_stock' as const, expectedUsageDays: null, notes: '' };
+    expect(resolveItemRoom(bathroomItem)).toBe('Bathroom');
+
+    const cleaningItem = { id: 'test3', householdId: 'h', name: 'Bleach', category: 'Cleaning' as const, quantity: 1, unit: 'bottle', currentStock: 1, status: 'in_stock' as const, expectedUsageDays: null, notes: '' };
+    expect(resolveItemRoom(cleaningItem)).toBe('Laundry');
+
+    // 3. Update item
+    updateItem(itemId, { currentStock: 5, room: 'Bedroom' });
+    item = useStore.getState().items.find((i) => i.id === itemId);
+    expect(item?.currentStock).toBe(5);
+    expect(item?.room).toBe('Bedroom');
+
+    // 4. Link task to item and verify stock reduction on complete
+    const addTask = useStore.getState().addTask;
+    const completeTask = useStore.getState().completeTask;
+
+    const taskId = addTask({
+      title: 'Replace Bedroom Filter',
+      assigneeId: null,
+      dueDate: '2026-10-20',
+      recurrence: null,
+      estimatedDuration: 15,
+      reminder: null,
+      area: 'Bedroom',
+      notes: '',
+      checklist: [],
+      mappedItemId: itemId,
+      mappedQuantity: 1,
+    });
+
+    completeTask(taskId);
+
+    item = useStore.getState().items.find((i) => i.id === itemId);
+    expect(item?.currentStock).toBe(4);
+
+    // 5. Direct use item button (decrements 1 with undo)
+    const useItem = useStore.getState().useItem;
+    const undoUse = useItem(itemId, 1);
+    item = useStore.getState().items.find((i) => i.id === itemId);
+    expect(item?.currentStock).toBe(3);
+
+    // Undo use
+    undoUse();
+    item = useStore.getState().items.find((i) => i.id === itemId);
+    expect(item?.currentStock).toBe(4);
+
+    // 6. Delete item with undo
+    const undo = deleteItem(itemId);
+    expect(useStore.getState().items.find((i) => i.id === itemId)).toBeUndefined();
+
+    // Verify task mappedItemId is cleared
+    const taskAfter = useStore.getState().tasks.find((t) => t.id === taskId);
+    expect(taskAfter?.mappedItemId).toBeNull();
+
+    // Undo delete
+    undo();
+    expect(useStore.getState().items.find((i) => i.id === itemId)).toBeDefined();
+  });
 });
+
 
 

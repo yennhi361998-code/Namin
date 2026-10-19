@@ -11,10 +11,20 @@ export interface Toast {
 }
 
 export type Sheet =
-  | { type: 'task'; taskId?: string; dueDate?: DateStr }
+  | {
+      type: 'task';
+      taskId?: string;
+      dueDate?: DateStr;
+      initialValues?: {
+        title?: string;
+        mappedItemId?: string | null;
+        mappedQuantity?: number | null;
+        area?: string | null;
+      };
+    }
   | { type: 'shopping'; shoppingId?: string }
   | { type: 'purchase'; shoppingId?: string; itemId?: string }
-  | { type: 'item'; itemId: string }
+  | { type: 'item'; itemId?: string }
   | { type: 'household' }
   | {
       type: 'transaction';

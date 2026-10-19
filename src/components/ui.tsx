@@ -97,8 +97,8 @@ export function GhostButton({ icon, className, children, ...rest }: ButtonProps)
   );
 }
 
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cx('bg-surface rounded-xl border border-line shadow-card overflow-hidden', className)}>{children}</div>;
+export function Card({ className, children, onClick }: { className?: string; children: ReactNode; onClick?: () => void }) {
+  return <div onClick={onClick} className={cx('bg-surface rounded-xl border border-line shadow-card overflow-hidden', className)}>{children}</div>;
 }
 
 const RINGS = 9;

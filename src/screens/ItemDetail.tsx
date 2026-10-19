@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { SwipeRow } from '../components/overlay';
 import { quantityLabel } from '../components/rows';
 import { HeaderButton, PageHeader } from '../components/shell';
@@ -8,6 +8,7 @@ import { longDate, shortDate } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import { STATUS_LABEL, statusFromEstimate } from '../lib/restock';
 import { guessSpendCategory } from '../lib/moneyCategories';
+import { roomStyle } from '../lib/rooms';
 import { useStore } from '../store';
 import { useRestockMap } from '../store/selectors';
 import { openSheet, toast } from '../store/ui';
@@ -25,6 +26,7 @@ const STATUS_TONE = { in_stock: 'done', running_low: 'warn', out: 'err', unknown
 
 export function ItemDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const item = useStore((s) => s.items.find((i) => i.id === id));
   const allPurchases = useStore((s) => s.purchases);
   const allTransactions = useStore((s) => s.transactions);
@@ -33,14 +35,16 @@ export function ItemDetail() {
   const addToShopping = useStore((s) => s.addToShopping);
   const deletePurchase = useStore((s) => s.deletePurchase);
   const deleteTransaction = useStore((s) => s.deleteTransaction);
+  const deleteItem = useStore((s) => s.deleteItem);
+  const useItem = useStore((s) => s.useItem);
   const restock = useRestockMap();
 
   if (!item) {
     return (
       <>
-        <PageHeader title="Item" back="/shopping" />
+        <PageHeader title="Item" back="/inventory" />
         <div className="pt-space-lg" />
-        <EmptyState message="This item no longer exists." action={{ label: 'Add item', onClick: () => openSheet({ type: 'shopping' }) }} />
+        <EmptyState message="This item no longer exists." action={{ label: 'Add item', onClick: () => openSheet({ type: 'item' }) }} />
       </>
     );
   }
@@ -142,12 +146,26 @@ export function ItemDetail() {
 
   return (
     <>
-      <PageHeader title="Item" back="/shopping" right={<HeaderButton icon="edit" label="Edit item" onClick={() => openSheet({ type: 'item', itemId: item.id })} />} />
+      <PageHeader title="Item" back="/inventory" right={<HeaderButton icon="edit" label="Edit item" onClick={() => openSheet({ type: 'item', itemId: item.id })} />} />
 
       <div className="flex flex-col gap-2 pt-space-lg pb-space-lg">
-        <div className="flex items-center gap-2 text-body-sm text-ink-sub">
-          <CategoryDot category={item.category} size={10} />
-          {item.category}
+        <div className="flex items-center gap-2 text-body-sm text-ink-sub flex-wrap">
+          <span className="inline-flex items-center gap-1.5">
+            <CategoryDot category={item.category} size={10} />
+            {item.category}
+          </span>
+          {item.room && item.room !== item.category && (
+            <>
+              <span>·</span>
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-caption font-semibold"
+                style={{ background: roomStyle(item.room).bg, color: roomStyle(item.room).fg }}
+              >
+                <Icon name={roomStyle(item.room).icon} className="text-[13px]" />
+                {item.room}
+              </span>
+            </>
+          )}
         </div>
         <h1 className="text-headline-lg text-ink tracking-tight">{item.name}</h1>
       </div>
@@ -156,19 +174,45 @@ export function ItemDetail() {
         <Card className="p-3.5 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-label-md text-ink-sub font-medium">Current stock</span>
-            <span className="text-headline-md font-bold text-sky-dark">
-              {item.currentStock != null ? `${item.currentStock} ${usageUnit}` : 'Not set'}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-headline-md font-bold text-sky-dark tabular-nums">
+                {item.currentStock != null ? `${item.currentStock} ${usageUnit}` : 'Not set'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const current = item.currentStock != null ? item.currentStock : (item.quantity ?? 1) * (item.usagePerPurchaseUnit ?? 1);
+                  if (current <= 0) {
+                    toast({ title: 'Already out of stock', subtitle: `${item.name} has 0 left` });
+                    return;
+                  }
+                  const undo = useItem(item.id, 1);
+                  const nextStock = Math.max(0, current - 1);
+                  toast({
+                    title: `Used 1 ${usageUnit}`,
+                    subtitle: `${item.name} · ${nextStock} left`,
+                    action: { label: 'Undo', run: undo },
+                  });
+                }}
+                title={`Use 1 ${usageUnit}`}
+                className="px-2.5 py-1 rounded-lg bg-soft hover:bg-soft/80 active:scale-95 text-caption font-semibold text-ink flex items-center gap-1 transition-all cursor-pointer border border-line/60"
+              >
+                <Icon name="remove" className="text-[13px]" />
+                <span>Use</span>
+              </button>
+            </div>
           </div>
           {hasConversion && item.currentStock != null && item.unit && (
             <span className="text-caption text-ink-sub">
               (Packaging: 1 {item.unit} = {item.usagePerPurchaseUnit} {usageUnit} · ~{(item.currentStock / item.usagePerPurchaseUnit!).toFixed(1)} {item.unit} left)
             </span>
           )}
-          <div className="flex items-center justify-between pt-1 border-t border-line/40">
-            <span className="text-caption text-ink-sub font-medium">Restock status</span>
-            <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
-          </div>
+          {status !== 'unknown' && STATUS_LABEL[status] && (
+            <div className="flex items-center justify-between pt-1 border-t border-line/40">
+              <span className="text-caption text-ink-sub font-medium">Restock status</span>
+              <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
+            </div>
+          )}
           <p className="text-body-sm text-ink">{summary}</p>
         </Card>
 
@@ -197,14 +241,52 @@ export function ItemDetail() {
           {usualStore && <Row label="Usually from">{usualStore}</Row>}
         </ListCard>
 
-        {linkedTasks.length > 0 && (
-          <section aria-labelledby="linked-tasks-title">
-            <div className="flex items-center justify-between mb-space-sm px-0.5">
-              <h2 id="linked-tasks-title" className="text-label-md uppercase tracking-wider font-semibold text-ink-sub">
-                Linked tasks
-              </h2>
-              <span className="text-body-sm text-ink-sub">{linkedTasks.length} {linkedTasks.length === 1 ? 'task' : 'tasks'}</span>
-            </div>
+        <section aria-labelledby="linked-tasks-title">
+          <div className="flex items-center justify-between mb-space-sm px-0.5">
+            <h2 id="linked-tasks-title" className="text-label-md uppercase tracking-wider font-semibold text-ink-sub">
+              Linked tasks
+            </h2>
+            <button
+              type="button"
+              onClick={() =>
+                openSheet({
+                  type: 'task',
+                  initialValues: {
+                    mappedItemId: item.id,
+                    mappedQuantity: 1,
+                    area: item.room,
+                    title: `Use ${item.name}`,
+                  },
+                })
+              }
+              className="text-caption font-semibold text-sky hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <Icon name="add" className="text-[14px]" />
+              <span>Link task</span>
+            </button>
+          </div>
+          {linkedTasks.length === 0 ? (
+            <Card className="p-3 text-caption text-ink-sub flex items-center justify-between">
+              <span>No tasks linked to this item yet.</span>
+              <button
+                type="button"
+                onClick={() =>
+                  openSheet({
+                    type: 'task',
+                    initialValues: {
+                      mappedItemId: item.id,
+                      mappedQuantity: 1,
+                      area: item.room,
+                      title: `Use ${item.name}`,
+                    },
+                  })
+                }
+                className="text-sky hover:underline font-semibold"
+              >
+                + Add task
+              </button>
+            </Card>
+          ) : (
             <ListCard>
               {linkedTasks.map((t) => (
                 <div key={t.id} className="flex items-center justify-between gap-3 px-3.5 min-h-[48px] py-2">
@@ -220,9 +302,8 @@ export function ItemDetail() {
                 </div>
               ))}
             </ListCard>
-          </section>
-        )}
-
+          )}
+        </section>
 
         {onList && (
           <button
@@ -275,6 +356,19 @@ export function ItemDetail() {
           </SecondaryButton>
           <GhostButton icon="edit" onClick={() => openSheet({ type: 'item', itemId: item.id })}>
             Edit item
+          </GhostButton>
+          <GhostButton
+            icon="delete"
+            className="text-err-ink border-err/30 hover:bg-err/10"
+            onClick={() => {
+              if (window.confirm(`Delete ${item.name}? This will also unmap any linked tasks.`)) {
+                const undo = deleteItem(item.id);
+                navigate('/inventory', { replace: true });
+                toast({ title: 'Item deleted', subtitle: item.name, action: { label: 'Undo', run: undo } });
+              }
+            }}
+          >
+            Delete item
           </GhostButton>
         </div>
 

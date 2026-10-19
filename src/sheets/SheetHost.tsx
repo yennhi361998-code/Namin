@@ -19,7 +19,7 @@ export function SheetHost() {
   const common = { open, onClose: close };
   switch (sheet.type) {
     case 'task':
-      return <TaskSheet key={sheet.key} {...common} taskId={sheet.taskId} dueDate={sheet.dueDate} />;
+      return <TaskSheet key={sheet.key} {...common} taskId={sheet.taskId} dueDate={sheet.dueDate} initialValues={sheet.initialValues} />;
     case 'shopping':
       return <ShoppingSheet key={sheet.key} {...common} shoppingId={sheet.shoppingId} />;
     case 'purchase':

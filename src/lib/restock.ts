@@ -57,7 +57,7 @@ export const STATUS_LABEL: Record<ItemStatus, string> = {
   in_stock: 'In stock',
   running_low: 'Running low',
   out: 'Probably out',
-  unknown: 'Not enough history yet',
+  unknown: '',
 };
 
 export function daysLeftLabel(daysLeft: number): string {

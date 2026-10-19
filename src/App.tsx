@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigationType } from 'react-r
 import { Snackbar } from './components/overlay';
 import { AppShell } from './components/shell';
 import { OurWallet, MyWallet } from './screens/Shopping';
+import { Inventory } from './screens/Inventory';
 import { ItemDetail } from './screens/ItemDetail';
 import { Charts } from './screens/Charts';
 import { TaskDetail } from './screens/TaskDetail';
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/tasks" replace />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/tasks/:id" element={<TaskDetail />} />
+          <Route path="/inventory" element={<Inventory />} />
           <Route path="/our-wallet" element={<OurWallet />} />
           <Route path="/my-wallet" element={<MyWallet />} />
           <Route path="/shopping" element={<Navigate to="/our-wallet" replace />} />

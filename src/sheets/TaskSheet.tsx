@@ -10,7 +10,24 @@ import type { DateStr, Recurrence } from '../lib/types';
 import { useStore, type TaskInput } from '../store';
 import { toast } from '../store/ui';
 
-export function TaskSheet({ open, onClose, taskId, dueDate }: { open: boolean; onClose: () => void; taskId?: string; dueDate?: DateStr }) {
+export function TaskSheet({
+  open,
+  onClose,
+  taskId,
+  dueDate,
+  initialValues,
+}: {
+  open: boolean;
+  onClose: () => void;
+  taskId?: string;
+  dueDate?: DateStr;
+  initialValues?: {
+    title?: string;
+    mappedItemId?: string | null;
+    mappedQuantity?: number | null;
+    area?: string | null;
+  };
+}) {
   const existing = useStore((s) => (taskId ? s.tasks.find((t) => t.id === taskId) : undefined));
   const existingChecklist = useStore((s) => s.checklist);
   const items = useStore((s) => s.items);
@@ -19,13 +36,13 @@ export function TaskSheet({ open, onClose, taskId, dueDate }: { open: boolean; o
   const addTask = useStore((s) => s.addTask);
   const updateTask = useStore((s) => s.updateTask);
 
-  const [title, setTitle] = useState(existing?.title ?? '');
+  const [title, setTitle] = useState(existing?.title ?? initialValues?.title ?? '');
   const [assigneeId, setAssigneeId] = useState<string | null>(existing ? existing.assigneeId : currentMemberId);
   const [due, setDue] = useState<DateStr>(existing?.dueDate ?? dueDate ?? today());
   const [recurrence, setRecurrence] = useState<Recurrence | null>(existing?.recurrence ?? null);
-  const [mappedItemId, setMappedItemId] = useState<string | null>(existing?.mappedItemId ?? null);
-  const [mappedQuantity, setMappedQuantity] = useState<number>(existing?.mappedQuantity ?? 1);
-  const [area, setArea] = useState<string | null>(existing?.area ?? null);
+  const [mappedItemId, setMappedItemId] = useState<string | null>(existing?.mappedItemId ?? initialValues?.mappedItemId ?? null);
+  const [mappedQuantity, setMappedQuantity] = useState<number>(existing?.mappedQuantity ?? initialValues?.mappedQuantity ?? 1);
+  const [area, setArea] = useState<string | null>(existing?.area ?? initialValues?.area ?? null);
   const [notes, setNotes] = useState(existing?.notes ?? '');
 
   const [checklist, setChecklist] = useState(() =>

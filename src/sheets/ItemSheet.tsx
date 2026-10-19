@@ -2,16 +2,23 @@ import { useRef, useState } from 'react';
 import { FormField, TextArea, TextInput } from '../components/forms';
 import { BottomSheet } from '../components/overlay';
 import { ChipGroup, Icon, PrimaryButton } from '../components/ui';
-import { CATEGORY_COLOR } from '../lib/categories';
+import { CATEGORY_COLOR, guessCategory } from '../lib/categories';
+import { ROOMS } from '../lib/rooms';
 import { CATEGORIES, type Category } from '../lib/types';
 import { useStore } from '../store';
 import { toast } from '../store/ui';
 
-export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: () => void; itemId: string }) {
-  const item = useStore((s) => s.items.find((i) => i.id === itemId));
+export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: () => void; itemId?: string }) {
+  const item = useStore((s) => (itemId ? s.items.find((i) => i.id === itemId) : undefined));
+  const addItem = useStore((s) => s.addItem);
   const updateItem = useStore((s) => s.updateItem);
+
+  const isEditing = Boolean(item);
   const [name, setName] = useState(item?.name ?? '');
+  const [room, setRoom] = useState<string | null>(item?.room ?? null);
   const [category, setCategory] = useState<Category>(item?.category ?? 'Other');
+  const [hasManuallySetCategory, setHasManuallySetCategory] = useState(Boolean(item));
+  const [hasManuallySetRoom, setHasManuallySetRoom] = useState(Boolean(item?.room));
   const [unit, setUnit] = useState(item?.unit ?? '');
   const [usageUnit, setUsageUnit] = useState(item?.usageUnit ?? '');
   const [usagePerPurchaseUnit, setUsagePerPurchaseUnit] = useState(
@@ -27,32 +34,72 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
   const [usageError, setUsageError] = useState<string | null>(null);
   const submitted = useRef(false);
 
+  const handleNameChange = (val: string) => {
+    setName(val);
+    setNameError(null);
+    if (!isEditing) {
+      const guessed = guessCategory(val);
+      if (guessed && !hasManuallySetCategory) {
+        setCategory(guessed);
+      }
+      if (!hasManuallySetRoom) {
+        if (guessed === 'Kitchen') setRoom('Kitchen');
+        else if (guessed === 'Bathroom') setRoom('Bathroom');
+        else if (guessed === 'Cleaning') setRoom('Laundry');
+      }
+    }
+  };
+
   const save = () => {
-    if (!item || submitted.current) return;
+    if (submitted.current) return;
     if (!name.trim()) return setNameError('Enter an item name.');
     const days = usage.trim() ? Number(usage) : null;
-    if (days != null && (!Number.isInteger(days) || days < 1 || days > 730)) return setUsageError('Enter a number of days between 1 and 730.');
+    if (days != null && (!Number.isInteger(days) || days < 1 || days > 730)) {
+      return setUsageError('Enter a number of days between 1 and 730.');
+    }
     const stockNum = stock.trim() ? Number(stock) : null;
     const ratioNum = showConversion && usagePerPurchaseUnit.trim() ? Number(usagePerPurchaseUnit) : null;
     submitted.current = true;
-    updateItem(item.id, {
-      name: name.trim(),
-      category,
-      unit: unit.trim(),
-      usageUnit: showConversion && usageUnit.trim() ? usageUnit.trim() : undefined,
-      usagePerPurchaseUnit: ratioNum,
-      currentStock: stockNum != null && !isNaN(stockNum) ? Math.max(0, stockNum) : null,
-      expectedUsageDays: days,
-      notes: notes.trim(),
-    });
-    toast({ title: 'Item updated' });
+
+    if (isEditing && item) {
+      updateItem(item.id, {
+        name: name.trim(),
+        room,
+        category,
+        unit: unit.trim(),
+        usageUnit: showConversion && usageUnit.trim() ? usageUnit.trim() : undefined,
+        usagePerPurchaseUnit: ratioNum,
+        currentStock: stockNum != null && !isNaN(stockNum) ? Math.max(0, stockNum) : null,
+        expectedUsageDays: days,
+        notes: notes.trim(),
+      });
+      toast({ title: 'Item updated' });
+    } else {
+      addItem({
+        name: name.trim(),
+        room,
+        category,
+        unit: unit.trim(),
+        usageUnit: showConversion && usageUnit.trim() ? usageUnit.trim() : undefined,
+        usagePerPurchaseUnit: ratioNum,
+        currentStock: stockNum != null && !isNaN(stockNum) ? Math.max(0, stockNum) : null,
+        expectedUsageDays: days,
+        notes: notes.trim(),
+      });
+      toast({ title: 'Item added', subtitle: name.trim() });
+    }
     onClose();
   };
 
   const effectiveUsageUnit = (showConversion && usageUnit.trim()) || unit.trim() || 'units';
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Edit item" footer={<PrimaryButton onClick={save}>Save changes</PrimaryButton>}>
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      title={isEditing ? 'Edit item' : 'Add item'}
+      footer={<PrimaryButton onClick={save}>{isEditing ? 'Save changes' : 'Add item'}</PrimaryButton>}
+    >
       <form
         className="flex flex-col gap-5"
         onSubmit={(e) => {
@@ -64,20 +111,56 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
           <TextInput
             id="edit-item-name"
             value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setNameError(null);
-            }}
+            onChange={(e) => handleNameChange(e.target.value)}
+            placeholder="e.g. Dish soap, Garbage bags, Sponges..."
             invalid={!!nameError}
             maxLength={80}
             autoComplete="off"
+            autoFocus={!isEditing}
           />
         </FormField>
-        <FormField label="Category">
-          <ChipGroup label="Category" value={category} onChange={setCategory} options={CATEGORIES.map((c) => ({ label: c, value: c, dot: CATEGORY_COLOR[c] }))} />
+
+        <FormField label="Room">
+          <ChipGroup
+            label="Room"
+            value={room}
+            onChange={(r) => {
+              setRoom(r);
+              setHasManuallySetRoom(true);
+            }}
+            options={[
+              { label: 'None', value: null as string | null },
+              ...ROOMS.map((r) => ({
+                label: r.name,
+                value: r.name as string | null,
+                icon: r.icon,
+                iconColor: r.fg,
+              })),
+            ]}
+          />
         </FormField>
+
+        <FormField label="Category">
+          <ChipGroup
+            label="Category"
+            value={category}
+            onChange={(c) => {
+              setCategory(c);
+              setHasManuallySetCategory(true);
+            }}
+            options={CATEGORIES.map((c) => ({ label: c, value: c, dot: CATEGORY_COLOR[c] }))}
+          />
+        </FormField>
+
         <FormField label="Purchase unit" htmlFor="edit-item-unit" hint="Packaging unit when buying">
-          <TextInput id="edit-item-unit" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="Unit" maxLength={20} autoComplete="off" />
+          <TextInput
+            id="edit-item-unit"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            placeholder="e.g. bottle, pack, box, roll"
+            maxLength={20}
+            autoComplete="off"
+          />
         </FormField>
 
         {/* Optional conversion for multi-item packs/rolls */}
@@ -103,7 +186,7 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
                     inputMode="numeric"
                     value={usagePerPurchaseUnit}
                     onChange={(e) => setUsagePerPurchaseUnit(e.target.value.replace(/[^\d]/g, ''))}
-                    placeholder="Ratio"
+                    placeholder="e.g. 50"
                   />
                 </FormField>
                 <FormField label="Usage / consumable unit" htmlFor="edit-item-usage-unit">
@@ -111,7 +194,7 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
                     id="edit-item-usage-unit"
                     value={usageUnit}
                     onChange={(e) => setUsageUnit(e.target.value)}
-                    placeholder="Usage unit"
+                    placeholder="e.g. bags, tablets"
                   />
                 </FormField>
               </div>
@@ -158,8 +241,15 @@ export function ItemSheet({ open, onClose, itemId }: { open: boolean; onClose: (
             autoComplete="off"
           />
         </FormField>
+
         <FormField label="Notes" htmlFor="edit-item-notes">
-          <TextArea id="edit-item-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" maxLength={300} />
+          <TextArea
+            id="edit-item-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Brands, preferred stores, storage location..."
+            maxLength={300}
+          />
         </FormField>
         <button type="submit" hidden />
       </form>

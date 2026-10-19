@@ -73,6 +73,19 @@ export interface TransactionInput {
   toAccountId?: string | null;
 }
 
+export interface ItemInput {
+  name: string;
+  category?: Category;
+  room?: string | null;
+  unit?: string;
+  usageUnit?: string;
+  usagePerPurchaseUnit?: number | null;
+  currentStock?: number | null;
+  expectedUsageDays?: number | null;
+  notes?: string;
+  spendCategoryId?: string | null;
+}
+
 export interface MoneyCategoryInput {
   type: TxType;
   name: string;
@@ -99,7 +112,10 @@ interface Actions {
   recordPurchase: (input: PurchaseInput) => Undo;
   deletePurchase: (id: string) => Undo;
   updatePurchase: (id: string, patch: Partial<Purchase>) => void;
+  addItem: (input: ItemInput) => string;
   updateItem: (id: string, patch: Partial<HouseholdItem>) => void;
+  deleteItem: (id: string) => Undo;
+  useItem: (id: string, amount?: number) => Undo;
 
   addTransaction: (input: TransactionInput) => string;
   updateTransaction: (id: string, input: TransactionInput) => void;
@@ -551,6 +567,30 @@ export const useStore = create<State>()(
         });
       },
 
+      addItem: (input) => {
+        const id = uid();
+        const s = get();
+        const name = input.name.trim();
+        const newItem: HouseholdItem = {
+          id,
+          householdId: s.household.id,
+          name,
+          category: input.category ?? guessCategory(name) ?? 'Other',
+          room: input.room ?? null,
+          quantity: 1,
+          unit: input.unit?.trim() ?? '',
+          usageUnit: input.usageUnit?.trim() || undefined,
+          usagePerPurchaseUnit: input.usagePerPurchaseUnit != null && input.usagePerPurchaseUnit > 0 ? input.usagePerPurchaseUnit : null,
+          currentStock: input.currentStock != null && !isNaN(input.currentStock) ? Math.max(0, input.currentStock) : null,
+          status: 'unknown',
+          expectedUsageDays: input.expectedUsageDays ?? null,
+          notes: input.notes?.trim() ?? '',
+          spendCategoryId: input.spendCategoryId ?? null,
+        };
+        set({ items: [...s.items, newItem] });
+        return id;
+      },
+
       updateItem: (id, patch) =>
         set((s) => {
           const items = s.items.map((i) => (i.id === id ? { ...i, ...patch } : i));
@@ -563,6 +603,40 @@ export const useStore = create<State>()(
             ),
           };
         }),
+
+      deleteItem: (id) => {
+        const s = get();
+        const item = s.items.find((i) => i.id === id);
+        if (!item) return () => {};
+        set({
+          items: s.items.filter((i) => i.id !== id),
+          tasks: s.tasks.map((t) => (t.mappedItemId === id ? { ...t, mappedItemId: null, mappedQuantity: null } : t)),
+          shopping: s.shopping.filter((sh) => sh.itemId !== id),
+        });
+        return () => {
+          set((st) => ({
+            items: [...st.items, item],
+          }));
+        };
+      },
+
+      useItem: (id, amount = 1) => {
+        const s = get();
+        const item = s.items.find((i) => i.id === id);
+        if (!item) return () => {};
+        const ratio = item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 0 ? item.usagePerPurchaseUnit : 1;
+        const current = item.currentStock != null ? item.currentStock : (item.quantity ?? 1) * ratio;
+        const nextStock = Math.max(0, current - amount);
+        const prevStock = item.currentStock;
+        set({
+          items: s.items.map((i) => (i.id === id ? { ...i, currentStock: nextStock } : i)),
+        });
+        return () => {
+          set((st) => ({
+            items: st.items.map((i) => (i.id === id ? { ...i, currentStock: prevStock } : i)),
+          }));
+        };
+      },
 
       addTransaction: (input) => {
         const id = uid();
