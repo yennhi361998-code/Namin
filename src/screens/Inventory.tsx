@@ -129,12 +129,7 @@ export function Inventory() {
 
       <div className="flex flex-col gap-space-md pb-space-xl">
         {/* Room Filter Chips */}
-        <section aria-labelledby="room-filter-title" className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between px-0.5">
-            <span id="room-filter-title" className="text-caption font-semibold uppercase tracking-wider text-ink-sub">
-              Filter by Room
-            </span>
-          </div>
+        <section aria-label="Filter by room">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-margin px-margin py-1">
             {/* All Chip */}
             <button
