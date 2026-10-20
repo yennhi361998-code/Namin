@@ -5,7 +5,6 @@ import { AppShell } from './components/shell';
 import { OurWallet, MyWallet } from './screens/Shopping';
 import { Inventory } from './screens/Inventory';
 import { ItemDetail } from './screens/ItemDetail';
-import { Charts } from './screens/Charts';
 import { TaskDetail } from './screens/TaskDetail';
 import { Tasks } from './screens/Tasks';
 import { SettingsScreen } from './screens/SettingsScreen';
@@ -42,7 +41,7 @@ export default function App() {
           <Route path="/my-wallet" element={<MyWallet />} />
           <Route path="/shopping" element={<Navigate to="/our-wallet" replace />} />
           <Route path="/items/:id" element={<ItemDetail />} />
-          <Route path="/charts" element={<Charts />} />
+          <Route path="/charts" element={<Navigate to="/our-wallet?tab=chart" replace />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="/spending" element={<Navigate to="/charts" replace />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />

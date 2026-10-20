@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LedgerRow } from '../components/rows';
 import { BrandHeader, Fab, PillTabs, ScreenTitle } from '../components/shell';
 import { Card, CategoryIcon, cx, EmptyState, Icon, MemberAvatar, ProgressBar, SpiralCard } from '../components/ui';
@@ -112,7 +112,13 @@ export function FinanceScreen({
 
   const accountBalances = useAccountBalances();
 
-  const [viewMode, setViewMode] = useState<'details' | 'account' | 'chart'>('details');
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || searchParams.get('view');
+  const [viewMode, setViewMode] = useState<'details' | 'account' | 'chart'>(() => {
+    if (initialTab === 'chart') return 'chart';
+    if (initialTab === 'account') return 'account';
+    return 'details';
+  });
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
   const [selectedBreakdownSlice, setSelectedBreakdownSlice] = useState<ChartBreakdownSlice | null>(null);
