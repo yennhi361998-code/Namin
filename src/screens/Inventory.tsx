@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BrandHeader, Fab, ScreenTitle } from '../components/shell';
 import { SwipeRow, type SwipeAction } from '../components/overlay';
-import { Badge, CategoryDot, cx, EmptyState, Icon } from '../components/ui';
+import { Badge, CategoryDot, cx, EmptyState, Icon, SpiralCard } from '../components/ui';
 import { guessSpendCategory } from '../lib/moneyCategories';
 import { estimateRestock, STATUS_LABEL, statusFromEstimate } from '../lib/restock';
 import { ROOMS, roomStyle, resolveItemRoom } from '../lib/rooms';
@@ -336,102 +336,106 @@ export function Inventory() {
             }}
           />
         ) : (
-          <div className="flex flex-col gap-3">
-            {filteredItems.map((item) => {
-              const est = restock.get(item.id) ?? estimateRestock(item, purchases.filter((p) => p.itemId === item.id));
-              const status = statusFromEstimate(est);
-              const roomName = resolveItemRoom(item);
-              const usageUnit = item.usageUnit?.trim() || item.unit || 'units';
-              const onCart = shoppingMap.has(item.id);
-              const linkedTasksCount = linkedTasksCountMap.get(item.id) ?? 0;
-              const itemRoom = item.room || (roomName !== 'Other' ? roomName : null);
+          <SpiralCard>
+            <div className="bg-surface rounded-xl border border-line shadow-card divide-y divide-dashed divide-note-line/70 overflow-hidden">
+              {filteredItems.map((item, idx) => {
+                const est = restock.get(item.id) ?? estimateRestock(item, purchases.filter((p) => p.itemId === item.id));
+                const status = statusFromEstimate(est);
+                const roomName = resolveItemRoom(item);
+                const usageUnit = item.usageUnit?.trim() || item.unit || 'units';
+                const onCart = shoppingMap.has(item.id);
+                const linkedTasksCount = linkedTasksCountMap.get(item.id) ?? 0;
+                const itemRoom = item.room || (roomName !== 'Other' ? roomName : null);
 
-              const isLow = status === 'running_low' || status === 'out' || (item.currentStock != null && item.currentStock <= 1);
-              const hasConversion = Boolean(item.unit && item.usageUnit && item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1);
-              const hasBottomRow = linkedTasksCount > 0 || hasConversion;
+                const isLow = status === 'running_low' || status === 'out' || (item.currentStock != null && item.currentStock <= 1);
+                const hasConversion = Boolean(item.unit && item.usageUnit && item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1);
+                const isFirst = idx === 0;
+                const isLast = idx === filteredItems.length - 1;
 
-              const swipeActions: SwipeAction[] = [
-                {
-                  label: '- Use',
-                  icon: 'remove',
-                  tone: 'done',
-                  onSelect: () => {
-                    const current = item.currentStock != null ? item.currentStock : (item.quantity ?? 1) * (item.usagePerPurchaseUnit ?? 1);
-                    if (current <= 0) {
-                      toast({ title: 'Already out of stock', subtitle: `${item.name} has 0 left` });
-                      return;
-                    }
-                    const undo = useItem(item.id, 1);
-                    const nextStock = Math.max(0, current - 1);
-                    toast({
-                      title: `Used 1 ${usageUnit}`,
-                      subtitle: `${item.name} · ${nextStock} left`,
-                      action: { label: 'Undo', run: undo },
-                    });
+                const swipeActions: SwipeAction[] = [
+                  {
+                    label: '- Use',
+                    icon: 'remove',
+                    tone: 'done',
+                    onSelect: () => {
+                      const current = item.currentStock != null ? item.currentStock : (item.quantity ?? 1) * (item.usagePerPurchaseUnit ?? 1);
+                      if (current <= 0) {
+                        toast({ title: 'Already out of stock', subtitle: `${item.name} has 0 left` });
+                        return;
+                      }
+                      const undo = useItem(item.id, 1);
+                      const nextStock = Math.max(0, current - 1);
+                      toast({
+                        title: `Used 1 ${usageUnit}`,
+                        subtitle: `${item.name} · ${nextStock} left`,
+                        action: { label: 'Undo', run: undo },
+                      });
+                    },
                   },
-                },
-                {
-                  label: 'Task',
-                  icon: 'checklist',
-                  tone: 'sky',
-                  onSelect: () =>
-                    openSheet({
-                      type: 'task',
-                      initialValues: {
-                        mappedItemId: item.id,
-                        mappedQuantity: 1,
-                        area: item.room || (roomName !== 'Other' ? roomName : null),
-                        title: `Use ${item.name}`,
-                      },
-                    }),
-                },
-                {
-                  label: 'Expense',
-                  icon: 'paid',
-                  tone: 'warn',
-                  onSelect: () =>
-                    openSheet({
-                      type: 'transaction',
-                      txType: 'expense',
-                      scope: 'household',
-                      initialValues: {
-                        note: item.name,
-                        quantity: 1,
-                        unit: item.unit,
-                        itemId: item.id,
-                        categoryId: item.spendCategoryId || guessSpendCategory(item.name),
-                      },
-                    }),
-                },
-                {
-                  label: onCart ? 'In cart' : '+Cart',
-                  icon: onCart ? 'check' : 'add_shopping_cart',
-                  tone: onCart ? 'soft' : 'indigo',
-                  onSelect: () => {
-                    if (onCart) {
-                      toast({ title: 'Already in shopping list', subtitle: item.name });
-                      return;
-                    }
-                    const res = addToShopping({ name: item.name, itemId: item.id });
-                    if (res.ok) toast({ title: 'Added to shopping list', subtitle: item.name });
+                  {
+                    label: 'Task',
+                    icon: 'checklist',
+                    tone: 'sky',
+                    onSelect: () =>
+                      openSheet({
+                        type: 'task',
+                        initialValues: {
+                          mappedItemId: item.id,
+                          mappedQuantity: 1,
+                          area: item.room || (roomName !== 'Other' ? roomName : null),
+                          title: `Use ${item.name}`,
+                        },
+                      }),
                   },
-                },
-              ];
+                  {
+                    label: 'Expense',
+                    icon: 'paid',
+                    tone: 'warn',
+                    onSelect: () =>
+                      openSheet({
+                        type: 'transaction',
+                        txType: 'expense',
+                        scope: 'household',
+                        initialValues: {
+                          note: item.name,
+                          quantity: 1,
+                          unit: item.unit,
+                          itemId: item.id,
+                          categoryId: item.spendCategoryId || guessSpendCategory(item.name),
+                        },
+                      }),
+                  },
+                  {
+                    label: onCart ? 'In cart' : '+Cart',
+                    icon: onCart ? 'check' : 'add_shopping_cart',
+                    tone: onCart ? 'soft' : 'indigo',
+                    onSelect: () => {
+                      if (onCart) {
+                        toast({ title: 'Already in shopping list', subtitle: item.name });
+                        return;
+                      }
+                      const res = addToShopping({ name: item.name, itemId: item.id });
+                      if (res.ok) toast({ title: 'Added to shopping list', subtitle: item.name });
+                    },
+                  },
+                ];
 
-              return (
-                <SwipeRow
-                  key={item.id}
-                  className="rounded-xl border border-line shadow-card overflow-hidden bg-surface transition-all hover:border-line-strong"
-                  surface="bg-surface"
-                  actionWidth={58}
-                  actions={swipeActions}
-                >
-                  <div
-                    onClick={() => navigate(`/items/${item.id}`)}
-                    className="p-3.5 flex flex-col gap-2.5 cursor-pointer active:bg-canvas/50 transition-colors group"
+                return (
+                  <SwipeRow
+                    key={item.id}
+                    className="transition-colors"
+                    surface="bg-surface"
+                    actionWidth={58}
+                    actions={swipeActions}
                   >
-                    {/* Top Row: Name and Stock */}
-                    <div className="flex items-start justify-between gap-3">
+                    <div
+                      onClick={() => navigate(`/items/${item.id}`)}
+                      className={cx(
+                        'px-3.5 flex items-start justify-between gap-3 cursor-pointer active:bg-soft/40 transition-colors group',
+                        isFirst && isLast ? 'py-3.5' : isFirst ? 'pt-3.5 pb-2.5' : isLast ? 'pt-2.5 pb-3.5' : 'py-2.5'
+                      )}
+                    >
+                      {/* Left: Room Icon, Item Name, Linked Task Icon, and Category Badge */}
                       <div className="flex flex-col min-w-0">
                         <h3 className="text-[15px] font-semibold text-ink group-hover:text-link transition-colors truncate flex items-center gap-1.5 leading-[20px]">
                           {itemRoom && (
@@ -444,10 +448,18 @@ export function Inventory() {
                             </span>
                           )}
                           <span className="truncate">{item.name}</span>
+                          {linkedTasksCount > 0 && (
+                            <span
+                              className="inline-flex items-center text-sky-dark shrink-0"
+                              title={`${linkedTasksCount} task${linkedTasksCount === 1 ? '' : 's'} linked`}
+                            >
+                              <Icon name="checklist" className="text-[14px]" />
+                            </span>
+                          )}
                         </h3>
                         {/* Category Badge (only if non-Other and different from room) */}
                         {item.category && item.category !== 'Other' && item.category !== itemRoom && (
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                             <span className="inline-flex items-center gap-1 text-caption text-ink-sub bg-soft px-2 py-0.5 rounded-full border border-line/40">
                               <CategoryDot category={item.category} size={8} />
                               <span>{item.category}</span>
@@ -456,11 +468,16 @@ export function Inventory() {
                         )}
                       </div>
 
-                      {/* Stock & Status Badge */}
-                      <div className="flex flex-col items-end shrink-0">
+                      {/* Right: Stock, Packaging Conversion, Status Badge */}
+                      <div className="flex flex-col items-end shrink-0 text-right">
                         <span className={cx('text-[12px] font-bold tabular-nums', isLow ? 'text-err-ink font-bold' : 'text-ink')}>
                           {item.currentStock != null ? `${item.currentStock} ${usageUnit}` : 'Stock not set'}
                         </span>
+                        {hasConversion && (
+                          <span className="text-[11px] text-ink-sub leading-tight mt-0.5">
+                            1 {item.unit} = {item.usagePerPurchaseUnit} {item.usageUnit}
+                          </span>
+                        )}
                         {status !== 'unknown' && STATUS_LABEL[status] && (
                           <div className="mt-1">
                             <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
@@ -468,32 +485,11 @@ export function Inventory() {
                         )}
                       </div>
                     </div>
-
-                    {/* Details Row: Linked Tasks (Left) & Packaging Conversion (Right) on the same line */}
-                    {hasBottomRow && (
-                      <div className="flex items-center justify-between text-caption text-ink-sub pt-2 border-t border-line/40 gap-2">
-                        <div>
-                          {linkedTasksCount > 0 && (
-                            <span className="inline-flex items-center gap-1 font-medium text-sky-dark">
-                              <Icon name="checklist" className="text-[14px]" />
-                              {linkedTasksCount} {linkedTasksCount === 1 ? 'task' : 'tasks'} linked
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          {hasConversion && (
-                            <span className="text-[11px] text-ink-sub">
-                              1 {item.unit} = {item.usagePerPurchaseUnit} {item.usageUnit}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </SwipeRow>
-              );
-            })}
-          </div>
+                  </SwipeRow>
+                );
+              })}
+            </div>
+          </SpiralCard>
         )}
       </div>
 
