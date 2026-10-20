@@ -9,9 +9,22 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 import { initCacheAndServiceWorker } from './lib/cacheManager';
+import { useStore } from './store';
+import { createDemoSeed } from './store/seed';
 
 // Auto-clean stale caches on new builds and manage service worker updates
 initCacheAndServiceWorker();
+
+if (typeof window !== 'undefined') {
+  const search = new URLSearchParams(window.location.search);
+  if (search.has('demo')) {
+    useStore.setState(createDemoSeed());
+  }
+  const view = search.get('view');
+  if (view) {
+    localStorage.setItem('namin:calendar-view', view);
+  }
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

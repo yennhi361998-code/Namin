@@ -334,9 +334,10 @@ export function Fab({ label, onClick }: { label: string; onClick: () => void }) 
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-dvh bg-canvas">
+    <div className="min-h-dvh bg-canvas overflow-x-hidden">
       <main className="pb-[calc(44px+max(8px,env(safe-area-inset-bottom,8px))+32px)] px-margin max-w-[640px] mx-auto">{children}</main>
       <BottomNavigation />
     </div>
   );
 }
+

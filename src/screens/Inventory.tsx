@@ -128,9 +128,9 @@ export function Inventory() {
         subtitle={`${items.length} ${items.length === 1 ? 'item' : 'items'}${totalLowStock > 0 ? ` · ${totalLowStock} low on stock` : ''}`}
       />
 
-      <div className="flex flex-col gap-space-md pb-space-xl">
+      <div className="flex flex-col gap-space-md pb-space-xl min-w-0 w-full">
         {/* Room Filter Chips */}
-        <section aria-label="Filter by room">
+        <section aria-label="Filter by room" className="w-full overflow-hidden">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-margin px-margin py-1">
             {/* All Chip */}
             <button
