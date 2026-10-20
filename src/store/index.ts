@@ -6,7 +6,7 @@ import { uid } from '../lib/id';
 import { nextOccurrence } from '../lib/recurrence';
 import { estimateRestock, statusFromEstimate } from '../lib/restock';
 import { defaultMoneyCategories, demoPersonalTransactions, demoTransactions, EMOJI_TO_ICON } from '../lib/moneyCategories';
-import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, Member, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, TxType } from '../lib/types';
+import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, Member, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, Transaction, TxType } from '../lib/types';
 import { createSeed, defaultAccounts } from './seed';
 import type { Data } from './types';
 import { toast } from './ui';
@@ -54,6 +54,7 @@ export interface PurchaseInput {
   spendCategoryId?: string | null;
   accountId?: string | null;
   memberId?: string | null;
+  scope?: FinanceScope;
 }
 
 export interface TransactionInput {
@@ -71,6 +72,7 @@ export interface TransactionInput {
   memberId?: string | null;
   accountId?: string | null;
   toAccountId?: string | null;
+  shoppingItemId?: string;
 }
 
 export interface ItemInput {
@@ -142,11 +144,34 @@ interface Actions {
 export type State = Data & Actions;
 
 const MEMBER_COLORS = ['#8CC9E8', '#A9D8C8', '#B8C7E6', '#F2D6A7', '#D7C4E8', '#CBD5DA'];
-const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+function stripDiacritics(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
 
-function refreshStatus(items: HouseholdItem[], purchases: Data['purchases'], itemId: string): HouseholdItem[] {
+const sameName = (a: string, b: string) => {
+  const normA = a.trim().toLowerCase();
+  const normB = b.trim().toLowerCase();
+  if (normA === normB) return true;
+  return stripDiacritics(normA) === stripDiacritics(normB);
+};
+
+function refreshStatus(
+  items: HouseholdItem[],
+  purchases: Data['purchases'],
+  itemId: string,
+  transactions?: Data['transactions'],
+): HouseholdItem[] {
+  const purHistory = purchases.filter((p) => p.itemId === itemId).map((p) => ({ purchaseDate: p.purchaseDate }));
+  const txHistory = (transactions ?? [])
+    .filter((t) => t.type === 'expense' && t.itemId === itemId)
+    .map((t) => ({ purchaseDate: t.date }));
+  const history = [...purHistory, ...txHistory];
   return items.map((it) =>
-    it.id === itemId ? { ...it, status: statusFromEstimate(estimateRestock(it, purchases.filter((p) => p.itemId === it.id))) } : it,
+    it.id === itemId ? { ...it, status: statusFromEstimate(estimateRestock(it, history)) } : it,
   );
 }
 
@@ -440,7 +465,9 @@ export const useStore = create<State>()(
       recordPurchase: (input) => {
         const s = get();
         const name = input.name.trim();
-        let item = input.itemId ? s.items.find((i) => i.id === input.itemId) : s.items.find((i) => sameName(i.name, name));
+        const shopItem = input.shoppingItemId ? s.shopping.find((x) => x.id === input.shoppingItemId) : undefined;
+        const resolvedItemId = input.itemId || shopItem?.itemId;
+        let item = resolvedItemId ? s.items.find((i) => i.id === resolvedItemId) : s.items.find((i) => sameName(i.name, name));
         const createdItem = !item;
         if (!item) {
           item = {
@@ -458,8 +485,14 @@ export const useStore = create<State>()(
             notes: '',
           };
         }
+
+        const targetScope: FinanceScope = input.scope ?? 'household';
+        const isPersonal = targetScope === 'personal';
+        const newPurId = uid();
+        const newTxId = uid();
+
         const purchase = {
-          id: uid(),
+          id: newPurId,
           householdId: s.household.id,
           itemId: item.id,
           itemName: item.name,
@@ -475,18 +508,43 @@ export const useStore = create<State>()(
           memberId: input.memberId ?? s.currentMemberId ?? null,
           createdAt: new Date().toISOString(),
         };
+
+        const transaction: Transaction = {
+          id: newTxId,
+          householdId: s.household.id,
+          type: 'expense',
+          scope: 'personal',
+          categoryId: input.spendCategoryId ?? item.spendCategoryId ?? null,
+          amount: Math.round(input.price ?? 0),
+          date: input.purchaseDate,
+          note: item.name,
+          quantity: input.quantity,
+          unit: input.unit,
+          usageUnit: input.usageUnit ?? item.usageUnit ?? null,
+          usagePerPurchaseUnit: input.usagePerPurchaseUnit ?? item.usagePerPurchaseUnit ?? null,
+          itemId: item.id,
+          accountId: input.accountId ?? null,
+          memberId: input.memberId ?? s.currentMemberId ?? null,
+          createdAt: new Date().toISOString(),
+        };
+
         const ratio = input.usagePerPurchaseUnit && input.usagePerPurchaseUnit > 0
           ? input.usagePerPurchaseUnit
           : (item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 0 ? item.usagePerPurchaseUnit : 1);
-        const inflow = input.quantity * ratio;
+        const qty = input.quantity && input.quantity > 0 ? input.quantity : 1;
+        const inflow = qty * ratio;
+
         // Buying it clears it from the list, wherever the purchase was recorded from.
-        const removed = s.shopping.filter((x) => x.id === input.shoppingItemId || (x.itemId === item!.id && !x.completed));
-        const purchases = [...s.purchases, purchase];
+        const removed = s.shopping.filter((x) => x.id === input.shoppingItemId || (item && x.itemId === item.id && !x.completed));
+        const purchases = isPersonal ? s.purchases : [...s.purchases, purchase];
+        const transactions = isPersonal ? [...s.transactions, transaction] : s.transactions;
         const baseItems = createdItem ? [...s.items, item] : s.items;
+
         set({
           purchases,
+          transactions,
           shopping: s.shopping.filter((x) => !removed.includes(x)),
-          items: refreshStatus(baseItems, purchases, item.id).map((i) =>
+          items: refreshStatus(baseItems, purchases, item.id, transactions).map((i) =>
             i.id === item!.id
               ? {
                   ...i,
@@ -499,16 +557,18 @@ export const useStore = create<State>()(
               : i,
           ),
         });
+
         const itemId = item.id;
         return () =>
           set((st) => {
-            const ps = st.purchases.filter((p) => p.id !== purchase.id);
+            const ps = isPersonal ? st.purchases : st.purchases.filter((p) => p.id !== newPurId);
+            const txs = isPersonal ? st.transactions.filter((t) => t.id !== newTxId) : st.transactions;
             const items = createdItem
               ? st.items.filter((i) => i.id !== itemId)
-              : refreshStatus(st.items, ps, itemId).map((i) =>
+              : refreshStatus(st.items, ps, itemId, txs).map((i) =>
                   i.id === itemId ? { ...i, currentStock: Math.max(0, (i.currentStock ?? inflow) - inflow) } : i,
                 );
-            return { purchases: ps, shopping: [...st.shopping, ...removed], items };
+            return { purchases: ps, transactions: txs, shopping: [...st.shopping, ...removed], items };
           });
       },
 
@@ -640,21 +700,57 @@ export const useStore = create<State>()(
 
       addTransaction: (input) => {
         const id = uid();
-        set((s) => ({
-          transactions: [
-            ...s.transactions,
-            {
-              ...input,
-              id,
-              householdId: s.household.id,
-              scope: input.scope ?? 'household',
-              amount: Math.round(input.amount),
-              note: input.note.trim(),
-              memberId: input.memberId ?? s.currentMemberId,
-              accountId: input.accountId ?? null,
-              createdAt: new Date().toISOString(),
-            },
-          ],
+        const s = get();
+        const shopItem = input.shoppingItemId ? s.shopping.find((x) => x.id === input.shoppingItemId) : undefined;
+        const resolvedItemId = input.itemId || shopItem?.itemId;
+        const name = input.note?.trim() || '';
+        const item = resolvedItemId
+          ? s.items.find((i) => i.id === resolvedItemId)
+          : (name ? s.items.find((i) => sameName(i.name, name)) : undefined);
+
+        const tx = {
+          ...input,
+          id,
+          householdId: s.household.id,
+          scope: input.scope ?? 'household',
+          amount: Math.round(input.amount),
+          note: input.note.trim(),
+          memberId: input.memberId ?? s.currentMemberId,
+          accountId: input.accountId ?? null,
+          createdAt: new Date().toISOString(),
+        };
+
+        if (input.type === 'expense' && item) {
+          const ratio = input.usagePerPurchaseUnit && input.usagePerPurchaseUnit > 0
+            ? input.usagePerPurchaseUnit
+            : (item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 0 ? item.usagePerPurchaseUnit : 1);
+          const qty = input.quantity != null && input.quantity > 0 ? input.quantity : 1;
+          const inflow = qty * ratio;
+          const txs = [...s.transactions, tx];
+          const nextItems = refreshStatus(s.items, s.purchases, item.id, txs).map((i) =>
+            i.id === item.id
+              ? {
+                  ...i,
+                  currentStock: (i.currentStock != null ? i.currentStock : 0) + inflow,
+                  unit: input.unit || i.unit,
+                  ...(input.usageUnit !== undefined && input.usageUnit !== null ? { usageUnit: input.usageUnit } : {}),
+                  ...(input.usagePerPurchaseUnit !== undefined && input.usagePerPurchaseUnit !== null ? { usagePerPurchaseUnit: input.usagePerPurchaseUnit } : {}),
+                }
+              : i,
+          );
+          const nextShopping = s.shopping.filter((x) => x.id !== input.shoppingItemId && (x.itemId !== item.id || x.completed));
+          set({
+            transactions: txs,
+            items: nextItems,
+            shopping: nextShopping,
+          });
+          return id;
+        }
+
+        const nextShopping = input.shoppingItemId ? s.shopping.filter((x) => x.id !== input.shoppingItemId) : s.shopping;
+        set((st) => ({
+          transactions: [...st.transactions, tx],
+          shopping: nextShopping,
         }));
         return id;
       },
@@ -677,9 +773,21 @@ export const useStore = create<State>()(
         })),
       deleteTransaction: (id) => {
         const tx = get().transactions.find((t) => t.id === id);
-        set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
+        const it = tx?.itemId ? get().items.find((i) => i.id === tx.itemId) : undefined;
+        const ratio = it?.usagePerPurchaseUnit && it.usagePerPurchaseUnit > 0 ? it.usagePerPurchaseUnit : (tx?.usagePerPurchaseUnit && tx.usagePerPurchaseUnit > 0 ? tx.usagePerPurchaseUnit : 1);
+        const qty = tx && tx.type === 'expense' && tx.itemId ? (tx.quantity ?? 1) * ratio : 0;
+        set((s) => {
+          const txs = s.transactions.filter((t) => t.id !== id);
+          const updated = it && qty > 0 ? s.items.map((i) => (i.id === it.id ? { ...i, currentStock: Math.max(0, (i.currentStock ?? qty) - qty) } : i)) : s.items;
+          return { transactions: txs, items: it ? refreshStatus(updated, s.purchases, it.id, txs) : s.items };
+        });
         return () => {
-          if (tx) set((s) => ({ transactions: [...s.transactions, tx] }));
+          if (tx)
+            set((s) => {
+              const txs = [...s.transactions, tx];
+              const updated = it && qty > 0 ? s.items.map((i) => (i.id === it.id ? { ...i, currentStock: (i.currentStock ?? 0) + qty } : i)) : s.items;
+              return { transactions: txs, items: it ? refreshStatus(updated, s.purchases, it.id, txs) : s.items };
+            });
         };
       },
       addMoneyCategory: (input) => {

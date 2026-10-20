@@ -101,11 +101,15 @@ export function TransactionSheet({
   const [expr, setExpr] = useState(() => (existing ? String(existing.amount) : initialValues?.amount ? String(initialValues.amount) : ''));
   const [note, setNote] = useState(() => existing?.note ?? initialValues?.note ?? '');
   const [quantity, setQuantity] = useState(() => existing?.quantity ?? initialValues?.quantity ?? 1);
-  const [unit, setUnit] = useState(() => existing?.unit ?? initialValues?.unit ?? '');
-  const [usagePerPurchaseUnit, setUsagePerPurchaseUnit] = useState(
-    existing?.usagePerPurchaseUnit ? String(existing.usagePerPurchaseUnit) : '',
-  );
   const [selectedItemId, setSelectedItemId] = useState<string | null>(existing?.itemId ?? initialValues?.itemId ?? null);
+  const [unit, setUnit] = useState(() => existing?.unit ?? initialValues?.unit ?? (initialValues?.itemId ? items.find((i) => i.id === initialValues.itemId)?.unit ?? '' : ''));
+  const [usagePerPurchaseUnit, setUsagePerPurchaseUnit] = useState(
+    existing?.usagePerPurchaseUnit
+      ? String(existing.usagePerPurchaseUnit)
+      : (initialValues?.itemId
+          ? String(items.find((i) => i.id === initialValues.itemId)?.usagePerPurchaseUnit ?? '')
+          : ''),
+  );
   const [date, setDate] = useState<DateStr>(existing?.date ?? initialDate ?? today());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [unitPickerOpen, setUnitPickerOpen] = useState(false);
@@ -215,13 +219,20 @@ export function TransactionSheet({
     setError(null);
   };
 
-  // Match item from selectedItemId or note
+  // Match item from selectedItemId, initialValues, or note
   const effectiveItem = useMemo(() => {
-    if (selectedItemId) return items.find((i) => i.id === selectedItemId);
+    if (selectedItemId) {
+      const found = items.find((i) => i.id === selectedItemId);
+      if (found) return found;
+    }
+    if (initialValues?.itemId) {
+      const found = items.find((i) => i.id === initialValues.itemId);
+      if (found) return found;
+    }
     const q = note.trim().toLowerCase();
     if (!q) return undefined;
     return items.find((i) => i.name.trim().toLowerCase() === q);
-  }, [items, selectedItemId, note]);
+  }, [items, selectedItemId, initialValues?.itemId, note]);
 
   const currentPackagingUnit = unit.trim() || effectiveItem?.unit || 'pack';
 
@@ -270,15 +281,15 @@ export function TransactionSheet({
     submitted.current = true;
 
     const currentPackagingUnit = unit.trim() || effectiveItem?.unit || 'pack';
-    // If user does not enter items per, automatically understand 1 pack = 1 item
-    const parsedRatio = usagePerPurchaseUnit.trim() ? Number(usagePerPurchaseUnit) : 1;
-    const ratioNum = !isNaN(parsedRatio) && parsedRatio > 0 ? parsedRatio : 1;
+    const ratioFromItem = effectiveItem?.usagePerPurchaseUnit && effectiveItem.usagePerPurchaseUnit > 0 ? effectiveItem.usagePerPurchaseUnit : 1;
+    const parsedRatio = usagePerPurchaseUnit.trim() ? Number(usagePerPurchaseUnit) : ratioFromItem;
+    const ratioNum = !isNaN(parsedRatio) && parsedRatio > 0 ? parsedRatio : ratioFromItem;
     const resolvedUsageUnit = effectiveItem?.usageUnit || (ratioNum > 1 ? 'items' : currentPackagingUnit);
 
     const targetScope: FinanceScope = initialScope === 'personal' ? 'personal' : (selectedAccount?.scope ?? 'household');
 
-    // If an item, note, or unit is specified on an expense, and it is household scope, record it as a purchase so stock and units are updated
-    if (!existing && type === 'expense' && targetScope === 'household' && (note.trim() || effectiveItem || unit.trim() || initialValues?.shoppingItemId)) {
+    // If an item, note, or unit is specified on an expense, record it so stock and units are updated
+    if (!existing && type === 'expense' && (note.trim() || effectiveItem || unit.trim() || initialValues?.shoppingItemId || initialValues?.itemId)) {
       const itemName = note.trim() || effectiveItem?.name || selected?.name || 'Expense';
       recordPurchase({
         shoppingItemId: initialValues?.shoppingItemId,
@@ -295,7 +306,9 @@ export function TransactionSheet({
         spendCategoryId: effectiveCategoryId,
         accountId,
         memberId,
+        scope: targetScope,
       });
+      toast({ title: 'Expense recorded' });
       onClose();
       return;
     }
@@ -411,7 +424,9 @@ export function TransactionSheet({
               note={note}
               onNote={(v) => {
                 setNote(v);
-                setSelectedItemId(null);
+                if (!initialValues?.itemId) {
+                  setSelectedItemId(null);
+                }
               }}
               notePlaceholder={
                 type === 'transfer'

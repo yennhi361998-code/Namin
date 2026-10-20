@@ -224,7 +224,122 @@ describe('store flows', () => {
     item = st.items.find((i) => i.id === dishSoap.id)!;
     expect(item.currentStock).toBe(stockBefore);
   });
+
+  it('ticking to-buy item with household scope adds expense and increments inventory stock', () => {
+    const s = useStore.getState();
+    const itemId = s.addItem({
+      name: 'Sunlight Dish Soap',
+      unit: 'bottle',
+      category: 'Cleaning',
+      currentStock: 2,
+    });
+
+    // Add to shopping list
+    const shopRes = s.addToShopping({ name: 'Sunlight Dish Soap', itemId, quantity: 2 });
+    expect(shopRes.ok).toBe(true);
+
+    const shoppingItem = useStore.getState().shopping.find((x) => x.itemId === itemId)!;
+    expect(shoppingItem).toBeDefined();
+
+    // Record purchase with household scope
+    s.recordPurchase({
+      shoppingItemId: shoppingItem.id,
+      itemId,
+      name: 'Sunlight Dish Soap',
+      category: 'Cleaning',
+      quantity: 2,
+      unit: 'bottle',
+      price: 50000,
+      store: 'WinMart',
+      purchaseDate: today(),
+      scope: 'household',
+    });
+
+    const st = useStore.getState();
+    expect(st.shopping.some((x) => x.id === shoppingItem.id)).toBe(false);
+    const updatedItem = st.items.find((i) => i.id === itemId)!;
+    // 2 + 2 = 4
+    expect(updatedItem.currentStock).toBe(4);
+    expect(st.purchases.some((p) => p.itemId === itemId && p.price === 50000)).toBe(true);
+  });
+
+  it('ticking to-buy item with personal scope adds personal expense and increments inventory stock', () => {
+    const s = useStore.getState();
+    const itemId = s.addItem({
+      name: 'Organic Milk 1L',
+      unit: 'box',
+      category: 'Groceries',
+      currentStock: 1,
+    });
+
+    // Add to shopping list
+    const shopRes = s.addToShopping({ name: 'Organic Milk 1L', itemId, quantity: 3 });
+    expect(shopRes.ok).toBe(true);
+
+    const shoppingItem = useStore.getState().shopping.find((x) => x.itemId === itemId)!;
+    expect(shoppingItem).toBeDefined();
+
+    // Record purchase with personal scope
+    s.recordPurchase({
+      shoppingItemId: shoppingItem.id,
+      itemId,
+      name: 'Organic Milk 1L',
+      category: 'Groceries',
+      quantity: 3,
+      unit: 'box',
+      price: 90000,
+      store: 'VinMart',
+      purchaseDate: today(),
+      scope: 'personal',
+      accountId: 'acc-cash',
+    });
+
+    const st = useStore.getState();
+    // Cleared from shopping list
+    expect(st.shopping.some((x) => x.id === shoppingItem.id)).toBe(false);
+    // Stock is incremented: 1 + 3 = 4
+    const updatedItem = st.items.find((i) => i.id === itemId)!;
+    expect(updatedItem.currentStock).toBe(4);
+    // Stored as personal transaction
+    const tx = st.transactions.find((t) => t.itemId === itemId && t.scope === 'personal')!;
+    expect(tx).toBeDefined();
+    expect(tx.amount).toBe(90000);
+    expect(tx.accountId).toBe('acc-cash');
+  });
+
+  it('adding expense via addTransaction with itemId increments inventory stock and delete reverts it', () => {
+    const s = useStore.getState();
+    const itemId = s.addItem({
+      name: 'Baking Soda',
+      unit: 'box',
+      category: 'Kitchen',
+      currentStock: 0,
+    });
+
+    const txId = s.addTransaction({
+      type: 'expense',
+      scope: 'personal',
+      categoryId: null,
+      amount: 25000,
+      date: today(),
+      note: 'Baking Soda',
+      itemId,
+      quantity: 2,
+      unit: 'box',
+    });
+
+    let st = useStore.getState();
+    let updatedItem = st.items.find((i) => i.id === itemId)!;
+    expect(updatedItem.currentStock).toBe(2);
+
+    // Delete transaction reverts stock
+    s.deleteTransaction(txId);
+    st = useStore.getState();
+    updatedItem = st.items.find((i) => i.id === itemId)!;
+    expect(updatedItem.currentStock).toBe(0);
+  });
 });
+
 
 
 describe('date cycle and range navigation', () => {
@@ -639,6 +754,8 @@ describe('date cycle and range navigation', () => {
     expect(useStore.getState().items.find((i) => i.id === itemId)).toBeDefined();
   });
 });
+
+
 
 
 
