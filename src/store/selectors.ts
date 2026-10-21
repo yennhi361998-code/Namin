@@ -23,28 +23,30 @@ export function useCurrentMember() {
 
 const byDue = (a: Task, b: Task) => a.dueDate.localeCompare(b.dueDate) || (a.reminder ?? '99').localeCompare(b.reminder ?? '99');
 
+export function taskLists(tasks: Task[], t: DateStr = today()) {
+  const open = tasks.filter((x) => !x.completed);
+  return {
+    /**
+     * Due today, plus anything completed today so progress stays visible.
+     * Overdue uncompleted tasks remain on their original due date and are not automatically moved to today.
+     * One stable order regardless of completion, so rows never jump under the user's thumb.
+     */
+    today: tasks
+      .filter((x) => (x.dueDate === t && !x.completed) || (x.completed && x.completedAt && toDateStr(new Date(x.completedAt)) === t))
+      .sort((a, b) => byDue(a, b) || a.createdAt.localeCompare(b.createdAt)),
+    overdue: open.filter((x) => x.dueDate < t),
+    upcoming: open.filter((x) => x.dueDate > t).sort(byDue),
+    recurring: open.filter((x) => x.recurrence).sort(byDue),
+    completed: tasks
+      .filter((x) => x.completed)
+      .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? '')),
+    openCount: open.length,
+  };
+}
+
 export function useTaskLists() {
   const tasks = useStore((s) => s.tasks);
-  return useMemo(() => {
-    const t = today();
-    const open = tasks.filter((x) => !x.completed);
-    return {
-      /**
-       * Due today or overdue, plus anything completed today so progress stays visible.
-       * One stable order regardless of completion, so rows never jump under the user's thumb.
-       */
-      today: tasks
-        .filter((x) => x.dueDate <= t && (!x.completed || (x.completedAt && toDateStr(new Date(x.completedAt)) === t)))
-        .sort((a, b) => byDue(a, b) || a.createdAt.localeCompare(b.createdAt)),
-      overdue: open.filter((x) => x.dueDate < t),
-      upcoming: open.filter((x) => x.dueDate > t).sort(byDue),
-      recurring: open.filter((x) => x.recurrence).sort(byDue),
-      completed: tasks
-        .filter((x) => x.completed)
-        .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? '')),
-      openCount: open.length,
-    };
-  }, [tasks]);
+  return useMemo(() => taskLists(tasks), [tasks]);
 }
 
 /** Restock estimate for every item that has enough history. */
@@ -227,45 +229,46 @@ export interface DayEntry {
 
 /**
  * Tasks per calendar day in [from, to].
- * - Open tasks sit on their due date; overdue ones are pulled onto today (like the Today list).
+ * - Open tasks sit on their due date (overdue tasks remain on their original due date, not rolled over).
  * - Completed tasks sit on the later of due date and completion date: done-late shows on the day
  *   it was done, ticked-ahead shows on the day it was for.
  * - Future repeats of each open recurring task are projected, skipping dates already stored.
  */
+export function tasksByDay(tasks: Task[], from: DateStr, to: DateStr, t: DateStr = today()) {
+  const map = new Map<DateStr, DayEntry[]>();
+  const push = (date: DateStr, e: DayEntry) => {
+    if (date < from || date > to) return;
+    map.set(date, [...(map.get(date) ?? []), e]);
+  };
+  const taken = new Map<string, Set<DateStr>>();
+  for (const x of tasks) taken.set(x.seriesId, (taken.get(x.seriesId) ?? new Set()).add(x.dueDate));
+
+  for (const x of tasks) {
+    if (x.completed) {
+      const doneOn = x.completedAt ? toDateStr(new Date(x.completedAt)) : x.dueDate;
+      push(doneOn > x.dueDate ? doneOn : x.dueDate, { task: x, projected: false, anchorId: x.id, overdue: false });
+      continue;
+    }
+    const overdue = x.dueDate < t;
+    push(x.dueDate, { task: x, projected: false, anchorId: x.id, overdue });
+    for (const date of projectOccurrences(x, from, to, t, taken.get(x.seriesId))) {
+      push(date, { task: { ...x, id: `${x.id}@${date}`, dueDate: date }, projected: true, anchorId: x.id, overdue: false });
+    }
+  }
+  for (const list of map.values())
+    list.sort(
+      (a, b) =>
+        Number(b.overdue) - Number(a.overdue) ||
+        (a.task.reminder ?? '99').localeCompare(b.task.reminder ?? '99') ||
+        a.task.createdAt.localeCompare(b.task.createdAt) ||
+        a.task.title.localeCompare(b.task.title),
+    );
+  return map;
+}
+
 export function useTasksByDay(from: DateStr, to: DateStr) {
   const tasks = useStore((s) => s.tasks);
-  return useMemo(() => {
-    const t = today();
-    const map = new Map<DateStr, DayEntry[]>();
-    const push = (date: DateStr, e: DayEntry) => {
-      if (date < from || date > to) return;
-      map.set(date, [...(map.get(date) ?? []), e]);
-    };
-    const taken = new Map<string, Set<DateStr>>();
-    for (const x of tasks) taken.set(x.seriesId, (taken.get(x.seriesId) ?? new Set()).add(x.dueDate));
-
-    for (const x of tasks) {
-      if (x.completed) {
-        const doneOn = x.completedAt ? toDateStr(new Date(x.completedAt)) : x.dueDate;
-        push(doneOn > x.dueDate ? doneOn : x.dueDate, { task: x, projected: false, anchorId: x.id, overdue: false });
-        continue;
-      }
-      const overdue = x.dueDate < t;
-      push(overdue ? t : x.dueDate, { task: x, projected: false, anchorId: x.id, overdue });
-      for (const date of projectOccurrences(x, from, to, t, taken.get(x.seriesId))) {
-        push(date, { task: { ...x, id: `${x.id}@${date}`, dueDate: date }, projected: true, anchorId: x.id, overdue: false });
-      }
-    }
-    for (const list of map.values())
-      list.sort(
-        (a, b) =>
-          Number(b.overdue) - Number(a.overdue) ||
-          (a.task.reminder ?? '99').localeCompare(b.task.reminder ?? '99') ||
-          a.task.createdAt.localeCompare(b.task.createdAt) ||
-          a.task.title.localeCompare(b.task.title),
-      );
-    return map;
-  }, [tasks, from, to]);
+  return useMemo(() => tasksByDay(tasks, from, to), [tasks, from, to]);
 }
 
 /**

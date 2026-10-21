@@ -24,8 +24,8 @@ describe('projection', () => {
   it('projects after the current occurrence', () => {
     expect(projectOccurrences(daily, '2026-09-21', '2026-09-27', '2026-09-24')).toEqual(['2026-09-25', '2026-09-26', '2026-09-27']);
   });
-  it('an overdue task is today’s work, so projection starts tomorrow', () => {
-    expect(projectOccurrences({ ...daily, dueDate: '2026-09-22' }, '2026-09-21', '2026-09-26', '2026-09-24')).toEqual(['2026-09-25', '2026-09-26']);
+  it('an overdue recurring task stays on its due date, and projection starts from today onward', () => {
+    expect(projectOccurrences({ ...daily, dueDate: '2026-09-22' }, '2026-09-21', '2026-09-26', '2026-09-24')).toEqual(['2026-09-24', '2026-09-25', '2026-09-26']);
   });
   it('skips taken dates and handles intervals and year ends', () => {
     expect(projectOccurrences(daily, '2026-09-21', '2026-09-27', '2026-09-24', new Set(['2026-09-26']))).toEqual(['2026-09-25', '2026-09-27']);
@@ -89,3 +89,70 @@ describe('rangeLabel', () => {
     expect(rangeLabel(['2026-09-28', '2026-10-04'], 'week', '2026-09-28')).toBe('Sep – Oct 2026');
   });
 });
+
+describe('overdue tasks do not roll over to today/future', () => {
+  it('keeps uncompleted overdue tasks on their original dueDate in tasksByDay', async () => {
+    const { tasksByDay, taskLists } = await import('../store/selectors');
+
+    const yesterday = addDays(today(), -1);
+    const todayStr = today();
+    const tomorrow = addDays(today(), 1);
+
+    const testTasks = [
+      {
+        id: 'past-1',
+        householdId: 'h1',
+        title: 'Uncompleted yesterday task',
+        assigneeId: null,
+        dueDate: yesterday,
+        recurrence: null,
+        estimatedDuration: null,
+        reminder: null,
+        area: null,
+        notes: '',
+        completed: false,
+        completedAt: null,
+        nextOccurrenceId: null,
+        seriesId: 'past-1',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'today-1',
+        householdId: 'h1',
+        title: 'Today task',
+        assigneeId: null,
+        dueDate: todayStr,
+        recurrence: null,
+        estimatedDuration: null,
+        reminder: null,
+        area: null,
+        notes: '',
+        completed: false,
+        completedAt: null,
+        nextOccurrenceId: null,
+        seriesId: 'today-1',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    const dayMap = tasksByDay(testTasks, yesterday, tomorrow, todayStr);
+
+    // Yesterday's task must stay on yesterday
+    const yesterdayTasks = dayMap.get(yesterday) ?? [];
+    expect(yesterdayTasks.some((e) => e.task.id === 'past-1')).toBe(true);
+    expect(yesterdayTasks.find((e) => e.task.id === 'past-1')?.overdue).toBe(true);
+
+    // Today must NOT have yesterday's uncompleted task
+    const todayTasks = dayMap.get(todayStr) ?? [];
+    expect(todayTasks.some((e) => e.task.id === 'past-1')).toBe(false);
+    expect(todayTasks.some((e) => e.task.id === 'today-1')).toBe(true);
+
+    // taskLists.today must NOT include yesterday's uncompleted task
+    const lists = taskLists(testTasks, todayStr);
+    expect(lists.today.some((t) => t.id === 'past-1')).toBe(false);
+    expect(lists.today.some((t) => t.id === 'today-1')).toBe(true);
+    expect(lists.overdue.some((t) => t.id === 'past-1')).toBe(true);
+  });
+});
+
+

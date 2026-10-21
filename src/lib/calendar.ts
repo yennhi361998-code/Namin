@@ -27,8 +27,10 @@ export function monthGrid(key: string): DateStr[] {
 
 /**
  * Dates a recurring task will fall on in [from, to], not stored anywhere yet.
- * Starts after both the current occurrence and today: today's work is the
- * current (possibly overdue) occurrence itself. Dates in `taken` already have a record.
+ * When the anchor task is overdue (dueDate in the past), it stays on its original due date,
+ * and future recurring occurrences project from today onward.
+ * When the anchor is due today or in the future, projection starts after the anchor.
+ * Dates in `taken` already have a stored record.
  */
 export function projectOccurrences(
   anchor: { dueDate: DateStr; recurrence: Recurrence | null },
@@ -39,10 +41,12 @@ export function projectOccurrences(
 ): DateStr[] {
   if (!anchor.recurrence) return [];
   const out: DateStr[] = [];
-  const floor = anchor.dueDate > todayStr ? anchor.dueDate : todayStr;
   let d = step(anchor.dueDate, anchor.recurrence);
   for (let i = 0; d <= to && i < 2000; i++, d = step(d, anchor.recurrence)) {
-    if (d > floor && d >= from && !taken.has(d)) out.push(d);
+    const isFutureOrToday = anchor.dueDate < todayStr ? d >= todayStr : d > anchor.dueDate;
+    if (d > anchor.dueDate && isFutureOrToday && d >= from && !taken.has(d)) {
+      out.push(d);
+    }
   }
   return out;
 }
