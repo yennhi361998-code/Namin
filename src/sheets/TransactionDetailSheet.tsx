@@ -221,7 +221,7 @@ export function TransactionDetailSheet({
     const rawName = (entry.itemName || entry.notes || '').trim() || 'Item';
     const newItemId = useStore.getState().addItemFromExpense(entry);
     setLinkedItemId(newItemId);
-    toast({ title: `Đã thêm [${rawName}] vào Kho đồ dùng` });
+    toast({ title: 'Added to inventory', subtitle: rawName });
   };
 
   const handleViewInInventory = () => {
