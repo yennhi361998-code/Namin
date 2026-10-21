@@ -273,7 +273,7 @@ export function TransactionDetailSheet({
               <button
                 type="button"
                 onClick={handleAddToInventory}
-                className="h-11 w-full rounded-xl bg-[#B5E7F1] border border-[#7AAECB] text-[#175562] hover:bg-[#A3DFED] active:scale-[0.98] flex items-center justify-center gap-1 transition-all shadow-xs"
+                className="h-11 w-full rounded-xl bg-sky text-ink hover:bg-sky-dark/15 active:bg-sky-dark active:text-white active:scale-[0.99] flex items-center justify-center gap-1.5 transition-all shadow-sm"
                 aria-label="Thêm vào kho"
                 title="Thêm vào kho"
               >
