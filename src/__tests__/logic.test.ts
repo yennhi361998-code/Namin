@@ -939,6 +939,35 @@ describe('Category insight exclusion rules and transaction note handling', () =>
     const linkedTx = useStore.getState().transactions.find((t) => t.id === txId);
     expect(linkedTx?.itemId).toBe(newItemId);
   });
+
+  it('defaults purchase unit to item when none is provided', async () => {
+    const { useStore } = await import('../store');
+    const s = useStore.getState();
+
+    const txId = s.addTransaction({
+      type: 'expense',
+      scope: 'household',
+      amount: 30000,
+      date: '2026-10-12',
+      itemName: 'Bàn chải đánh răng',
+      categoryId: 'exp-daily',
+    });
+
+    const entry = {
+      id: `tx-${txId}`,
+      kind: 'transaction' as const,
+      type: 'expense' as const,
+      date: '2026-10-12',
+      amount: 30000,
+      itemName: 'Bàn chải đánh răng',
+      categoryId: 'exp-daily',
+      rawTransaction: useStore.getState().transactions.find((t) => t.id === txId),
+    };
+
+    const newItemId = useStore.getState().addItemFromExpense(entry);
+    const createdItem = useStore.getState().items.find((i) => i.id === newItemId);
+    expect(createdItem?.unit).toBe('item');
+  });
 });
 
 

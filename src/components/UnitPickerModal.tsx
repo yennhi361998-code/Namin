@@ -3,8 +3,8 @@ import { BottomSheet } from './overlay';
 import { cx, Icon } from './ui';
 
 export const BASIC_PURCHASE_UNITS = [
-  'pack',
   'item',
+  'pack',
   'box',
   'bottle',
   'bag',

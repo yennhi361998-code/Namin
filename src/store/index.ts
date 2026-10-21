@@ -63,7 +63,7 @@ export interface TransactionInput {
   categoryId?: string | null;
   amount: number;
   date: DateStr;
-  note: string;
+  note?: string;
   itemName?: string | null;
   quantity?: number | null;
   unit?: string | null;
@@ -677,7 +677,7 @@ export const useStore = create<State>()(
           created = true;
           itemId = uid();
           const category = entry.rawPurchase?.category ?? guessCategory(rawName) ?? 'Other';
-          const unit = (entry.rawPurchase?.unit ?? entry.rawTransaction?.unit ?? 'pack').trim();
+          const unit = (entry.rawPurchase?.unit ?? entry.rawTransaction?.unit ?? 'item').trim();
           const usageUnit = entry.rawTransaction?.usageUnit ?? undefined;
           const usagePerPurchaseUnit = entry.rawTransaction?.usagePerPurchaseUnit ?? null;
           const qty = entry.rawPurchase?.quantity ?? entry.rawTransaction?.quantity ?? 1;
@@ -794,7 +794,7 @@ export const useStore = create<State>()(
           scope: input.scope ?? 'household',
           amount: Math.round(input.amount),
           itemName: input.itemName ? input.itemName.trim() : null,
-          note: input.note.trim(),
+          note: (input.note ?? '').trim(),
           memberId: input.memberId ?? s.currentMemberId,
           accountId: input.accountId ?? null,
           createdAt: new Date().toISOString(),
@@ -844,7 +844,7 @@ export const useStore = create<State>()(
                   amount: Math.round(input.amount),
                   scope: input.scope !== undefined ? input.scope : t.scope,
                   itemName: input.itemName !== undefined ? (input.itemName ? input.itemName.trim() : null) : t.itemName,
-                  note: input.note.trim(),
+                  note: input.note !== undefined ? input.note.trim() : t.note,
                   memberId: input.memberId !== undefined ? input.memberId : t.memberId,
                   accountId: input.accountId !== undefined ? input.accountId : t.accountId,
                   toAccountId: input.toAccountId !== undefined ? input.toAccountId : t.toAccountId,

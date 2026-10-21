@@ -244,7 +244,7 @@ export function ItemDetail() {
           {est && !hideCycle && (
             <Row label="Typical usage">
               <span>
-                ~{est.cycleDays} days / {item.unit || 'pack'}
+                ~{est.cycleDays} days / {item.unit || 'item'}
                 {hasConversion && est.daysPerUnit && est.daysPerUnit !== est.cycleDays && (
                   <span className="block text-caption text-ink-sub font-normal">
                     ~{est.daysPerUnit >= 1 ? est.daysPerUnit.toFixed(1) : est.daysPerUnit.toFixed(2)} days / {usageUnit}

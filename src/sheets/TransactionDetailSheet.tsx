@@ -76,7 +76,7 @@ export function TransactionDetailSheet({
           date: p.purchaseDate || '',
           price: p.price ?? null,
           quantity: p.quantity || 1,
-          unit: p.unit || item?.unit || 'pack',
+          unit: p.unit || item?.unit || 'item',
           store: p.store || '',
           notes: p.notes || '',
           isCurrent: entry.kind === 'purchase' && (entry.rawPurchase?.id === p.id || currentRawId === p.id),
@@ -95,7 +95,7 @@ export function TransactionDetailSheet({
           date: tx.date || '',
           price: tx.amount ?? null,
           quantity: tx.quantity || 1,
-          unit: tx.unit || item?.unit || 'pack',
+          unit: tx.unit || item?.unit || 'item',
           store: '',
           notes: tx.note || '',
           isCurrent: entry.kind === 'transaction' && (entry.rawTransaction?.id === tx.id || currentRawId === tx.id),
@@ -109,7 +109,7 @@ export function TransactionDetailSheet({
         date: entry.date || '',
         price: entry.amount ?? null,
         quantity: entry.rawPurchase?.quantity ?? entry.rawTransaction?.quantity ?? 1,
-        unit: entry.rawPurchase?.unit ?? entry.rawTransaction?.unit ?? item?.unit ?? 'pack',
+        unit: entry.rawPurchase?.unit ?? entry.rawTransaction?.unit ?? item?.unit ?? 'item',
         store: entry.rawPurchase?.store ?? '',
         notes: entry.notes ?? '',
         isCurrent: true,
@@ -184,7 +184,7 @@ export function TransactionDetailSheet({
   const packagingText =
     quantity != null && quantity > 0
       ? ratio > 1
-        ? `${quantity} ${unit || 'pack'} (${quantity * ratio} ${usageUnit || 'items'})`
+        ? `${quantity} ${unit || 'item'} (${quantity * ratio} ${usageUnit || 'items'})`
         : `${quantity} ${unit || 'items'}`
       : unit || null;
 
@@ -479,7 +479,7 @@ export function TransactionDetailSheet({
                     {est ? (
                       <div>
                         <span className="font-semibold text-ink">
-                          ~{est.cycleDays} days / {unit || 'pack'}
+                          ~{est.cycleDays} days / {unit || 'item'}
                         </span>
                         {hasConversion && est.daysPerUnit && est.daysPerUnit !== est.cycleDays && (
                           <span className="block text-caption text-ink-sub font-normal">

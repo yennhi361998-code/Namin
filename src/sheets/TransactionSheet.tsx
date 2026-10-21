@@ -256,7 +256,7 @@ export function TransactionSheet({
     return items.find((i) => i.name.trim().toLowerCase() === q);
   }, [items, selectedItemId, initialValues?.itemId, itemName, note]);
 
-  const currentPackagingUnit = unit.trim() || effectiveItem?.unit || 'pack';
+  const currentPackagingUnit = unit.trim() || effectiveItem?.unit || 'item';
 
   // Fall back to the most-used category when none is chosen (or the chosen one was removed).
   const selected = choices.find((c) => c.id === categoryId) ?? (existing && categoryId === existing.categoryId ? undefined : choices[0]);
@@ -309,7 +309,7 @@ export function TransactionSheet({
     if (!effectiveCategoryId) return setError('Choose a category');
     submitted.current = true;
 
-    const currentPackagingUnit = unit.trim() || effectiveItem?.unit || 'pack';
+    const currentPackagingUnit = unit.trim() || effectiveItem?.unit || 'item';
     const ratioFromItem = effectiveItem?.usagePerPurchaseUnit && effectiveItem.usagePerPurchaseUnit > 0 ? effectiveItem.usagePerPurchaseUnit : 1;
     const parsedRatio = usagePerPurchaseUnit.trim() ? Number(usagePerPurchaseUnit) : ratioFromItem;
     const ratioNum = !isNaN(parsedRatio) && parsedRatio > 0 ? parsedRatio : ratioFromItem;
@@ -476,7 +476,7 @@ export function TransactionSheet({
               middleSlot={
                 type === 'expense' ? (
                   (() => {
-                    const currentPackagingUnit = unit.trim() || effectiveItem?.unit || 'pack';
+                    const currentPackagingUnit = unit.trim() || effectiveItem?.unit || 'item';
                     const parsedRatio = usagePerPurchaseUnit.trim() ? Number(usagePerPurchaseUnit) : 1;
                     const ratio = !isNaN(parsedRatio) && parsedRatio > 0 ? parsedRatio : 1;
                     const inflow = quantity * ratio;
