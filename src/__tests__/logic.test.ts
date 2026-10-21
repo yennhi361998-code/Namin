@@ -890,6 +890,55 @@ describe('Category insight exclusion rules and transaction note handling', () =>
     expect(updatedTx?.note).toBe('Size L');
     expect(updatedTx?.amount).toBe(50000);
   });
+
+  it('addItemFromExpense creates item in inventory and links past records with matching name', async () => {
+    const { useStore } = await import('../store');
+    const s = useStore.getState();
+
+    // 1. User records an expense that is not in inventory
+    const txId = s.addTransaction({
+      type: 'expense',
+      scope: 'household',
+      amount: 65000,
+      date: '2026-10-10',
+      itemName: 'Nước lau sàn Sunlight',
+      note: 'Hương hoa hạ',
+      quantity: 2,
+      unit: 'bottle',
+      categoryId: 'exp-daily',
+    });
+
+    // Verify it is not in items
+    expect(useStore.getState().items.find((i) => i.name === 'Nước lau sàn Sunlight')).toBeUndefined();
+
+    // 2. User clicks [Thêm vào kho]
+    const entry = {
+      id: `tx-${txId}`,
+      kind: 'transaction' as const,
+      type: 'expense' as const,
+      date: '2026-10-10',
+      amount: 65000,
+      itemName: 'Nước lau sàn Sunlight',
+      notes: 'Hương hoa hạ',
+      categoryId: 'exp-daily',
+      rawTransaction: useStore.getState().transactions.find((t) => t.id === txId),
+    };
+
+    const newItemId = useStore.getState().addItemFromExpense(entry);
+    expect(newItemId).toBeTruthy();
+
+    // Verify item now exists in inventory with correct details
+    const createdItem = useStore.getState().items.find((i) => i.id === newItemId);
+    expect(createdItem).toBeDefined();
+    expect(createdItem?.name).toBe('Nước lau sàn Sunlight');
+    expect(createdItem?.unit).toBe('bottle');
+    expect(createdItem?.currentStock).toBe(2);
+    expect(createdItem?.spendCategoryId).toBe('exp-daily');
+
+    // Verify transaction is linked to itemId
+    const linkedTx = useStore.getState().transactions.find((t) => t.id === txId);
+    expect(linkedTx?.itemId).toBe(newItemId);
+  });
 });
 
 

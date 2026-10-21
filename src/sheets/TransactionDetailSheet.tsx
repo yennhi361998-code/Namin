@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BottomSheet } from '../components/overlay';
 import { Badge, CategoryIcon, Icon, MemberAvatar, PrimaryButton, cx } from '../components/ui';
 import { longDate, shortDate, today, weekdayName } from '../lib/dates';
@@ -23,6 +24,7 @@ export function TransactionDetailSheet({
   entry: LedgerEntry | null;
   onEdit: (entry: LedgerEntry) => void;
 }) {
+  const navigate = useNavigate();
   const accounts = useStore((s) => s.accounts ?? []);
   const members = useStore((s) => s.members ?? []);
   const moneyCategories = useStore((s) => s.moneyCategories ?? []);
@@ -30,15 +32,25 @@ export function TransactionDetailSheet({
   const allPurchases = useStore((s) => s.purchases ?? []);
   const transactions = useStore((s) => s.transactions ?? []);
 
+  const [linkedItemId, setLinkedItemId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLinkedItemId(null);
+  }, [entry?.id, open]);
+
   const rawItemName = (entry?.itemName || entry?.notes || '').trim();
   const entryName = rawItemName.toLowerCase();
 
   const item = useMemo(() => {
     if (!entry) return undefined;
-    if (entry.itemId) return items.find((i) => i.id === entry.itemId);
+    const targetId = linkedItemId || entry.itemId;
+    if (targetId) {
+      const found = items.find((i) => i.id === targetId);
+      if (found) return found;
+    }
     if (!entryName) return undefined;
     return items.find((i) => i.name && i.name.trim().toLowerCase() === entryName);
-  }, [entry, items, entryName]);
+  }, [entry, items, entryName, linkedItemId]);
 
   const allHistoryPurchases = useMemo(() => {
     if (!entry) return [];
@@ -204,6 +216,20 @@ export function TransactionDetailSheet({
     onClose();
   };
 
+  const handleAddToInventory = () => {
+    if (!entry) return;
+    const rawName = (entry.itemName || entry.notes || '').trim() || 'Item';
+    const newItemId = useStore.getState().addItemFromExpense(entry);
+    setLinkedItemId(newItemId);
+    toast({ title: `Đã thêm [${rawName}] vào Kho đồ dùng` });
+  };
+
+  const handleViewInInventory = () => {
+    if (!item) return;
+    onClose();
+    navigate(`/items/${item.id}`);
+  };
+
   const formattedDate = entry.date ? `${weekdayName(entry.date)}, ${longDate(entry.date)}` : '—';
   const titleLabel =
     entry.type === 'expense'
@@ -218,25 +244,51 @@ export function TransactionDetailSheet({
       onClose={onClose}
       title={titleLabel}
       footer={
-        <div className="flex items-center gap-3 w-full">
+        <div className="flex items-center gap-2.5 w-full">
           <button
             type="button"
             onClick={handleDelete}
-            className="h-11 px-4 rounded-xl border border-err-ink/30 text-err-ink font-semibold text-body-sm hover:bg-err-ink/10 active:bg-err-ink/20 flex items-center justify-center gap-1.5 transition-colors shrink-0"
-            aria-label="Delete entry"
+            className="h-11 px-3.5 rounded-xl border border-err-ink/30 text-err-ink font-semibold text-body-sm hover:bg-err-ink/10 active:bg-err-ink/20 flex items-center justify-center gap-1.5 transition-colors shrink-0"
+            aria-label="Xóa giao dịch"
           >
             <Icon name="delete" className="text-[18px]" />
-            <span>Delete</span>
+            <span>Xóa</span>
           </button>
+
+          {entry.type === 'expense' && (
+            item ? (
+              <button
+                type="button"
+                onClick={handleViewInInventory}
+                className="h-11 px-3 rounded-xl border border-line/70 bg-white text-ink font-semibold text-body-sm hover:bg-soft active:bg-soft/80 flex items-center justify-center gap-1.5 transition-colors flex-1 min-w-0 shadow-2xs"
+              >
+                <Icon name="package" className="text-[18px] text-accent shrink-0" />
+                <span className="truncate">Xem trong kho ›</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAddToInventory}
+                className="h-11 px-3 rounded-xl bg-[#B5E7F1] border border-[#7AAECB] text-[#175562] font-semibold text-body-sm hover:bg-[#A3DFED] active:scale-[0.98] flex items-center justify-center gap-1.5 transition-all flex-1 min-w-0 shadow-xs"
+              >
+                <Icon name="package" className="text-[18px] text-[#175562] shrink-0" />
+                <span className="truncate">Thêm vào kho</span>
+              </button>
+            )
+          )}
+
           <PrimaryButton
             onClick={() => {
               onClose();
               onEdit(entry);
             }}
-            className="flex-1 !h-11 flex items-center justify-center gap-1.5"
+            className={cx(
+              '!h-11 flex items-center justify-center gap-1.5 shrink-0',
+              entry.type === 'expense' ? 'px-3.5' : 'flex-1'
+            )}
           >
             <Icon name="edit" className="text-[18px]" />
-            <span>Edit</span>
+            <span>Chỉnh sửa</span>
           </PrimaryButton>
         </div>
       }
@@ -288,9 +340,16 @@ export function TransactionDetailSheet({
               <span className="text-ink-sub shrink-0">
                 {entry.type === 'transfer' ? 'Description' : 'Item'}
               </span>
-              <span className="font-semibold text-ink text-right break-words">
-                {entry.itemName || entry.notes || (entry.type === 'transfer' ? 'Transfer' : '—')}
-              </span>
+              <div className="flex items-center gap-2 justify-end text-right flex-wrap min-w-0">
+                <span className="font-semibold text-ink break-words">
+                  {entry.itemName || entry.notes || (entry.type === 'transfer' ? 'Transfer' : '—')}
+                </span>
+                {entry.type === 'expense' && item && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-done-ink bg-done-ink/10 px-2 py-0.5 rounded-full shrink-0">
+                    Trong kho ✓
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Note if different from item name */}

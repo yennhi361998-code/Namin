@@ -67,6 +67,7 @@ export const UI_ICONS = {
   paid: Banknote,
   point_of_sale: Receipt,
   category: Package,
+  package: Package,
   inventory_2: Package,
   group: Users,
   person: User,

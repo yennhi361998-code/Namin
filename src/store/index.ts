@@ -6,7 +6,7 @@ import { uid } from '../lib/id';
 import { nextOccurrence } from '../lib/recurrence';
 import { estimateRestock, statusFromEstimate } from '../lib/restock';
 import { defaultMoneyCategories, demoPersonalTransactions, demoTransactions, EMOJI_TO_ICON } from '../lib/moneyCategories';
-import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, Member, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, Transaction, TxType } from '../lib/types';
+import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, LedgerEntry, Member, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, Transaction, TxType } from '../lib/types';
 import { createSeed, defaultAccounts } from './seed';
 import type { Data } from './types';
 import { toast } from './ui';
@@ -116,6 +116,7 @@ interface Actions {
   deletePurchase: (id: string) => Undo;
   updatePurchase: (id: string, patch: Partial<Purchase>) => void;
   addItem: (input: ItemInput) => string;
+  addItemFromExpense: (entry: LedgerEntry) => string;
   updateItem: (id: string, patch: Partial<HouseholdItem>) => void;
   deleteItem: (id: string) => Undo;
   useItem: (id: string, amount?: number) => Undo;
@@ -661,6 +662,72 @@ export const useStore = create<State>()(
         };
         set({ items: [...s.items, newItem] });
         return id;
+      },
+
+      addItemFromExpense: (entry) => {
+        const s = get();
+        const rawName = (entry.itemName || entry.notes || '').trim() || 'Item';
+        let item = s.items.find((i) => sameName(i.name, rawName));
+        let itemId: string;
+        let created = false;
+
+        if (item) {
+          itemId = item.id;
+        } else {
+          created = true;
+          itemId = uid();
+          const category = entry.rawPurchase?.category ?? guessCategory(rawName) ?? 'Other';
+          const unit = (entry.rawPurchase?.unit ?? entry.rawTransaction?.unit ?? 'pack').trim();
+          const usageUnit = entry.rawTransaction?.usageUnit ?? undefined;
+          const usagePerPurchaseUnit = entry.rawTransaction?.usagePerPurchaseUnit ?? null;
+          const qty = entry.rawPurchase?.quantity ?? entry.rawTransaction?.quantity ?? 1;
+
+          item = {
+            id: itemId,
+            householdId: s.household.id,
+            name: rawName,
+            category,
+            room: null,
+            quantity: 1,
+            unit,
+            usageUnit,
+            usagePerPurchaseUnit,
+            currentStock: qty,
+            status: 'unknown',
+            expectedUsageDays: null,
+            notes: '',
+            spendCategoryId: entry.categoryId ?? entry.rawPurchase?.spendCategoryId ?? null,
+          };
+        }
+
+        const rawPurId = entry.kind === 'purchase' ? entry.id.replace(/^pur-/, '') : entry.rawPurchase?.id;
+        const rawTxId = entry.kind === 'transaction' ? entry.id.replace(/^tx-/, '') : entry.rawTransaction?.id;
+
+        const nextPurchases = s.purchases.map((p) => {
+          if (p.id === rawPurId || sameName(p.itemName, rawName)) {
+            return { ...p, itemId };
+          }
+          return p;
+        });
+
+        const nextTransactions = s.transactions.map((t) => {
+          const tName = (t.itemName || t.note || '').trim();
+          if (t.id === rawTxId || sameName(tName, rawName)) {
+            return { ...t, itemId, itemName: t.itemName || rawName };
+          }
+          return t;
+        });
+
+        const baseItems = created ? [...s.items, item] : s.items;
+        const nextItems = refreshStatus(baseItems, nextPurchases, itemId, nextTransactions);
+
+        set({
+          items: nextItems,
+          purchases: nextPurchases,
+          transactions: nextTransactions,
+        });
+
+        return itemId;
       },
 
       updateItem: (id, patch) =>
