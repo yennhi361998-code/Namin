@@ -36,6 +36,7 @@ export function TransactionSheet({
   scope?: FinanceScope;
   initialValues?: {
     amount?: number;
+    itemName?: string;
     note?: string;
     categoryId?: string;
     quantity?: number;
@@ -47,7 +48,14 @@ export function TransactionSheet({
   const [existing] = useState(() => {
     if (!transactionId) return undefined;
     const tx = useStore.getState().transactions.find((t) => t.id === transactionId);
-    if (tx) return { ...tx, _isPurchase: false };
+    if (tx) {
+      return {
+        ...tx,
+        itemName: tx.itemName ?? tx.note ?? '',
+        note: tx.itemName ? (tx.note ?? '') : '',
+        _isPurchase: false,
+      };
+    }
     const pur = useStore.getState().purchases.find((p) => p.id === transactionId);
     if (pur) {
       const it = pur.itemId ? useStore.getState().items.find((i) => i.id === pur.itemId) : undefined;
@@ -58,7 +66,8 @@ export function TransactionSheet({
         categoryId: pur.spendCategoryId ?? DAILY_CATEGORY_ID,
         amount: pur.price ?? 0,
         date: pur.purchaseDate,
-        note: pur.itemName,
+        itemName: pur.itemName,
+        note: pur.notes ?? '',
         quantity: pur.quantity,
         unit: pur.unit,
         usageUnit: it?.usageUnit ?? null,
@@ -99,7 +108,18 @@ export function TransactionSheet({
   const [pickingAccountFor, setPickingAccountFor] = useState<'from' | 'to'>('from');
   const [memberId, setMemberId] = useState<string | null>(existing?.memberId ?? currentMemberId);
   const [expr, setExpr] = useState(() => (existing ? String(existing.amount) : initialValues?.amount ? String(initialValues.amount) : ''));
-  const [note, setNote] = useState(() => existing?.note ?? initialValues?.note ?? '');
+  const [itemName, setItemName] = useState(() => {
+    if (existing) {
+      return (existing as any).itemName ?? '';
+    }
+    return initialValues?.itemName ?? initialValues?.note ?? '';
+  });
+  const [note, setNote] = useState(() => {
+    if (existing) {
+      return existing.note ?? '';
+    }
+    return initialValues?.itemName ? (initialValues?.note ?? '') : '';
+  });
   const [quantity, setQuantity] = useState(() => existing?.quantity ?? initialValues?.quantity ?? 1);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(existing?.itemId ?? initialValues?.itemId ?? null);
   const [unit, setUnit] = useState(() => existing?.unit ?? initialValues?.unit ?? (initialValues?.itemId ? items.find((i) => i.id === initialValues.itemId)?.unit ?? '' : ''));
@@ -143,8 +163,15 @@ export function TransactionSheet({
       if (result.amount > 0) {
         setExpr(String(result.amount));
       }
+      if (result.items && result.items.length > 0) {
+        const first = result.items[0];
+        if (first.name) setItemName(first.name);
+        if (first.quantity > 0) setQuantity(first.quantity);
+        if (first.unit) setUnit(first.unit);
+      }
       if (result.note) {
-        setNote(result.note);
+        if (!itemName) setItemName(result.note);
+        else setNote(result.note);
       }
       if (result.date) {
         setDate(result.date as DateStr);
@@ -154,11 +181,6 @@ export function TransactionSheet({
       }
       if (result.type && result.type !== type) {
         setType(result.type);
-      }
-      if (result.items && result.items.length > 0) {
-        const first = result.items[0];
-        if (first.quantity > 0) setQuantity(first.quantity);
-        if (first.unit) setUnit(first.unit);
       }
       toast({
         title: 'Receipt scanned successfully!',
@@ -219,7 +241,7 @@ export function TransactionSheet({
     setError(null);
   };
 
-  // Match item from selectedItemId, initialValues, or note
+  // Match item from selectedItemId, initialValues, itemName, or note
   const effectiveItem = useMemo(() => {
     if (selectedItemId) {
       const found = items.find((i) => i.id === selectedItemId);
@@ -229,10 +251,10 @@ export function TransactionSheet({
       const found = items.find((i) => i.id === initialValues.itemId);
       if (found) return found;
     }
-    const q = note.trim().toLowerCase();
+    const q = (itemName || note).trim().toLowerCase();
     if (!q) return undefined;
     return items.find((i) => i.name.trim().toLowerCase() === q);
-  }, [items, selectedItemId, initialValues?.itemId, note]);
+  }, [items, selectedItemId, initialValues?.itemId, itemName, note]);
 
   const currentPackagingUnit = unit.trim() || effectiveItem?.unit || 'pack';
 
@@ -250,6 +272,12 @@ export function TransactionSheet({
     const amount = evaluate(expr);
     if (!amount || amount <= 0) return setError('Enter an amount');
 
+    const finalItemName =
+      itemName.trim() ||
+      effectiveItem?.name ||
+      (type === 'transfer' ? 'Transfer' : type === 'income' ? 'Income' : selected?.name || 'Expense');
+    const finalNote = note.trim();
+
     if (type === 'transfer') {
       if (!accountId || !toAccountId) return setError('Choose both source and destination accounts');
       if (accountId === toAccountId) return setError('Source and destination accounts must be different');
@@ -264,7 +292,8 @@ export function TransactionSheet({
         categoryId: null,
         amount,
         date,
-        note: note.trim(),
+        itemName: finalItemName,
+        note: finalNote,
         accountId,
         toAccountId,
         memberId,
@@ -288,14 +317,13 @@ export function TransactionSheet({
 
     const targetScope: FinanceScope = initialScope === 'personal' ? 'personal' : (selectedAccount?.scope ?? 'household');
 
-    // If an item, note, or unit is specified on an expense, record it so stock and units are updated
-    if (!existing && type === 'expense' && (note.trim() || effectiveItem || unit.trim() || initialValues?.shoppingItemId || initialValues?.itemId)) {
-      const itemName = note.trim() || effectiveItem?.name || selected?.name || 'Expense';
+    // Only record purchase for explicit shopping item checkout
+    if (!existing && type === 'expense' && initialValues?.shoppingItemId) {
       recordPurchase({
         shoppingItemId: initialValues?.shoppingItemId,
         itemId: effectiveItem?.id ?? initialValues?.itemId,
-        name: itemName,
-        category: effectiveItem?.category ?? guessCategory(itemName) ?? 'Other',
+        name: finalItemName,
+        category: effectiveItem?.category ?? guessCategory(finalItemName) ?? 'Other',
         quantity,
         unit: currentPackagingUnit,
         usageUnit: resolvedUsageUnit,
@@ -303,6 +331,7 @@ export function TransactionSheet({
         price: amount,
         store: '',
         purchaseDate: date,
+        notes: finalNote,
         spendCategoryId: effectiveCategoryId,
         accountId,
         memberId,
@@ -319,7 +348,8 @@ export function TransactionSheet({
       categoryId: effectiveCategoryId,
       amount,
       date,
-      note,
+      itemName: finalItemName,
+      note: finalNote,
       quantity: unit.trim() || effectiveItem ? quantity : null,
       unit: currentPackagingUnit || null,
       usageUnit: resolvedUsageUnit ?? null,
@@ -335,7 +365,8 @@ export function TransactionSheet({
         s.updatePurchase(existing.id, {
           price: amount,
           purchaseDate: date,
-          itemName: note.trim() || effectiveItem?.name || existing.note,
+          itemName: finalItemName,
+          notes: finalNote,
           quantity,
           unit: currentPackagingUnit,
           spendCategoryId: effectiveCategoryId,
@@ -353,6 +384,7 @@ export function TransactionSheet({
         s.removeShoppingItem(initialValues.shoppingItemId);
       }
     }
+    toast({ title: existing ? (type === 'income' ? 'Income updated' : 'Expense updated') : (type === 'income' ? 'Income recorded' : 'Expense recorded') });
     onClose();
   };
 
@@ -421,20 +453,23 @@ export function TransactionSheet({
             <AmountPad
               expr={expr}
               onKey={key}
-              note={note}
-              onNote={(v) => {
-                setNote(v);
+              itemName={itemName}
+              onItemName={(v) => {
+                setItemName(v);
                 if (!initialValues?.itemId) {
                   setSelectedItemId(null);
                 }
               }}
-              notePlaceholder={
+              itemNamePlaceholder={
                 type === 'transfer'
-                  ? 'Transfer note'
+                  ? 'Transfer description'
                   : type === 'income'
-                  ? 'Income note'
+                  ? 'Income source'
                   : 'Item name'
               }
+              note={note}
+              onNote={setNote}
+              notePlaceholder="Note"
               error={error}
               onSave={save}
               accountName={type === 'transfer' ? undefined : selectedAccount?.name}

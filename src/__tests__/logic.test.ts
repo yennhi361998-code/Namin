@@ -4,6 +4,7 @@ import { parseVnd, formatVnd } from '../lib/money';
 import { nextOccurrence, recurrenceLabel } from '../lib/recurrence';
 import { estimateRestock, statusFromEstimate } from '../lib/restock';
 import { guessCategory } from '../lib/categories';
+import { isCategoryHiddenFromInsights, isCategoryCycleHidden } from '../lib/moneyCategories';
 import type { Account } from '../lib/types';
 
 describe('recurrence', () => {
@@ -49,6 +50,64 @@ describe('restock', () => {
     expect(est.basis).toBe('manual');
     expect(est.daysLeft).toBe(7);
     expect(statusFromEstimate(est)).toBe('running_low');
+  });
+  it('calculates cycle weighted by purchase quantities (e.g. 1 pack then 2 packs divides by 3)', () => {
+    // Buy 1 pack on 2026-01-01
+    // Buy 2 packs on 2026-02-01 (31 days later)
+    // Buy 1 pack on 2026-04-04 (62 days later, total 93 days from first purchase)
+    // Consumed between first and last: 1 + 2 = 3 packs
+    // Average days per pack: 93 / 3 = 31 days/pack!
+    const est = estimateRestock(
+      { expectedUsageDays: null },
+      [
+        { purchaseDate: '2026-01-01', quantity: 1 },
+        { purchaseDate: '2026-02-01', quantity: 2 },
+        { purchaseDate: '2026-04-04', quantity: 1 },
+      ],
+      '2026-04-04',
+    )!;
+    expect(est.cycleDays).toBe(31);
+    expect(est.nextPurchase).toBe('2026-05-05');
+    expect(est.daysLeft).toBe(31);
+  });
+  it('extends duration when last purchase has multiple packs', () => {
+    // Buy 1 pack on 2026-01-01
+    // Buy 2 packs on 2026-02-01 (31 days later)
+    // Gap: 31 days for 1 pack => 31 days per pack.
+    // The 2 packs bought on 2026-02-01 will last 2 * 31 = 62 days!
+    const est = estimateRestock(
+      { expectedUsageDays: null },
+      [
+        { purchaseDate: '2026-01-01', quantity: 1 },
+        { purchaseDate: '2026-02-01', quantity: 2 },
+      ],
+      '2026-02-01',
+    )!;
+    expect(est.cycleDays).toBe(31);
+    expect(est.durationDays).toBe(62);
+    expect(est.nextPurchase).toBe('2026-04-04');
+    expect(est.daysLeft).toBe(62);
+  });
+  it('calculates unit-level cycle with packaging conversion ratio', () => {
+    // 1 pack = 30 units (e.g. 30 trash bags in 1 roll)
+    // Buy 1 roll (30 bags) on 2026-01-01
+    // Buy 2 rolls (60 bags) on 2026-02-10 (40 days later)
+    // In 40 days, consumed 30 bags => 40 / 30 = 1.333 days per bag.
+    // 1 roll = 30 * 1.333 = 40 days per roll.
+    // Last purchase of 2 rolls (60 bags) lasts 60 * (40/30) = 80 days!
+    const est = estimateRestock(
+      { expectedUsageDays: null, usagePerPurchaseUnit: 30 },
+      [
+        { purchaseDate: '2026-01-01', quantity: 1 },
+        { purchaseDate: '2026-02-10', quantity: 2 },
+      ],
+      '2026-02-10',
+    )!;
+    expect(est.cycleDays).toBe(40);
+    expect(Number(est.daysPerUnit.toFixed(2))).toBe(1.33);
+    expect(est.durationDays).toBe(80);
+    expect(est.nextPurchase).toBe('2026-05-01');
+    expect(est.daysLeft).toBe(80);
   });
 });
 
@@ -754,6 +813,85 @@ describe('date cycle and range navigation', () => {
     expect(useStore.getState().items.find((i) => i.id === itemId)).toBeDefined();
   });
 });
+
+describe('Category insight exclusion rules and transaction note handling', () => {
+  it('correctly identifies categories where item insights are completely hidden', () => {
+    expect(isCategoryHiddenFromInsights('exp-food', 'Food')).toBe(true);
+    expect(isCategoryHiddenFromInsights(null, 'Đồ uống')).toBe(true);
+    expect(isCategoryHiddenFromInsights(null, 'Cà phê')).toBe(true);
+    expect(isCategoryHiddenFromInsights('exp-social', 'Social')).toBe(true);
+    expect(isCategoryHiddenFromInsights('exp-family', 'Family')).toBe(true);
+    expect(isCategoryHiddenFromInsights('inc-gift', 'Gift')).toBe(true);
+    expect(isCategoryHiddenFromInsights(null, 'Hiếu hỷ & Quà tặng')).toBe(true);
+    expect(isCategoryHiddenFromInsights('exp-medical', 'Medical')).toBe(true);
+    expect(isCategoryHiddenFromInsights(null, 'Thuốc phát sinh / Bác sĩ')).toBe(true);
+
+    // Categories that are NOT hidden
+    expect(isCategoryHiddenFromInsights('exp-daily', 'Daily')).toBe(false);
+    expect(isCategoryHiddenFromInsights('exp-beauty', 'Beauty')).toBe(false);
+    expect(isCategoryHiddenFromInsights('exp-traffic', 'Traffic')).toBe(false);
+    expect(isCategoryHiddenFromInsights('exp-clothes', 'Clothes')).toBe(false);
+    expect(isCategoryHiddenFromInsights('exp-entertainment', 'Entertainment')).toBe(false);
+  });
+
+  it('correctly identifies categories where product cycle is hidden but average is kept', () => {
+    // Traffic, Entertainment, Clothes hide cycle
+    expect(isCategoryCycleHidden('exp-traffic', 'Traffic')).toBe(true);
+    expect(isCategoryCycleHidden(null, 'Đi lại / Grab')).toBe(true);
+    expect(isCategoryCycleHidden('exp-entertainment', 'Entertainment')).toBe(true);
+    expect(isCategoryCycleHidden(null, 'Giải trí / Phim')).toBe(true);
+    expect(isCategoryCycleHidden('exp-clothes', 'Clothes')).toBe(true);
+    expect(isCategoryCycleHidden(null, 'Thời trang')).toBe(true);
+
+    // Beauty MUST show cycle (explicit user requirement: Mỹ phẩm có show)
+    expect(isCategoryCycleHidden('exp-beauty', 'Beauty')).toBe(false);
+    expect(isCategoryCycleHidden(null, 'Mỹ phẩm')).toBe(false);
+
+    // Daily / regular items show cycle
+    expect(isCategoryCycleHidden('exp-daily', 'Daily')).toBe(false);
+  });
+
+  it('adding transaction from Wallet preserves itemName and note without polluting inventory items', async () => {
+    const { useStore } = await import('../store');
+    const s = useStore.getState();
+    const itemsCountBefore = s.items.length;
+
+    const txId = s.addTransaction({
+      type: 'expense',
+      scope: 'personal',
+      amount: 45000,
+      date: today(),
+      itemName: 'Highland Coffee',
+      note: 'Meeting with An',
+      categoryId: 'exp-food',
+    });
+
+    const st = useStore.getState();
+    const createdTx = st.transactions.find((t) => t.id === txId);
+    expect(createdTx).toBeDefined();
+    expect(createdTx?.itemName).toBe('Highland Coffee');
+    expect(createdTx?.note).toBe('Meeting with An');
+
+    // Crucial requirement: Adding expense does NOT automatically create item in inventory
+    expect(st.items.length).toBe(itemsCountBefore);
+    expect(st.items.find((i) => i.name === 'Highland Coffee')).toBeUndefined();
+
+    // Updating transaction preserves both fields
+    st.updateTransaction(txId, {
+      type: 'expense',
+      amount: 50000,
+      date: today(),
+      itemName: 'Highland PhinDi',
+      note: 'Size L',
+    });
+
+    const updatedTx = useStore.getState().transactions.find((t) => t.id === txId);
+    expect(updatedTx?.itemName).toBe('Highland PhinDi');
+    expect(updatedTx?.note).toBe('Size L');
+    expect(updatedTx?.amount).toBe(50000);
+  });
+});
+
 
 
 

@@ -64,6 +64,7 @@ export interface TransactionInput {
   amount: number;
   date: DateStr;
   note: string;
+  itemName?: string | null;
   quantity?: number | null;
   unit?: string | null;
   usageUnit?: string | null;
@@ -165,10 +166,21 @@ function refreshStatus(
   itemId: string,
   transactions?: Data['transactions'],
 ): HouseholdItem[] {
-  const purHistory = purchases.filter((p) => p.itemId === itemId).map((p) => ({ purchaseDate: p.purchaseDate }));
+  const purHistory = purchases
+    .filter((p) => p.itemId === itemId)
+    .map((p) => ({
+      purchaseDate: p.purchaseDate,
+      quantity: p.quantity,
+      unit: p.unit,
+    }));
   const txHistory = (transactions ?? [])
     .filter((t) => t.type === 'expense' && t.itemId === itemId)
-    .map((t) => ({ purchaseDate: t.date }));
+    .map((t) => ({
+      purchaseDate: t.date,
+      quantity: t.quantity,
+      unit: t.unit,
+      usagePerPurchaseUnit: t.usagePerPurchaseUnit,
+    }));
   const history = [...purHistory, ...txHistory];
   return items.map((it) =>
     it.id === itemId ? { ...it, status: statusFromEstimate(estimateRestock(it, history)) } : it,
@@ -703,17 +715,18 @@ export const useStore = create<State>()(
         const s = get();
         const shopItem = input.shoppingItemId ? s.shopping.find((x) => x.id === input.shoppingItemId) : undefined;
         const resolvedItemId = input.itemId || shopItem?.itemId;
-        const name = input.note?.trim() || '';
+        const name = (input.itemName || input.note || '').trim();
         const item = resolvedItemId
           ? s.items.find((i) => i.id === resolvedItemId)
           : (name ? s.items.find((i) => sameName(i.name, name)) : undefined);
 
-        const tx = {
+        const tx: Transaction = {
           ...input,
           id,
           householdId: s.household.id,
           scope: input.scope ?? 'household',
           amount: Math.round(input.amount),
+          itemName: input.itemName ? input.itemName.trim() : null,
           note: input.note.trim(),
           memberId: input.memberId ?? s.currentMemberId,
           accountId: input.accountId ?? null,
@@ -763,6 +776,7 @@ export const useStore = create<State>()(
                   ...input,
                   amount: Math.round(input.amount),
                   scope: input.scope !== undefined ? input.scope : t.scope,
+                  itemName: input.itemName !== undefined ? (input.itemName ? input.itemName.trim() : null) : t.itemName,
                   note: input.note.trim(),
                   memberId: input.memberId !== undefined ? input.memberId : t.memberId,
                   accountId: input.accountId !== undefined ? input.accountId : t.accountId,

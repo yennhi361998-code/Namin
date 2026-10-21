@@ -210,12 +210,14 @@ export function LedgerRow({
   moneyCategory,
   accountName,
   memberName,
+  showMember = true,
   onOpen,
 }: {
   entry: LedgerEntry;
   moneyCategory?: MoneyCategory;
   accountName?: string;
   memberName?: string;
+  showMember?: boolean;
   onOpen: () => void;
 }) {
   const color =
@@ -225,11 +227,29 @@ export function LedgerRow({
     moneyCategory?.icon ||
     (entry.type === 'income' ? 'money-bag' : entry.type === 'transfer' ? 'swap_horiz' : 'basket');
 
-  // Subtitle format: Category - Member
+  // Subtitle format: Category - (Member) - Note
   const catName =
     moneyCategory?.name ||
     (entry.type === 'income' ? 'Income' : entry.type === 'transfer' ? 'Transfer' : 'Other');
-  const subtitle = memberName ? `${catName} - ${memberName}` : catName;
+
+  // In personal scope (My Wallet) or when showMember is false, do not show member
+  const shouldShowMember = showMember && entry.scope !== 'personal' && Boolean(memberName);
+
+  // If notes exists and is not identical to itemName (case-insensitive)
+  const cleanNote =
+    entry.notes &&
+    entry.notes.trim() &&
+    entry.notes.trim().toLowerCase() !== (entry.itemName || '').trim().toLowerCase()
+      ? entry.notes.trim()
+      : null;
+
+  const subtitleParts = [
+    catName,
+    shouldShowMember ? memberName : null,
+    cleanNote,
+  ].filter(Boolean);
+
+  const subtitle = subtitleParts.join(' - ');
 
   return (
     <button

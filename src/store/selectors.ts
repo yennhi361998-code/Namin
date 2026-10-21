@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { monthKey, today } from '../lib/dates';
 import { projectOccurrences } from '../lib/calendar';
-import { estimateRestock, LOW_THRESHOLD_DAYS, type RestockEstimate } from '../lib/restock';
+import { estimateRestock, LOW_THRESHOLD_DAYS, type RestockEstimate, type RestockPurchaseInput } from '../lib/restock';
 import { DAILY_CATEGORY_ID, OTHER_COLOR } from '../lib/moneyCategories';
 import type { Account, DateStr, Member, MoneyCategory, Purchase, Task, Transaction, TxType } from '../lib/types';
 import { useStore } from './index';
@@ -55,10 +55,17 @@ export function useRestockMap() {
   const purchases = useStore((s) => s.purchases);
   const transactions = useStore((s) => s.transactions);
   return useMemo(() => {
-    const byItem = new Map<string, Array<Pick<Purchase, 'purchaseDate'>>>();
+    const byItem = new Map<string, Array<RestockPurchaseInput>>();
     for (const p of purchases) {
       if (p.itemId) {
-        byItem.set(p.itemId, [...(byItem.get(p.itemId) ?? []), { purchaseDate: p.purchaseDate }]);
+        byItem.set(p.itemId, [
+          ...(byItem.get(p.itemId) ?? []),
+          {
+            purchaseDate: p.purchaseDate,
+            quantity: p.quantity,
+            unit: p.unit,
+          },
+        ]);
       }
     }
     for (const tx of transactions) {
@@ -69,7 +76,15 @@ export function useRestockMap() {
         if (found) targetItemId = found.id;
       }
       if (targetItemId) {
-        byItem.set(targetItemId, [...(byItem.get(targetItemId) ?? []), { purchaseDate: tx.date }]);
+        byItem.set(targetItemId, [
+          ...(byItem.get(targetItemId) ?? []),
+          {
+            purchaseDate: tx.date,
+            quantity: tx.quantity,
+            unit: tx.unit,
+            usagePerPurchaseUnit: tx.usagePerPurchaseUnit,
+          },
+        ]);
       }
     }
     const t = today();

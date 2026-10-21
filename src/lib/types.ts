@@ -173,6 +173,7 @@ export interface Transaction {
   amount: number;
   date: DateStr;
   note: string;
+  itemName?: string | null;
   quantity?: number | null;
   unit?: string | null;
   usageUnit?: string | null;

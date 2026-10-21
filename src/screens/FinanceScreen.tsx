@@ -285,6 +285,7 @@ export function FinanceScreen({
       const cat = t.categoryId ? moneyCategoriesMap.get(t.categoryId) : undefined;
       const linkedItem = t.itemId ? itemsMap.get(t.itemId) : undefined;
       const defaultName = linkedItem?.name || cat?.name || (t.type === 'transfer' ? 'Transfer' : t.type === 'income' ? 'Income' : 'Expense');
+      const resolvedItemName = t.itemName?.trim() || t.note?.trim() || defaultName;
       return {
         id: `tx-${t.id}`,
         kind: 'transaction',
@@ -292,12 +293,12 @@ export function FinanceScreen({
         scope: t.scope ?? 'household',
         amount: t.amount,
         date: t.date,
-        itemName: t.note || defaultName,
+        itemName: resolvedItemName,
         categoryId: t.categoryId ?? (t.type === 'expense' ? DAILY_CATEGORY_ID : null),
         accountId: t.accountId,
         toAccountId: t.toAccountId,
         memberId: t.memberId,
-        notes: t.note,
+        notes: t.note?.trim() ?? '',
         itemId: t.itemId ?? undefined,
         createdAt: t.createdAt,
         rawTransaction: t,
@@ -349,6 +350,7 @@ export function FinanceScreen({
         const cat = t.categoryId ? moneyCategoriesMap.get(t.categoryId) : undefined;
         const linkedItem = t.itemId ? itemsMap.get(t.itemId) : undefined;
         const defaultName = linkedItem?.name || cat?.name || (t.type === 'transfer' ? 'Transfer' : t.type === 'income' ? 'Income' : 'Expense');
+        const resolvedItemName = t.itemName?.trim() || t.note?.trim() || defaultName;
         return {
           id: `tx-${t.id}`,
           kind: 'transaction',
@@ -356,12 +358,12 @@ export function FinanceScreen({
           scope: t.scope ?? 'household',
           amount: t.amount,
           date: t.date,
-          itemName: t.note || defaultName,
+          itemName: resolvedItemName,
           categoryId: t.categoryId ?? (t.type === 'expense' ? DAILY_CATEGORY_ID : null),
           accountId: t.accountId,
           toAccountId: t.toAccountId,
           memberId: t.memberId,
-          notes: t.note,
+          notes: t.note?.trim() ?? '',
           itemId: t.itemId ?? undefined,
           createdAt: t.createdAt,
           rawTransaction: t,
@@ -371,13 +373,13 @@ export function FinanceScreen({
     return [...purchaseEntries, ...transactionEntries];
   }, [purchases, transactions, scope, accountsMap, moneyCategoriesMap, itemsMap]);
 
-  // Filter entries in Details mode if searching (matches on Item Name only)
+  // Filter entries in Details mode if searching (matches on Item Name or Notes)
   const effectiveDetailsEntries = useMemo(() => {
     if (!isSearchOpen || !searchQuery.trim()) return allEntries;
     const base = searchAllTime ? allTimeEntries : allEntries;
 
     return base.filter((e) => {
-      return matchesSearch(searchQuery, e.itemName);
+      return matchesSearch(searchQuery, e.itemName, e.notes);
     });
   }, [allEntries, allTimeEntries, isSearchOpen, searchAllTime, searchQuery]);
 
@@ -937,6 +939,7 @@ export function FinanceScreen({
                           moneyCategory={moneyCat}
                           accountName={accountName}
                           memberName={mem?.name}
+                          showMember={scope !== 'personal'}
                           onOpen={() => {
                             setSelectedEntry(entry);
                           }}
@@ -1087,6 +1090,7 @@ export function FinanceScreen({
                             moneyCategory={moneyCat}
                             accountName={accountName}
                             memberName={mem?.name}
+                            showMember={scope !== 'personal'}
                             onOpen={() => {
                               setSelectedEntry(entry);
                             }}

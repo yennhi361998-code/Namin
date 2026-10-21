@@ -3,7 +3,7 @@ import { BottomSheet } from '../components/overlay';
 import { Badge, CategoryIcon, Icon, MemberAvatar, PrimaryButton, cx } from '../components/ui';
 import { longDate, shortDate, today, weekdayName } from '../lib/dates';
 import { formatVnd } from '../lib/money';
-import { DAILY_CATEGORY_ID } from '../lib/moneyCategories';
+import { DAILY_CATEGORY_ID, isCategoryHiddenFromInsights, isCategoryCycleHidden } from '../lib/moneyCategories';
 import { estimateRestock, statusFromEstimate, STATUS_LABEL } from '../lib/restock';
 import type { LedgerEntry } from '../lib/types';
 import { quantityLabel } from '../components/rows';
@@ -116,10 +116,17 @@ export function TransactionDetailSheet({
     try {
       const purchaseDates = allHistoryPurchases
         .filter((p) => Boolean(p.date))
-        .map((p) => ({ purchaseDate: p.date }));
+        .map((p) => ({
+          purchaseDate: p.date,
+          quantity: p.quantity,
+          unit: p.unit,
+        }));
       if (purchaseDates.length === 0) return null;
       return estimateRestock(
-        { expectedUsageDays: item?.expectedUsageDays ?? null },
+        {
+          expectedUsageDays: item?.expectedUsageDays ?? null,
+          usagePerPurchaseUnit: item?.usagePerPurchaseUnit ?? null,
+        },
         purchaseDates,
         today(),
       );
@@ -178,6 +185,11 @@ export function TransactionDetailSheet({
   const costPerUsage = hasConversion && avgPrice != null ? Math.round(avgPrice / item!.usagePerPurchaseUnit!) : null;
 
   const status = statusFromEstimate(est);
+
+  const effectiveCatId = entry.categoryId || entry.rawPurchase?.spendCategoryId;
+  const hideAllInsights =
+    entry.type !== 'expense' || isCategoryHiddenFromInsights(effectiveCatId, catName);
+  const hideCycleInsights = isCategoryCycleHidden(effectiveCatId, catName);
 
   const handleDelete = () => {
     if (entry.kind === 'purchase') {
@@ -342,21 +354,21 @@ export function TransactionDetailSheet({
           </div>
         </div>
 
-        {/* 2. Item Insights: Average price, Typical usage, Next purchase */}
-        {(item || allHistoryPurchases.length > 0 || avgPrice != null || est != null) && (
+        {/* 2. Item Insights: Average, Typical usage, Next purchase */}
+        {!hideAllInsights && (hideCycleInsights ? (avgPrice != null || item?.currentStock != null) : (item || allHistoryPurchases.length > 0 || avgPrice != null || est != null)) && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between px-0.5">
               <span className="text-label-md uppercase tracking-wider font-semibold text-ink-sub">
                 Item Insights
               </span>
-              {status !== 'unknown' && (
+              {!hideCycleInsights && status !== 'unknown' && (
                 <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
               )}
             </div>
             <div className="bg-surface rounded-2xl border border-line/50 divide-y divide-line/40 overflow-hidden shadow-2xs">
-              {/* Average Price */}
+              {/* Average */}
               <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
-                <span className="text-ink-sub shrink-0">Average price</span>
+                <span className="text-ink-sub shrink-0">Average</span>
                 <div className="text-right">
                   {avgPrice != null ? (
                     <span className="font-semibold text-ink">
@@ -374,34 +386,58 @@ export function TransactionDetailSheet({
               </div>
 
               {/* Typical Usage (Product cycle) */}
-              <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
-                <span className="text-ink-sub shrink-0">Typical usage</span>
-                <span className="font-semibold text-ink text-right">
-                  {est ? `~${est.cycleDays} days` : item?.expectedUsageDays ? `~${item.expectedUsageDays} days` : 'Not enough data'}
-                </span>
-              </div>
+              {!hideCycleInsights && (
+                <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
+                  <span className="text-ink-sub shrink-0">Typical usage</span>
+                  <div className="text-right">
+                    {est ? (
+                      <div>
+                        <span className="font-semibold text-ink">
+                          ~{est.cycleDays} days / {unit || 'pack'}
+                        </span>
+                        {hasConversion && est.daysPerUnit && est.daysPerUnit !== est.cycleDays && (
+                          <span className="block text-caption text-ink-sub font-normal">
+                            ~{est.daysPerUnit >= 1 ? est.daysPerUnit.toFixed(1) : est.daysPerUnit.toFixed(2)} days / {usageUnit}
+                          </span>
+                        )}
+                      </div>
+                    ) : item?.expectedUsageDays ? (
+                      <span className="font-semibold text-ink">~{item.expectedUsageDays} days</span>
+                    ) : (
+                      <span className="font-medium text-ink-sub">Not enough data</span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Next Purchase */}
-              <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
-                <span className="text-ink-sub shrink-0">Next purchase</span>
-                <div className="text-right">
-                  {est ? (
-                    <span className="font-semibold text-ink">
-                      Around {shortDate(est.nextPurchase)}
-                      <span
-                        className={cx(
-                          'block text-caption font-normal',
-                          est.daysLeft <= 0 ? 'text-err-ink font-semibold' : est.daysLeft <= 7 ? 'text-warn-ink' : 'text-ink-sub'
+              {!hideCycleInsights && (
+                <div className="p-3.5 flex items-center justify-between gap-3 text-body-sm">
+                  <span className="text-ink-sub shrink-0">Next purchase</span>
+                  <div className="text-right">
+                    {est ? (
+                      <span className="font-semibold text-ink">
+                        Around {shortDate(est.nextPurchase)}
+                        {est.lastQuantity > 1 && (
+                          <span className="text-caption text-ink-sub font-normal ml-1">
+                            (x{est.lastQuantity})
+                          </span>
                         )}
-                      >
-                        {est.daysLeft > 0 ? `In ${est.daysLeft} days` : est.daysLeft === 0 ? 'Due today' : `${-est.daysLeft} days overdue`}
+                        <span
+                          className={cx(
+                            'block text-caption font-normal',
+                            est.daysLeft <= 0 ? 'text-err-ink font-semibold' : est.daysLeft <= 7 ? 'text-warn-ink' : 'text-ink-sub'
+                          )}
+                        >
+                          {est.daysLeft > 0 ? `In ${est.daysLeft} days` : est.daysLeft === 0 ? 'Due today' : `${-est.daysLeft} days overdue`}
+                        </span>
                       </span>
-                    </span>
-                  ) : (
-                    <span className="font-medium text-ink-sub">Not enough data</span>
-                  )}
+                    ) : (
+                      <span className="font-medium text-ink-sub">Not enough data</span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Current Stock (if set) */}
               {item?.currentStock != null && (
@@ -416,12 +452,12 @@ export function TransactionDetailSheet({
           </div>
         )}
 
-        {/* 3. Purchase History (Unified across household & personal records) */}
+        {/* 3. History (Unified across household & personal records) */}
         {allHistoryPurchases.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between px-0.5">
               <span className="text-label-md uppercase tracking-wider font-semibold text-ink-sub">
-                Purchase history
+                History
               </span>
               <span className="text-body-sm text-ink-sub">
                 {allHistoryPurchases.length} {allHistoryPurchases.length === 1 ? 'record' : 'records'}

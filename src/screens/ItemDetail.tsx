@@ -3,11 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { SwipeRow } from '../components/overlay';
 import { quantityLabel } from '../components/rows';
 import { HeaderButton, PageHeader } from '../components/shell';
-import { Badge, Card, CategoryDot, EmptyState, GhostButton, Icon, ListCard, PrimaryButton, SecondaryButton } from '../components/ui';
+import { Badge, Card, CategoryDot, EmptyState, GhostButton, Icon, ListCard, PrimaryButton, SecondaryButton, cx } from '../components/ui';
 import { longDate, shortDate } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import { STATUS_LABEL, statusFromEstimate } from '../lib/restock';
-import { guessSpendCategory } from '../lib/moneyCategories';
+import { guessSpendCategory, isCategoryCycleHidden } from '../lib/moneyCategories';
 import { roomStyle } from '../lib/rooms';
 import { useStore } from '../store';
 import { useRestockMap } from '../store/selectors';
@@ -124,9 +124,14 @@ export function ItemDetail() {
   purchases.forEach((p) => p.store && stores.set(p.store, (stores.get(p.store) ?? 0) + 1));
   const usualStore = [...stores.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   const name = item.name.toLowerCase();
+  const hideCycle = isCategoryCycleHidden(item.spendCategoryId || guessSpendCategory(item.name));
 
   let summary: string;
-  if (!est) {
+  if (hideCycle) {
+    summary = purchases.length
+      ? `${purchases.length} purchase record${purchases.length === 1 ? '' : 's'} of ${name}.`
+      : `No purchases of ${name} yet.`;
+  } else if (!est) {
     summary = purchases.length
       ? `Record one more purchase of ${name} and Namin can estimate when you'll need it again.`
       : `No purchases of ${name} yet.`;
@@ -207,7 +212,7 @@ export function ItemDetail() {
               (Packaging: 1 {item.unit} = {item.usagePerPurchaseUnit} {usageUnit} · ~{(item.currentStock / item.usagePerPurchaseUnit!).toFixed(1)} {item.unit} left)
             </span>
           )}
-          {status !== 'unknown' && STATUS_LABEL[status] && (
+          {status !== 'unknown' && !hideCycle && STATUS_LABEL[status] && (
             <div className="flex items-center justify-between pt-1 border-t border-line/40">
               <span className="text-caption text-ink-sub font-medium">Restock status</span>
               <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
@@ -224,7 +229,7 @@ export function ItemDetail() {
             </Row>
           )}
           {avgPrice != null && (
-            <Row label="Average price">
+            <Row label="Average">
               <span className="font-medium text-ink">
                 {formatVnd(Math.round(avgPrice))} / {item.unit}
                 {costPerUsage != null && (
@@ -236,8 +241,38 @@ export function ItemDetail() {
             </Row>
           )}
           {hasConversion && <Row label="Packaging size">1 {item.unit} = {item.usagePerPurchaseUnit} {usageUnit}</Row>}
-          {est && <Row label="Typical usage">~{est.cycleDays} days</Row>}
-          {est && <Row label="Next purchase">Around {shortDate(est.nextPurchase)}</Row>}
+          {est && !hideCycle && (
+            <Row label="Typical usage">
+              <span>
+                ~{est.cycleDays} days / {item.unit || 'pack'}
+                {hasConversion && est.daysPerUnit && est.daysPerUnit !== est.cycleDays && (
+                  <span className="block text-caption text-ink-sub font-normal">
+                    ~{est.daysPerUnit >= 1 ? est.daysPerUnit.toFixed(1) : est.daysPerUnit.toFixed(2)} days / {usageUnit}
+                  </span>
+                )}
+              </span>
+            </Row>
+          )}
+          {est && !hideCycle && (
+            <Row label="Next purchase">
+              <span>
+                Around {shortDate(est.nextPurchase)}
+                {est.lastQuantity > 1 && (
+                  <span className="text-caption text-ink-sub font-normal ml-1">
+                    (x{est.lastQuantity})
+                  </span>
+                )}
+                <span
+                  className={cx(
+                    'block text-caption font-normal',
+                    est.daysLeft <= 0 ? 'text-err-ink font-semibold' : est.daysLeft <= 7 ? 'text-warn-ink' : 'text-ink-sub'
+                  )}
+                >
+                  {est.daysLeft > 0 ? `In ${est.daysLeft} days` : est.daysLeft === 0 ? 'Due today' : `${-est.daysLeft} days overdue`}
+                </span>
+              </span>
+            </Row>
+          )}
           {usualStore && <Row label="Usually from">{usualStore}</Row>}
         </ListCard>
 
@@ -375,7 +410,7 @@ export function ItemDetail() {
         <section aria-labelledby="ph-title">
           <div className="flex items-center justify-between mb-space-sm px-0.5">
             <h2 id="ph-title" className="text-label-md uppercase tracking-wider font-semibold text-ink-sub">
-              Purchase history
+              History
             </h2>
             {purchases.length > 0 && <span className="text-body-sm text-ink-sub">{purchases.length}</span>}
           </div>

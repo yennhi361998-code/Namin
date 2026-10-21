@@ -102,6 +102,7 @@ export const UI_ICONS = {
   scan: Scan,
   sparkles: Sparkles,
   receipt_text: FileText,
+  edit_note: FileText,
   smartphone: Smartphone,
   calculator: Calculator,
   dialpad: Calculator,

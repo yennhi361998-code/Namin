@@ -215,3 +215,84 @@ export function guessSpendCategory(name: string): string {
   }
   return DAILY_CATEGORY_ID;
 }
+
+/**
+ * Item Insight Exclusion Rules:
+ * Category group 1: Completely HIDE the "Item Insights" card.
+ * Applies to: Food, Drink, Social, Family, Gifts, Medical / Doctor.
+ */
+export function isCategoryHiddenFromInsights(categoryId?: string | null, categoryName?: string | null): boolean {
+  const catId = (categoryId || '').toLowerCase();
+  const name = (categoryName || '').toLowerCase();
+
+  // Food & Drink
+  if (
+    catId === 'exp-food' ||
+    /food|drink|beverage|ăn uống|đồ uống|cà phê|cafe|thực phẩm/i.test(name)
+  ) {
+    return true;
+  }
+
+  // Giao tiếp & Hiếu hỷ (Social, Gifts, Family, Wedding)
+  if (
+    catId === 'exp-social' ||
+    catId === 'exp-family' ||
+    catId === 'inc-gift' ||
+    catId === 'inc-wedding' ||
+    /social|family|gift|wedding|hiếu hỷ|giao tiếp|quà|bạn bè|gia đình|đám cưới/i.test(name)
+  ) {
+    return true;
+  }
+
+  // Y tế phát sinh (Medical / Doctor)
+  if (
+    catId === 'exp-medical' ||
+    /medical|doctor|y tế|bác sĩ|thuốc phát sinh|khám bệnh/i.test(name)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Category group 2: HIDE "Typical usage" & "Next purchase", but keep "Average".
+ * Applies to: Traffic / Transport, Entertainment, Clothes / Fashion.
+ * (Beauty / Cosmetics EXPLICITLY shows Typical usage & Next purchase).
+ */
+export function isCategoryCycleHidden(categoryId?: string | null, categoryName?: string | null): boolean {
+  const catId = (categoryId || '').toLowerCase();
+  const name = (categoryName || '').toLowerCase();
+
+  // Beauty / Cosmetics explicitly SHOWS cycle
+  if (catId === 'exp-beauty' || /beauty|mỹ phẩm|cosmetic|làm đẹp|chăm sóc da/i.test(name)) {
+    return false;
+  }
+
+  // Traffic / Transport: Đi lại & Di chuyển
+  if (
+    catId === 'exp-traffic' ||
+    /traffic|transport|đi lại|di chuyển|xe|xăng/i.test(name)
+  ) {
+    return true;
+  }
+
+  // Entertainment: Giải trí & Trải nghiệm
+  if (
+    catId === 'exp-entertainment' ||
+    /entertainment|giải trí|trải nghiệm|cinema|phim|game/i.test(name)
+  ) {
+    return true;
+  }
+
+  // Clothes / Fashion: Thời trang
+  if (
+    catId === 'exp-clothes' ||
+    /clothes|clothing|fashion|thời trang|quần áo/i.test(name)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+

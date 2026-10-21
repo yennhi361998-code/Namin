@@ -62,23 +62,6 @@ function lockScroll() {
   };
 }
 
-function useIsDesktop(): boolean {
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(min-width: 640px)').matches;
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(min-width: 640px)');
-    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  return isDesktop;
-}
-
 export function BottomSheet({
   open,
   onClose,
@@ -109,8 +92,7 @@ export function BottomSheet({
   const dragStart = useRef<number | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const vp = useVisualViewport(mounted);
-  const isDesktop = useIsDesktop();
-  const isEffectiveCentered = Boolean(centered || isDesktop);
+  const isEffectiveCentered = Boolean(centered);
 
   useEffect(() => {
     if (open) {
@@ -146,14 +128,19 @@ export function BottomSheet({
   return createPortal(
     <div
       className={cx(
-        'fixed inset-x-0',
+        isEffectiveCentered
+          ? 'fixed inset-0 flex items-center justify-center p-3 sm:p-4 overflow-hidden'
+          : cx('fixed inset-x-0', !vp.isKeyboardOpen && 'inset-0'),
         zIndex || 'z-[60]',
-        isEffectiveCentered ? 'flex items-center justify-center p-3 sm:p-4 overflow-hidden' : ''
       )}
-      style={{
-        top: `${vp.offsetTop}px`,
-        height: `${vp.height}px`,
-      }}
+      style={
+        vp.isKeyboardOpen
+          ? {
+              top: `${vp.offsetTop}px`,
+              height: `${vp.height}px`,
+            }
+          : undefined
+      }
       role="presentation"
     >
       <div

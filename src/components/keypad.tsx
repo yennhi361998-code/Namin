@@ -10,6 +10,9 @@ import { cx, Icon } from './ui';
 export function AmountPad({
   expr,
   onKey,
+  itemName,
+  onItemName,
+  itemNamePlaceholder = 'Item name',
   note,
   onNote,
   notePlaceholder = 'Note',
@@ -25,6 +28,9 @@ export function AmountPad({
 }: {
   expr: string;
   onKey: (k: string) => void;
+  itemName?: string;
+  onItemName?: (v: string) => void;
+  itemNamePlaceholder?: string;
   note: string;
   onNote: (v: string) => void;
   notePlaceholder?: string;
@@ -40,17 +46,28 @@ export function AmountPad({
   accountName?: string;
   middleSlot?: ReactNode;
 }) {
-  const [isNoteFocused, setIsNoteFocused] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [isEditingText, setIsEditingText] = useState(false);
+  const itemInputRef = useRef<HTMLInputElement>(null);
+  const noteInputRef = useRef<HTMLInputElement>(null);
   const value = evaluate(expr);
+
+  const handleDismissKeyboard = () => {
+    itemInputRef.current?.blur();
+    noteInputRef.current?.blur();
+    setIsEditingText(false);
+  };
+
+  const hasItemNameProp = typeof onItemName === 'function';
+  const showUnderneathNote = hasItemNameProp && (isEditingText || Boolean(note && note.trim().length > 0));
+
   return (
     <div className="flex flex-col gap-1.5 pb-1">
-      {isNoteFocused && (
+      {isEditingText && (
         <div className="flex items-center justify-between px-3 py-1.5 bg-surface rounded-xl border border-line/60 shadow-xs">
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => inputRef.current?.blur()}
+            onClick={handleDismissKeyboard}
             className="flex items-center gap-1.5 text-label-sm text-sky-dark font-medium py-1 px-1 active:opacity-70 cursor-pointer"
             aria-label="Collapse keyboard and show number pad"
           >
@@ -60,7 +77,7 @@ export function AmountPad({
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => inputRef.current?.blur()}
+            onClick={handleDismissKeyboard}
             className="h-8 px-3 rounded-lg bg-sky/20 text-sky-dark font-semibold text-label-sm active:bg-sky/30 transition-colors flex items-center gap-1 cursor-pointer"
           >
             <Icon name="keyboard_hide" className="text-[18px]" />
@@ -69,6 +86,7 @@ export function AmountPad({
         </div>
       )}
 
+      {/* Main Row: Account Slot + Primary Input (Item Name or Note) + Amount Display */}
       <div className="flex items-stretch gap-1.5">
         {accountSlot && (
           <div className="shrink-0 w-[calc((100%-3*6px)/4)] flex">
@@ -77,24 +95,43 @@ export function AmountPad({
         )}
         <div className="flex-1 min-w-0 bg-surface rounded-xl px-3 min-h-[56px] flex items-center gap-2.5 shadow-sm">
           <input
-            ref={inputRef}
-            value={note}
-            onChange={(e) => onNote(e.target.value)}
-            onFocus={() => setIsNoteFocused(true)}
-            onBlur={() => setIsNoteFocused(false)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                inputRef.current?.blur();
+            ref={itemInputRef}
+            value={hasItemNameProp ? (itemName ?? '') : note}
+            onChange={(e) => {
+              if (hasItemNameProp) {
+                onItemName?.(e.target.value);
+              } else {
+                onNote(e.target.value);
               }
             }}
-            placeholder={notePlaceholder}
-            aria-label={notePlaceholder}
+            onFocus={() => setIsEditingText(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                if (
+                  document.activeElement !== itemInputRef.current &&
+                  document.activeElement !== noteInputRef.current
+                ) {
+                  setIsEditingText(false);
+                }
+              }, 120);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (hasItemNameProp && noteInputRef.current) {
+                  noteInputRef.current.focus();
+                } else {
+                  handleDismissKeyboard();
+                }
+              }
+            }}
+            placeholder={hasItemNameProp ? itemNamePlaceholder : notePlaceholder}
+            aria-label={hasItemNameProp ? itemNamePlaceholder : notePlaceholder}
             maxLength={80}
             className="flex-1 min-w-0 min-h-[44px] bg-transparent text-body-md text-ink placeholder:text-ink-sub/80 focus:outline-none"
           />
           <div
             onClick={() => {
-              if (isNoteFocused) inputRef.current?.blur();
+              if (isEditingText) handleDismissKeyboard();
             }}
             className="flex flex-col items-end shrink-0 max-w-[65%] cursor-pointer"
             aria-live="polite"
@@ -122,9 +159,52 @@ export function AmountPad({
         </div>
       </div>
 
-      {!isNoteFocused && middleSlot}
+      {/* Underneath Note Field: Shown when focused into Item Name / Note, or when note has content */}
+      {showUnderneathNote && (
+        <div className="flex items-center gap-2 bg-surface rounded-xl px-3 min-h-[44px] shadow-sm border border-line/60">
+          <Icon name="edit_note" className="text-[20px] text-ink-sub shrink-0" />
+          <input
+            ref={noteInputRef}
+            value={note}
+            onChange={(e) => onNote(e.target.value)}
+            onFocus={() => setIsEditingText(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                if (
+                  document.activeElement !== itemInputRef.current &&
+                  document.activeElement !== noteInputRef.current
+                ) {
+                  setIsEditingText(false);
+                }
+              }, 120);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleDismissKeyboard();
+              }
+            }}
+            placeholder={notePlaceholder}
+            aria-label={notePlaceholder}
+            maxLength={120}
+            className="flex-1 min-w-0 min-h-[40px] bg-transparent text-body-sm text-ink placeholder:text-ink-sub/70 focus:outline-none"
+          />
+          {note ? (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onNote('')}
+              className="text-ink-sub hover:text-ink p-1 shrink-0 cursor-pointer"
+              aria-label="Clear note"
+            >
+              <Icon name="close" className="text-[16px]" />
+            </button>
+          ) : null}
+        </div>
+      )}
 
-      {!isNoteFocused && (
+      {!isEditingText && middleSlot}
+
+      {!isEditingText && (
         <div className="grid grid-cols-4 gap-1.5">
         {memberSlot ? (
           <>
