@@ -153,6 +153,51 @@ describe('overdue tasks do not roll over to today/future', () => {
     expect(lists.today.some((t) => t.id === 'today-1')).toBe(true);
     expect(lists.overdue.some((t) => t.id === 'past-1')).toBe(true);
   });
+
+  it('keeps completed overdue tasks on original dueDate when ticked done (does not move to completion date)', async () => {
+    const { tasksByDay, taskLists } = await import('../store/selectors');
+
+    const yesterday = addDays(today(), -1);
+    const todayStr = today();
+    const tomorrow = addDays(today(), 1);
+
+    const testTasks = [
+      {
+        id: 'past-completed',
+        householdId: 'h1',
+        title: 'Overdue task completed today',
+        assigneeId: null,
+        dueDate: yesterday,
+        recurrence: null,
+        estimatedDuration: null,
+        reminder: null,
+        area: null,
+        notes: '',
+        completed: true,
+        completedAt: new Date().toISOString(),
+        nextOccurrenceId: null,
+        seriesId: 'past-completed',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    const dayMap = tasksByDay(testTasks, yesterday, tomorrow, todayStr);
+
+    // Task must stay on yesterday (original dueDate), NOT today
+    const yesterdayTasks = dayMap.get(yesterday) ?? [];
+    expect(yesterdayTasks.some((e) => e.task.id === 'past-completed')).toBe(true);
+    expect(yesterdayTasks.find((e) => e.task.id === 'past-completed')?.overdue).toBe(false);
+
+    // Today must NOT have this completed overdue task
+    const todayTasks = dayMap.get(todayStr) ?? [];
+    expect(todayTasks.some((e) => e.task.id === 'past-completed')).toBe(false);
+
+    // taskLists.today must NOT include it (remains on yesterday)
+    const lists = taskLists(testTasks, todayStr);
+    expect(lists.today.some((t) => t.id === 'past-completed')).toBe(false);
+    expect(lists.completed.some((t) => t.id === 'past-completed')).toBe(true);
+  });
 });
+
 
 

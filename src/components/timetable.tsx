@@ -87,7 +87,7 @@ export function WeekTimetable({
                       aria-label={`${task.title}, ${who}${task.completed ? ', completed' : e.overdue ? ', overdue' : e.projected ? ', scheduled' : ''}. Open details`}
                       className={cx(
                         'w-full text-left rounded-md px-[3px] py-1 active:brightness-95',
-                        e.overdue && 'border-l-[3px] border-err-ink',
+                        e.overdue && !task.completed && 'border-l-[3px] border-err-ink',
                         task.completed ? 'opacity-60' : '',
                       )}
                       style={{ background: room?.bg ?? '#E8F5FA' }}
@@ -95,7 +95,10 @@ export function WeekTimetable({
                       {/* Clamp on the inner span so the button's padding can't reveal an extra line. */}
                       <span
                         lang="en"
-                        className={cx('text-[11px] leading-[13px] font-medium line-clamp-4 [hyphens:auto] [overflow-wrap:anywhere]', task.completed ? 'line-through text-ink-sub' : 'text-ink')}
+                        className={cx(
+                          'text-[11px] leading-[13px] font-medium line-clamp-4 [hyphens:auto] [overflow-wrap:anywhere]',
+                          task.completed ? 'line-through text-ink-sub' : e.overdue ? 'text-err-ink font-semibold' : 'text-ink',
+                        )}
                       >
                         {task.title}
                       </span>
@@ -223,8 +226,13 @@ export function WeekRows({
                         className="min-w-0 flex-1 flex items-center gap-1.5 text-left"
                       >
                         {/* Before the title so truncation can't hide it. */}
-                        {e.overdue && <span className="w-1.5 h-1.5 rounded-full bg-err-ink shrink-0" aria-hidden />}
-                        <span className={cx('min-w-0 text-[12px] leading-4 font-medium truncate', task.completed ? 'line-through text-ink-sub' : 'text-ink')}>
+                        {e.overdue && !task.completed && <span className="w-1.5 h-1.5 rounded-full bg-err-ink shrink-0" aria-hidden />}
+                        <span
+                          className={cx(
+                            'min-w-0 text-[12px] leading-4 font-medium truncate',
+                            task.completed ? 'line-through text-ink-sub' : e.overdue ? 'text-err-ink font-semibold' : 'text-ink',
+                          )}
+                        >
                           {task.title}
                         </span>
                       </button>

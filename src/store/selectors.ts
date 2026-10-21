@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { monthKey, toDateStr, today } from '../lib/dates';
+import { monthKey, today } from '../lib/dates';
 import { projectOccurrences } from '../lib/calendar';
 import { estimateRestock, LOW_THRESHOLD_DAYS, type RestockEstimate } from '../lib/restock';
 import { DAILY_CATEGORY_ID, OTHER_COLOR } from '../lib/moneyCategories';
@@ -27,12 +27,12 @@ export function taskLists(tasks: Task[], t: DateStr = today()) {
   const open = tasks.filter((x) => !x.completed);
   return {
     /**
-     * Due today, plus anything completed today so progress stays visible.
-     * Overdue uncompleted tasks remain on their original due date and are not automatically moved to today.
+     * Due today, including tasks completed today for today's due date.
+     * Overdue uncompleted or completed tasks remain on their original due date and are not automatically moved to today.
      * One stable order regardless of completion, so rows never jump under the user's thumb.
      */
     today: tasks
-      .filter((x) => (x.dueDate === t && !x.completed) || (x.completed && x.completedAt && toDateStr(new Date(x.completedAt)) === t))
+      .filter((x) => x.dueDate === t)
       .sort((a, b) => byDue(a, b) || a.createdAt.localeCompare(b.createdAt)),
     overdue: open.filter((x) => x.dueDate < t),
     upcoming: open.filter((x) => x.dueDate > t).sort(byDue),
@@ -229,9 +229,8 @@ export interface DayEntry {
 
 /**
  * Tasks per calendar day in [from, to].
- * - Open tasks sit on their due date (overdue tasks remain on their original due date, not rolled over).
- * - Completed tasks sit on the later of due date and completion date: done-late shows on the day
- *   it was done, ticked-ahead shows on the day it was for.
+ * - Tasks sit on their due date (overdue tasks remain on their original due date, not rolled over).
+ * - Completed tasks stay on their original due date and are not moved to completion date.
  * - Future repeats of each open recurring task are projected, skipping dates already stored.
  */
 export function tasksByDay(tasks: Task[], from: DateStr, to: DateStr, t: DateStr = today()) {
@@ -245,8 +244,7 @@ export function tasksByDay(tasks: Task[], from: DateStr, to: DateStr, t: DateStr
 
   for (const x of tasks) {
     if (x.completed) {
-      const doneOn = x.completedAt ? toDateStr(new Date(x.completedAt)) : x.dueDate;
-      push(doneOn > x.dueDate ? doneOn : x.dueDate, { task: x, projected: false, anchorId: x.id, overdue: false });
+      push(x.dueDate, { task: x, projected: false, anchorId: x.id, overdue: false });
       continue;
     }
     const overdue = x.dueDate < t;
