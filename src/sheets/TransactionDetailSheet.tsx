@@ -244,53 +244,80 @@ export function TransactionDetailSheet({
       onClose={onClose}
       title={titleLabel}
       footer={
-        <div className="flex items-center gap-2.5 w-full">
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="h-11 px-3.5 rounded-xl border border-err-ink/30 text-err-ink font-semibold text-body-sm hover:bg-err-ink/10 active:bg-err-ink/20 flex items-center justify-center gap-1.5 transition-colors shrink-0"
-            aria-label="Xóa giao dịch"
-          >
-            <Icon name="delete" className="text-[18px]" />
-            <span>Xóa</span>
-          </button>
+        entry.type === 'expense' ? (
+          <div className="grid grid-cols-3 gap-2.5 w-full">
+            {/* Button 1: icon thùng rác ko có text */}
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="h-11 w-full rounded-xl border border-err-ink/30 text-err-ink hover:bg-err-ink/10 active:bg-err-ink/20 flex items-center justify-center transition-colors shadow-2xs"
+              aria-label="Xóa"
+              title="Xóa giao dịch"
+            >
+              <Icon name="delete" className="text-[20px]" />
+            </button>
 
-          {entry.type === 'expense' && (
-            item ? (
+            {/* Button 2: icon " +" và hình box (hoặc xem trong kho nếu đã có) */}
+            {item ? (
               <button
                 type="button"
                 onClick={handleViewInInventory}
-                className="h-11 px-3 rounded-xl border border-line/70 bg-white text-ink font-semibold text-body-sm hover:bg-soft active:bg-soft/80 flex items-center justify-center gap-1.5 transition-colors flex-1 min-w-0 shadow-2xs"
+                className="h-11 w-full rounded-xl border border-line/70 bg-white text-ink hover:bg-soft active:bg-soft/80 flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                aria-label="Xem trong kho"
+                title="Xem trong kho"
               >
-                <Icon name="package" className="text-[18px] text-accent shrink-0" />
-                <span className="truncate">Xem trong kho ›</span>
+                <Icon name="package" className="text-[20px] text-accent shrink-0" />
+                <Icon name="chevron_right" className="text-[16px] text-ink-sub shrink-0" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleAddToInventory}
-                className="h-11 px-3 rounded-xl bg-[#B5E7F1] border border-[#7AAECB] text-[#175562] font-semibold text-body-sm hover:bg-[#A3DFED] active:scale-[0.98] flex items-center justify-center gap-1.5 transition-all flex-1 min-w-0 shadow-xs"
+                className="h-11 w-full rounded-xl bg-[#B5E7F1] border border-[#7AAECB] text-[#175562] hover:bg-[#A3DFED] active:scale-[0.98] flex items-center justify-center gap-1 transition-all shadow-xs"
+                aria-label="Thêm vào kho"
+                title="Thêm vào kho"
               >
-                <Icon name="package" className="text-[18px] text-[#175562] shrink-0" />
-                <span className="truncate">Thêm vào kho</span>
+                <Icon name="add" className="text-[17px] stroke-[2.5] shrink-0" />
+                <Icon name="package" className="text-[20px] shrink-0" />
               </button>
-            )
-          )}
-
-          <PrimaryButton
-            onClick={() => {
-              onClose();
-              onEdit(entry);
-            }}
-            className={cx(
-              '!h-11 flex items-center justify-center gap-1.5 shrink-0',
-              entry.type === 'expense' ? 'px-3.5' : 'flex-1'
             )}
-          >
-            <Icon name="edit" className="text-[18px]" />
-            <span>Chỉnh sửa</span>
-          </PrimaryButton>
-        </div>
+
+            {/* Button 3: icon bút + text "Edit" */}
+            <PrimaryButton
+              onClick={() => {
+                onClose();
+                onEdit(entry);
+              }}
+              className="!min-h-0 !h-11 !rounded-xl !px-2 w-full flex items-center justify-center gap-1.5 text-body-sm font-semibold"
+              aria-label="Edit"
+            >
+              <Icon name="edit" className="text-[18px]" />
+              <span>Edit</span>
+            </PrimaryButton>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5 w-full">
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="h-11 px-4 rounded-xl border border-err-ink/30 text-err-ink hover:bg-err-ink/10 active:bg-err-ink/20 flex items-center justify-center transition-colors shadow-2xs"
+              aria-label="Xóa"
+              title="Xóa giao dịch"
+            >
+              <Icon name="delete" className="text-[20px]" />
+            </button>
+            <PrimaryButton
+              onClick={() => {
+                onClose();
+                onEdit(entry);
+              }}
+              className="flex-1 !min-h-0 !h-11 !rounded-xl flex items-center justify-center gap-1.5 text-body-sm font-semibold"
+            >
+              <Icon name="edit" className="text-[18px]" />
+              <span>Edit</span>
+            </PrimaryButton>
+          </div>
+        )
       }
     >
       <div className="flex flex-col gap-4 pb-2 w-full min-w-0">
