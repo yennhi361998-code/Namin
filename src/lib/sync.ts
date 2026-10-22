@@ -38,6 +38,12 @@ import type {
 } from './types';
 import { toast } from '../store/ui';
 
+export interface MyWalletBackupMeta {
+  backedUpAt: string;
+  transactionsCount: number;
+  accountsCount: number;
+}
+
 export interface SyncState {
   user: User | null;
   householdId: string | null;
@@ -46,6 +52,9 @@ export interface SyncState {
   status: 'unauthenticated' | 'loading' | 'ready' | 'syncing' | 'synced' | 'error';
   lastSyncedAt: Date | null;
   error: string | null;
+  myWalletBackupMeta: MyWalletBackupMeta | null;
+  isBackingUp: boolean;
+  isRestoring: boolean;
 }
 
 export interface SyncActions {
@@ -55,6 +64,9 @@ export interface SyncActions {
   createCloudHousehold: (name?: string) => Promise<string>;
   joinCloudHousehold: (code: string) => Promise<void>;
   clearError: () => void;
+  backupMyWalletToCloud: () => Promise<MyWalletBackupMeta>;
+  restoreMyWalletFromCloud: () => Promise<{ transactionsCount: number; accountsCount: number }>;
+  fetchMyWalletBackupMeta: () => Promise<MyWalletBackupMeta | null>;
 }
 
 export const useSync = create<SyncState & SyncActions>((set, get) => ({
@@ -65,6 +77,9 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
   status: 'loading',
   lastSyncedAt: null,
   error: null,
+  myWalletBackupMeta: null,
+  isBackingUp: false,
+  isRestoring: false,
 
   clearError: () => set({ error: null }),
 
@@ -131,6 +146,9 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
         householdName: null,
         status: 'unauthenticated',
         error: null,
+        myWalletBackupMeta: null,
+        isBackingUp: false,
+        isRestoring: false,
       });
       toast({ title: 'Signed out' });
     } catch (err: any) {
@@ -267,6 +285,152 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
       set({ status: 'error', error: msg });
       toast({ title: 'Failed to join household', subtitle: msg, tone: 'error' });
       throw err;
+    }
+  },
+
+  backupMyWalletToCloud: async () => {
+    const user = auth.currentUser || get().user;
+    if (!user) {
+      toast({ title: 'Sign-in required', subtitle: 'Please sign in to backup your personal wallet to Cloud.', tone: 'error' });
+      throw new Error('User not signed in');
+    }
+
+    set({ isBackingUp: true });
+    try {
+      const state = useStore.getState();
+      const personalTxs = state.transactions.filter((t) => t.scope === 'personal');
+      const personalAccs = state.accounts.filter((a) => a.scope === 'personal');
+      const personalBudget = state.personalBudget ?? null;
+
+      const backedUpAt = new Date().toISOString();
+      const meta: MyWalletBackupMeta = {
+        backedUpAt,
+        transactionsCount: personalTxs.length,
+        accountsCount: personalAccs.length,
+      };
+
+      const backupDocData = {
+        meta,
+        personalBudget,
+        accounts: sanitizeForFirestore(personalAccs),
+        transactions: sanitizeForFirestore(personalTxs),
+        updatedAt: backedUpAt,
+      };
+
+      // 1. Write snapshot document under user's private subcollection
+      await setDoc(doc(db, 'users', user.uid, 'personalBackup', 'snapshot'), backupDocData);
+
+      // 2. Also record backup meta in user profile for quick reference
+      await setDoc(doc(db, 'users', user.uid), { myWalletBackupMeta: meta }, { merge: true });
+
+      set({ myWalletBackupMeta: meta });
+      toast({
+        title: 'My Wallet backed up to Cloud!',
+        subtitle: `Saved ${meta.transactionsCount} transactions and ${meta.accountsCount} accounts.`,
+        tone: 'success',
+      });
+      return meta;
+    } catch (err: any) {
+      console.error('Failed to backup My Wallet to Cloud:', err);
+      const msg = err.message || 'Failed to backup My Wallet';
+      toast({ title: 'Backup failed', subtitle: msg, tone: 'error' });
+      throw err;
+    } finally {
+      set({ isBackingUp: false });
+    }
+  },
+
+  restoreMyWalletFromCloud: async () => {
+    const user = auth.currentUser || get().user;
+    if (!user) {
+      toast({ title: 'Sign-in required', subtitle: 'Please sign in to restore your personal wallet.', tone: 'error' });
+      throw new Error('User not signed in');
+    }
+
+    set({ isRestoring: true });
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid, 'personalBackup', 'snapshot'));
+      if (!snap.exists()) {
+        toast({
+          title: 'No backup found on Cloud',
+          subtitle: 'There is no previous backup of My Wallet for this account.',
+          tone: 'error',
+        });
+        throw new Error('No backup found');
+      }
+
+      const data = snap.data();
+      const rawAccounts: Account[] = Array.isArray(data?.accounts) ? data.accounts : [];
+      const rawTxs: Transaction[] = Array.isArray(data?.transactions) ? data.transactions : [];
+      const remoteBudget = data?.personalBudget ?? null;
+
+      const state = useStore.getState();
+
+      // Merge personal accounts: keep household accounts, merge personal by ID
+      const householdAccounts = state.accounts.filter((a) => a.scope !== 'personal');
+      const localPersonalAccounts = state.accounts.filter((a) => a.scope === 'personal');
+      const accMap = new Map<string, Account>();
+      for (const a of localPersonalAccounts) accMap.set(a.id, a);
+      for (const a of rawAccounts) {
+        if (a && a.id) accMap.set(a.id, { ...a, scope: 'personal' });
+      }
+      const mergedAccounts = [...householdAccounts, ...Array.from(accMap.values())];
+
+      // Merge personal transactions: keep household transactions, merge personal by ID
+      const householdTxs = state.transactions.filter((t) => t.scope !== 'personal');
+      const localPersonalTxs = state.transactions.filter((t) => t.scope === 'personal');
+      const txMap = new Map<string, Transaction>();
+      for (const t of localPersonalTxs) txMap.set(t.id, t);
+      for (const t of rawTxs) {
+        if (t && t.id) txMap.set(t.id, { ...t, scope: 'personal' });
+      }
+      const mergedTxs = [...householdTxs, ...Array.from(txMap.values())];
+
+      useStore.setState({
+        accounts: mergedAccounts,
+        transactions: mergedTxs,
+        personalBudget: remoteBudget !== undefined && remoteBudget !== null ? remoteBudget : state.personalBudget,
+      });
+
+      const meta: MyWalletBackupMeta | null = data?.meta ?? null;
+      if (meta) {
+        set({ myWalletBackupMeta: meta });
+      }
+
+      toast({
+        title: 'My Wallet restored from Cloud!',
+        subtitle: `Restored ${rawTxs.length} transactions and ${rawAccounts.length} accounts.`,
+        tone: 'success',
+      });
+
+      return { transactionsCount: rawTxs.length, accountsCount: rawAccounts.length };
+    } catch (err: any) {
+      console.error('Failed to restore My Wallet from Cloud:', err);
+      const msg = err.message || 'Failed to restore My Wallet';
+      toast({ title: 'Restore failed', subtitle: msg, tone: 'error' });
+      throw err;
+    } finally {
+      set({ isRestoring: false });
+    }
+  },
+
+  fetchMyWalletBackupMeta: async () => {
+    const user = auth.currentUser || get().user;
+    if (!user) return null;
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid, 'personalBackup', 'snapshot'));
+      if (snap.exists()) {
+        const meta = snap.data()?.meta as MyWalletBackupMeta | undefined;
+        if (meta) {
+          set({ myWalletBackupMeta: meta });
+          return meta;
+        }
+      }
+      set({ myWalletBackupMeta: null });
+      return null;
+    } catch (e) {
+      console.warn('Could not fetch My Wallet backup meta:', e);
+      return null;
     }
   },
 }));
@@ -783,6 +947,12 @@ export function initSyncAuth() {
 
       if (userSnap.exists()) {
         const uData = userSnap.data();
+        if (uData.myWalletBackupMeta) {
+          useSync.setState({ myWalletBackupMeta: uData.myWalletBackupMeta });
+        } else {
+          useSync.getState().fetchMyWalletBackupMeta().catch(() => {});
+        }
+
         const hid = uData.householdId;
         if (hid) {
           // Fetch household info
@@ -800,6 +970,8 @@ export function initSyncAuth() {
             return;
           }
         }
+      } else {
+        useSync.getState().fetchMyWalletBackupMeta().catch(() => {});
       }
 
       // Signed in, but no household connected yet

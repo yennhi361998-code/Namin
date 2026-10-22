@@ -45,6 +45,7 @@ export type Sheet =
   | { type: 'categories'; txType: TxType }
   | { type: 'money-category'; categoryId: string; month: string; txType: TxType }
   | { type: 'sync' }
+  | { type: 'backup' }
   | {
       type: 'date-filter';
       initialSelection: DateFilterSelection;

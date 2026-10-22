@@ -12,11 +12,26 @@ import { getGeminiApiKey, setGeminiApiKey } from '../lib/vision';
 
 const BUDGET_PRESETS = [5_000_000, 10_000_000, 15_000_000, 20_000_000, 30_000_000, 50_000_000];
 
+function formatBackupDate(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return isoString;
+  }
+}
+
 export function SettingsScreen() {
   const householdBudget = useStore((s) => s.householdBudget);
   const personalBudget = useStore((s) => s.personalBudget);
   const setBudget = useStore((s) => s.setBudget);
-  const { user, householdId, inviteCode } = useSync();
+  const { user, householdId, inviteCode, myWalletBackupMeta } = useSync();
   const [editingBudgetScope, setEditingBudgetScope] = useState<FinanceScope | null>(null);
   const [budgetString, setBudgetString] = useState('');
   const [importPreview, setImportPreview] = useState<ImportPreviewData | null>(null);
@@ -146,25 +161,50 @@ export function SettingsScreen() {
 
       <main className="max-w-[560px] mx-auto pt-2">
         <div className="divide-y divide-line border-y border-line bg-transparent">
-          {/* Cloud Sync */}
+          {/* Family Pairing */}
           <button
             type="button"
             onClick={() => openSheet({ type: 'sync' })}
             className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent"
           >
             <div className="flex items-center gap-3.5 min-w-0">
-              <Icon name="sync" className="text-[20px] text-ink shrink-0" />
-              <span className="text-body-md font-medium text-ink">Cloud Sync</span>
+              <Icon name="diversity_3" className="text-[20px] text-ink shrink-0" />
+              <span className="text-body-md font-medium text-ink">Family Pairing</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {user && householdId ? (
                 <span className="flex items-center gap-1.5 text-body-sm text-done-ink font-medium">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  {inviteCode ? `Connected (${inviteCode})` : 'Connected'}
+                  {inviteCode ? `Paired (${inviteCode})` : 'Paired'}
                 </span>
               ) : (
                 <span className="text-body-sm text-ink-sub">
                   {user ? 'Setup' : 'Connect'}
+                </span>
+              )}
+              <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
+            </div>
+          </button>
+
+          {/* Cloud Backup (My Wallet) */}
+          <button
+            type="button"
+            onClick={() => openSheet({ type: 'backup' })}
+            className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <Icon name="cloud_upload" className="text-[20px] text-ink shrink-0" />
+              <span className="text-body-md font-medium text-ink">Cloud Backup</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {myWalletBackupMeta ? (
+                <span className="flex items-center gap-1.5 text-body-sm text-done-ink font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  {formatBackupDate(myWalletBackupMeta.backedUpAt)}
+                </span>
+              ) : (
+                <span className="text-body-sm text-ink-sub">
+                  {user ? 'Not backed up' : 'Sign in'}
                 </span>
               )}
               <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />

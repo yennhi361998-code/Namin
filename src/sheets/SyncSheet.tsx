@@ -3,7 +3,22 @@ import { BottomSheet } from '../components/overlay';
 import { cx, Icon, PrimaryButton } from '../components/ui';
 import { useSync } from '../lib/sync';
 import { useStore } from '../store';
-import { toast } from '../store/ui';
+import { openSheet, toast } from '../store/ui';
+
+function formatBackupDate(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return isoString;
+  }
+}
 
 export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const {
@@ -14,6 +29,7 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
     status,
     lastSyncedAt,
     error,
+    myWalletBackupMeta,
     loginWithGoogle,
     loginWithEmail,
     logout,
@@ -80,14 +96,14 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Family Cloud Sync">
+    <BottomSheet open={open} onClose={onClose} title="Family Pairing">
       <div className="flex flex-col gap-5 pb-8 pt-1">
         {/* Error notice if any */}
         {error && (
           <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-body-sm flex items-start gap-2.5">
             <Icon name="error" className="text-[20px] text-rose-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <span className="font-semibold block">Sync Error</span>
+              <span className="font-semibold block">Pairing Error</span>
               <span className="text-caption text-rose-700">{error}</span>
             </div>
             <button type="button" onClick={clearError} className="text-rose-500 hover:text-rose-700 text-caption font-bold">
@@ -101,12 +117,12 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
           <div className="flex flex-col gap-5">
             <div className="p-4 bg-header/20 border border-header-ink/20 rounded-2xl flex flex-col gap-2">
               <div className="flex items-center gap-2 text-header-ink font-bold text-body-md">
-                <Icon name="sync" className="text-[20px]" />
-                <span>Multi-Device Family Sync</span>
+                <Icon name="diversity_3" className="text-[20px]" />
+                <span>Family Pairing</span>
               </div>
               <p className="text-caption text-ink leading-relaxed">
-                Log in to synchronize <strong>Tasks</strong> and <strong>Our Wallet</strong> in real-time between devices.
-                Your <strong>My Wallet</strong> data is protected by strict security rules and remains 100% private to you.
+                Connect and synchronize <strong>Tasks</strong>, <strong>Shopping</strong>, <strong>Inventory</strong>, and <strong>Our Wallet</strong> in real-time between family devices.
+                Your <strong>My Wallet</strong> data stays private to your account.
               </p>
             </div>
 
@@ -254,7 +270,7 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-2 text-done-ink font-bold text-body-md">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Household Synced
+                      Family Paired
                     </span>
                     <span className="text-caption text-done-ink/80 font-medium">
                       {lastSyncedAt ? 'Live' : 'Active'}
@@ -341,12 +357,37 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
                   </div>
                 </div>
 
+                {/* Link to My Wallet Cloud Backup */}
+                <div className="p-4 bg-surface rounded-2xl border border-line flex items-center justify-between shadow-card">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-header/20 flex items-center justify-center text-header-ink shrink-0">
+                      <Icon name="cloud_upload" className="text-[22px]" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-body-sm font-bold text-ink">My Wallet Backup</span>
+                      <span className="text-caption text-ink-sub truncate">
+                        {myWalletBackupMeta ? `Last backup: ${formatBackupDate(myWalletBackupMeta.backedUpAt)}` : 'Backup private wallet to Cloud'}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openSheet({ type: 'backup' });
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-header text-header-ink text-caption font-bold hover:bg-header/80 transition-all cursor-pointer shrink-0 shadow-2xs"
+                  >
+                    Manage
+                  </button>
+                </div>
+
                 {/* Privacy Guarantee Note */}
                 <div className="p-3.5 bg-canvas rounded-2xl border border-line/60 flex items-start gap-2.5 text-caption text-ink-sub">
                   <Icon name="lock" className="text-[18px] text-ink-sub shrink-0 mt-0.5" />
                   <span>
                     <strong>Strict Privacy:</strong> Only Tasks, Shopping, and Our Wallet are shared.
-                    Your My Wallet transactions are encrypted to your personal account ID and cannot be viewed by other household members.
+                    Your My Wallet transactions stay private to your account and can be backed up separately via Cloud Backup.
                   </span>
                 </div>
               </div>
@@ -401,7 +442,7 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
                       onClick={handleCreate}
                       className="w-full mt-2 min-h-[44px]"
                     >
-                      {status === 'syncing' ? 'Syncing to Cloud...' : 'Create & Enable Sync'}
+                      {status === 'syncing' ? 'Connecting...' : 'Create Household'}
                     </PrimaryButton>
                   </div>
                 ) : (
