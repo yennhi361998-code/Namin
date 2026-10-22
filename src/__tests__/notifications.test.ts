@@ -82,11 +82,11 @@ describe('notification settings and specs', () => {
 
   it('has exact titles, bodies, and target routes matching user specification', () => {
     // Case 1.1: Morning Briefing
-    expect(NOTIFICATION_CASES.morningBriefing.title).toBe("Today's Household Plan ☀️");
+    expect(NOTIFICATION_CASES.morningBriefing.title).toBe("Today's Household Plan");
     expect(NOTIFICATION_CASES.morningBriefing.url).toBe('/tasks');
 
     // Case 1.2: Assigned by partner
-    expect(NOTIFICATION_CASES.assignedByPartner.title).toContain('New Task from');
+    expect(NOTIFICATION_CASES.assignedByPartner.title).toBe('New Task from {Partner}');
     expect(NOTIFICATION_CASES.assignedByPartner.url).toBe('/tasks');
 
     // Case 1.3: Periodic Maintenance
@@ -94,11 +94,11 @@ describe('notification settings and specs', () => {
     expect(NOTIFICATION_CASES.periodicMaintenance.url).toBe('/tasks');
 
     // Case 1.4: Task Completed by Partner
-    expect(NOTIFICATION_CASES.taskCompletedByPartner.title).toBe('Task Completed ✨');
+    expect(NOTIFICATION_CASES.taskCompletedByPartner.title).toBe('Task Completed');
     expect(NOTIFICATION_CASES.taskCompletedByPartner.url).toBe('/tasks');
 
     // Case 2.1: Running Low Forecast
-    expect(NOTIFICATION_CASES.runningLowForecast.title).toBe('Restock Alert: Running Low ⏳');
+    expect(NOTIFICATION_CASES.runningLowForecast.title).toBe('Restock Alert: Running Low');
     expect(NOTIFICATION_CASES.runningLowForecast.url).toBe('/inventory');
 
     // Case 2.2: Out of Stock
@@ -110,7 +110,7 @@ describe('notification settings and specs', () => {
     expect(NOTIFICATION_CASES.liveCartUpdate.url).toBe('/shopping');
 
     // Case 3.1: Upcoming Bill
-    expect(NOTIFICATION_CASES.upcomingBill.title).toBe('Upcoming Bill: Electricity ⚡');
+    expect(NOTIFICATION_CASES.upcomingBill.title).toBe('Upcoming Bill: Electricity');
     expect(NOTIFICATION_CASES.upcomingBill.url).toBe('/finance');
 
     // Case 3.2: Budget Threshold Alert
@@ -118,7 +118,7 @@ describe('notification settings and specs', () => {
     expect(NOTIFICATION_CASES.budgetAlert.url).toBe('/finance');
 
     // Case 4.1: Evening AI Scan Nudge
-    expect(NOTIFICATION_CASES.eveningAiScanNudge.title).toBe('Evening Spend Catch-Up 📸');
+    expect(NOTIFICATION_CASES.eveningAiScanNudge.title).toBe('Evening Spend Catch-Up');
     expect(NOTIFICATION_CASES.eveningAiScanNudge.body).toBe('Got any receipts or mobile banking screenshots today?');
     expect(NOTIFICATION_CASES.eveningAiScanNudge.url).toBe('/finance');
   });
