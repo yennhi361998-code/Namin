@@ -4,7 +4,7 @@ import { BrandHeader, Fab, ScreenTitle } from '../components/shell';
 import { SwipeRow, type SwipeAction } from '../components/overlay';
 import { Badge, CategoryDot, cx, EmptyState, Icon, SpiralCard } from '../components/ui';
 import { guessSpendCategory } from '../lib/moneyCategories';
-import { estimateRestock, STATUS_LABEL, statusFromEstimate } from '../lib/restock';
+import { computeItemStatus, estimateRestock, isItemLowStock, STATUS_LABEL } from '../lib/restock';
 import { ROOMS, roomStyle, resolveItemRoom } from '../lib/rooms';
 import type { ItemStatus } from '../lib/types';
 import { useStore } from '../store';
@@ -83,9 +83,7 @@ export function Inventory() {
         // Status filter
         if (statusFilter === 'low') {
           const est = restock.get(it.id) ?? estimateRestock(it, purchases.filter((p) => p.itemId === it.id));
-          const st = statusFromEstimate(est);
-          const isLow = st === 'running_low' || st === 'out' || (it.currentStock != null && it.currentStock <= 1);
-          if (!isLow) return false;
+          if (!isItemLowStock(it, est)) return false;
         }
 
         return true;
@@ -94,17 +92,17 @@ export function Inventory() {
         // Sort items running low or out first, then alphabetically
         const estA = restock.get(a.id) ?? null;
         const estB = restock.get(b.id) ?? null;
-        const stA = statusFromEstimate(estA);
-        const stB = statusFromEstimate(estB);
+        const stA = computeItemStatus(a, estA);
+        const stB = computeItemStatus(b, estB);
 
-        const urgencyScore = (st: ItemStatus, stock: number | null) => {
-          if (st === 'out' || stock === 0) return 0;
-          if (st === 'running_low' || (stock != null && stock <= 1)) return 1;
+        const urgencyScore = (it: typeof a, st: ItemStatus) => {
+          if (st === 'out' || (it.currentStock != null && it.currentStock <= 0)) return 0;
+          if (st === 'running_low') return 1;
           return 2;
         };
 
-        const scoreA = urgencyScore(stA, a.currentStock);
-        const scoreB = urgencyScore(stB, b.currentStock);
+        const scoreA = urgencyScore(a, stA);
+        const scoreB = urgencyScore(b, stB);
         if (scoreA !== scoreB) return scoreA - scoreB;
 
         return a.name.localeCompare(b.name);
@@ -114,8 +112,7 @@ export function Inventory() {
   const totalLowStock = useMemo(() => {
     return items.filter((it) => {
       const est = restock.get(it.id) ?? null;
-      const st = statusFromEstimate(est);
-      return st === 'running_low' || st === 'out' || (it.currentStock != null && it.currentStock <= 1);
+      return isItemLowStock(it, est);
     }).length;
   }, [items, restock]);
 
@@ -340,14 +337,14 @@ export function Inventory() {
             <div className="bg-surface rounded-xl border border-line shadow-card divide-y divide-dashed divide-note-line/70 overflow-hidden">
               {filteredItems.map((item, idx) => {
                 const est = restock.get(item.id) ?? estimateRestock(item, purchases.filter((p) => p.itemId === item.id));
-                const status = statusFromEstimate(est);
+                const status = computeItemStatus(item, est);
                 const roomName = resolveItemRoom(item);
                 const usageUnit = item.usageUnit?.trim() || item.unit || 'units';
                 const onCart = shoppingMap.has(item.id);
                 const linkedTasksCount = linkedTasksCountMap.get(item.id) ?? 0;
                 const itemRoom = item.room || (roomName !== 'Other' ? roomName : null);
 
-                const isLow = status === 'running_low' || status === 'out' || (item.currentStock != null && item.currentStock <= 1);
+                const isLow = isItemLowStock(item, est);
                 const hasConversion = Boolean(item.unit && item.usageUnit && item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1);
                 const isFirst = idx === 0;
                 const isLast = idx === filteredItems.length - 1;

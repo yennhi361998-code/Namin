@@ -6,7 +6,7 @@ import { HeaderButton, PageHeader } from '../components/shell';
 import { Badge, Card, CategoryDot, EmptyState, GhostButton, Icon, ListCard, PrimaryButton, SecondaryButton, cx } from '../components/ui';
 import { longDate, shortDate } from '../lib/dates';
 import { formatVnd } from '../lib/money';
-import { STATUS_LABEL, statusFromEstimate } from '../lib/restock';
+import { computeItemStatus, STATUS_LABEL } from '../lib/restock';
 import { guessSpendCategory, isCategoryCycleHidden } from '../lib/moneyCategories';
 import { roomStyle } from '../lib/rooms';
 import { useStore } from '../store';
@@ -107,7 +107,7 @@ export function ItemDetail() {
   }, [item, allPurchases, allTransactions]);
   const linkedTasks = allTasks.filter((t) => t.mappedItemId === item.id && !t.completed);
   const est = restock.get(item.id) ?? null;
-  const status = statusFromEstimate(est);
+  const status = computeItemStatus(item, est);
   const last = purchases[0];
   const priced = purchases.filter((p) => p.price != null);
 

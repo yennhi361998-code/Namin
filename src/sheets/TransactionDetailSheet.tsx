@@ -5,7 +5,7 @@ import { Badge, CategoryIcon, Icon, MemberAvatar, PrimaryButton, cx } from '../c
 import { longDate, shortDate, today, weekdayName } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import { DAILY_CATEGORY_ID, isCategoryHiddenFromInsights, isCategoryCycleHidden } from '../lib/moneyCategories';
-import { estimateRestock, statusFromEstimate, STATUS_LABEL } from '../lib/restock';
+import { computeItemStatus, estimateRestock, statusFromEstimate, STATUS_LABEL } from '../lib/restock';
 import type { LedgerEntry } from '../lib/types';
 import { quantityLabel } from '../components/rows';
 import { useStore } from '../store';
@@ -196,7 +196,7 @@ export function TransactionDetailSheet({
   const hasConversion = !!(item?.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1);
   const costPerUsage = hasConversion && avgPrice != null ? Math.round(avgPrice / item!.usagePerPurchaseUnit!) : null;
 
-  const status = statusFromEstimate(est);
+  const status = item ? computeItemStatus(item, est) : statusFromEstimate(est);
 
   const effectiveCatId = entry.categoryId || entry.rawPurchase?.spendCategoryId;
   const hideAllInsights =

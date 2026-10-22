@@ -4,7 +4,7 @@ import { guessCategory } from '../lib/categories';
 import { today } from '../lib/dates';
 import { uid } from '../lib/id';
 import { nextOccurrence } from '../lib/recurrence';
-import { estimateRestock, statusFromEstimate } from '../lib/restock';
+import { computeItemStatus, estimateRestock } from '../lib/restock';
 import { defaultMoneyCategories, demoPersonalTransactions, demoTransactions, EMOJI_TO_ICON } from '../lib/moneyCategories';
 import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, LedgerEntry, Member, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, Transaction, TxType } from '../lib/types';
 import { createSeed, defaultAccounts } from './seed';
@@ -184,7 +184,7 @@ function refreshStatus(
     }));
   const history = [...purHistory, ...txHistory];
   return items.map((it) =>
-    it.id === itemId ? { ...it, status: statusFromEstimate(estimateRestock(it, history)) } : it,
+    it.id === itemId ? { ...it, status: computeItemStatus(it, estimateRestock(it, history)) } : it,
   );
 }
 
@@ -655,7 +655,14 @@ export const useStore = create<State>()(
           usageUnit: input.usageUnit?.trim() || undefined,
           usagePerPurchaseUnit: input.usagePerPurchaseUnit != null && input.usagePerPurchaseUnit > 0 ? input.usagePerPurchaseUnit : null,
           currentStock: input.currentStock != null && !isNaN(input.currentStock) ? Math.max(0, input.currentStock) : null,
-          status: 'unknown',
+          status: computeItemStatus(
+            {
+              currentStock: input.currentStock != null && !isNaN(input.currentStock) ? Math.max(0, input.currentStock) : null,
+              expectedUsageDays: input.expectedUsageDays ?? null,
+              usagePerPurchaseUnit: input.usagePerPurchaseUnit != null && input.usagePerPurchaseUnit > 0 ? input.usagePerPurchaseUnit : null,
+            },
+            null,
+          ),
           expectedUsageDays: input.expectedUsageDays ?? null,
           notes: input.notes?.trim() ?? '',
           spendCategoryId: input.spendCategoryId ?? null,

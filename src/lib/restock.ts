@@ -121,6 +121,53 @@ export function statusFromEstimate(est: RestockEstimate | null): ItemStatus {
   return 'in_stock';
 }
 
+/**
+ * Computes an item's status taking into account both the restock estimate (from purchase history)
+ * and its manual expected usage days & current stock.
+ */
+export function computeItemStatus(
+  item: { currentStock: number | null; expectedUsageDays?: number | null; usagePerPurchaseUnit?: number | null },
+  est: RestockEstimate | null,
+): ItemStatus {
+  if (item.currentStock != null && item.currentStock <= 0) {
+    return 'out';
+  }
+
+  if (est) {
+    return statusFromEstimate(est);
+  }
+
+  // If there is no purchase history, but expectedUsageDays and currentStock are known:
+  if (item.expectedUsageDays && item.expectedUsageDays > 0 && item.currentStock != null) {
+    const ratio = item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 0 ? item.usagePerPurchaseUnit : 1;
+    const daysLeft = item.currentStock * (item.expectedUsageDays / ratio);
+    if (daysLeft <= 0) return 'out';
+    if (daysLeft <= LOW_THRESHOLD_DAYS) return 'running_low';
+    return 'in_stock';
+  }
+
+  // If packaging conversion ratio exists and remaining stock is less than 15% of a purchase unit:
+  if (item.usagePerPurchaseUnit && item.usagePerPurchaseUnit > 1 && item.currentStock != null) {
+    if (item.currentStock <= Math.max(1, Math.floor(item.usagePerPurchaseUnit * 0.15))) {
+      return 'running_low';
+    }
+  }
+
+  return 'unknown';
+}
+
+/**
+ * Determines whether an item should be marked as running low or out of stock.
+ */
+export function isItemLowStock(
+  item: { currentStock: number | null; expectedUsageDays?: number | null; usagePerPurchaseUnit?: number | null },
+  est: RestockEstimate | null,
+): boolean {
+  const status = computeItemStatus(item, est);
+  return status === 'running_low' || status === 'out';
+}
+
+
 export const STATUS_LABEL: Record<ItemStatus, string> = {
   in_stock: 'In stock',
   running_low: 'Running low',

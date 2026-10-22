@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { addDays, addMonths, today, parseDate, weekdayName, shortDate, longDate } from '../lib/dates';
 import { parseVnd, formatVnd } from '../lib/money';
 import { nextOccurrence, recurrenceLabel } from '../lib/recurrence';
-import { estimateRestock, statusFromEstimate } from '../lib/restock';
+import { computeItemStatus, estimateRestock, isItemLowStock, statusFromEstimate } from '../lib/restock';
 import { guessCategory } from '../lib/categories';
 import { isCategoryHiddenFromInsights, isCategoryCycleHidden } from '../lib/moneyCategories';
 import type { Account } from '../lib/types';
@@ -108,6 +108,44 @@ describe('restock', () => {
     expect(est.durationDays).toBe(80);
     expect(est.nextPurchase).toBe('2026-05-01');
     expect(est.daysLeft).toBe(80);
+  });
+
+  it('correctly handles stock status for 1 item with long usage duration (no purchase history)', () => {
+    // 1 fragrance jar lasting 60 days, no purchase date entered yet
+    const item = { currentStock: 1, expectedUsageDays: 60 };
+    expect(computeItemStatus(item, null)).toBe('in_stock');
+    expect(isItemLowStock(item, null)).toBe(false);
+  });
+
+  it('correctly marks item as running low if remaining stock days <= 7 (no purchase history)', () => {
+    // 1 item lasting only 3 days
+    const item = { currentStock: 1, expectedUsageDays: 3 };
+    expect(computeItemStatus(item, null)).toBe('running_low');
+    expect(isItemLowStock(item, null)).toBe(true);
+  });
+
+  it('marks item as out if stock is 0 even with long expected duration', () => {
+    const item = { currentStock: 0, expectedUsageDays: 60 };
+    expect(computeItemStatus(item, null)).toBe('out');
+    expect(isItemLowStock(item, null)).toBe(true);
+  });
+
+  it('does not mark item as low if restock estimate shows plenty of time left even with currentStock = 1', () => {
+    const item = { currentStock: 1, expectedUsageDays: 60 };
+    const est = {
+      cycleDays: 60,
+      daysPerUnit: 60,
+      lastQuantity: 1,
+      lastUsageUnits: 1,
+      durationDays: 60,
+      ratio: 1,
+      basis: 'manual' as const,
+      lastPurchase: '2026-09-01',
+      nextPurchase: '2026-10-31',
+      daysLeft: 37,
+    };
+    expect(computeItemStatus(item, est)).toBe('in_stock');
+    expect(isItemLowStock(item, est)).toBe(false);
   });
 });
 
