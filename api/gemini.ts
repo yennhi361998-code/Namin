@@ -3,11 +3,30 @@ export const config = {
 };
 
 export default async function handler(req: Request): Promise<Response> {
+  const origin = req.headers.get('origin') || req.headers.get('referer') || '';
+  const isAllowedOrigin =
+    !origin ||
+    origin.includes('localhost') ||
+    origin.includes('127.0.0.1') ||
+    origin.includes('namin') ||
+    origin.includes('vercel.app') ||
+    origin.includes('firebaseapp.com') ||
+    origin.includes('web.app');
+
+  if (!isAllowedOrigin) {
+    return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const corsOrigin = req.headers.get('origin') || '*';
+
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': corsOrigin,
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       },
@@ -100,8 +119,13 @@ Important guidelines:
 
     for (const ep of ['v1beta', 'v1']) {
       try {
-        const listUrl = `https://generativelanguage.googleapis.com/${ep}/models?key=${encodeURIComponent(cleanKey)}`;
-        const listRes = await fetch(listUrl, { method: 'GET' });
+        const listUrl = `https://generativelanguage.googleapis.com/${ep}/models`;
+        const listRes = await fetch(listUrl, {
+          method: 'GET',
+          headers: {
+            'x-goog-api-key': cleanKey,
+          },
+        });
         if (listRes.ok) {
           const listData = await listRes.json();
           if (Array.isArray(listData?.models)) {
@@ -130,10 +154,13 @@ Important guidelines:
     for (const model of modelsToTry) {
       try {
         const cleanModel = model.replace(/^models\//, '');
-        const targetUrl = `https://generativelanguage.googleapis.com/${activeEndpoint}/models/${cleanModel}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+        const targetUrl = `https://generativelanguage.googleapis.com/${activeEndpoint}/models/${cleanModel}:generateContent`;
         const res = await fetch(targetUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': cleanKey,
+          },
           body: JSON.stringify(requestBody),
         });
 
@@ -145,7 +172,7 @@ Important guidelines:
               status: 200,
               headers: {
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin': corsOrigin,
               },
             });
           }

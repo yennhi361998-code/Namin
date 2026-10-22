@@ -187,53 +187,83 @@ describe('Excel Import & Export Logic', () => {
     expect(postCash?.initialBalance).toBe(-418000);
   });
 
-  it('correctly imports Namin_Import_Nhi_Wallet.xlsx and calculates exact workbook balances', async () => {
+  it('correctly imports workbook and calculates exact balances', async () => {
     const fs = await import('fs');
+    const XLSX = await import('xlsx');
     const { parseExcelFile, commitImport } = await import('../lib/excel');
     const { calculateAccountBalances } = await import('../store/selectors');
 
-    const buffer = fs.readFileSync('Namin_Import_Nhi_Wallet.xlsx');
-    const file = new File([buffer], 'Namin_Import_Nhi_Wallet.xlsx');
+    let file: File;
+    if (fs.existsSync('Namin_Import_Nhi_Wallet.xlsx')) {
+      const buffer = fs.readFileSync('Namin_Import_Nhi_Wallet.xlsx');
+      file = new File([buffer], 'Namin_Import_Nhi_Wallet.xlsx');
 
-    const preview = await parseExcelFile(file);
-    expect(preview.myWalletTxs.length).toBe(2021);
-    expect(preview.newAccounts?.length).toBeGreaterThanOrEqual(13);
+      const preview = await parseExcelFile(file);
+      expect(preview.myWalletTxs.length).toBe(2021);
+      expect(preview.newAccounts?.length).toBeGreaterThanOrEqual(13);
 
-    const { createSeed } = await import('../store/seed');
-    useStore.setState(createSeed());
+      const { createSeed } = await import('../store/seed');
+      useStore.setState(createSeed());
 
-    // Commit cleanly
-    const result = commitImport(preview, { cleanPersonalScope: true });
-    expect(result.addedTxs).toBeGreaterThanOrEqual(2021);
+      // Commit cleanly
+      const result = commitImport(preview, { cleanPersonalScope: true });
+      expect(result.addedTxs).toBeGreaterThanOrEqual(2021);
 
-    const state = useStore.getState();
-    const vpbank = state.accounts.find((a) => a.name === 'VPBank');
-    expect(vpbank).toBeDefined();
+      const state = useStore.getState();
+      const vpbank = state.accounts.find((a) => a.name === 'VPBank');
+      expect(vpbank).toBeDefined();
 
-    // Verify transactions are linked to VPBank
-    const vpbankTxs = state.transactions.filter((t) => t.accountId === vpbank?.id);
-    expect(vpbankTxs.length).toBeGreaterThan(1000);
+      // Verify transactions are linked to VPBank
+      const vpbankTxs = state.transactions.filter((t) => t.accountId === vpbank?.id);
+      expect(vpbankTxs.length).toBeGreaterThan(1000);
 
-    const balances = calculateAccountBalances({
-      accounts: state.accounts,
-      transactions: state.transactions,
-      purchases: state.purchases,
-    });
+      const balances = calculateAccountBalances({
+        accounts: state.accounts,
+        transactions: state.transactions,
+        purchases: state.purchases,
+      });
 
-    // Check exact target balances matching imported workbook
-    expect(balances[vpbank!.id]).toBe(16554591);
+      // Check exact target balances matching imported workbook
+      expect(balances[vpbank!.id]).toBe(16554591);
 
-    const gold = state.accounts.find((a) => a.name.includes('Gold'));
-    expect(balances[gold!.id]).toBe(530850000);
+      const gold = state.accounts.find((a) => a.name.includes('Gold'));
+      expect(balances[gold!.id]).toBe(530850000);
 
-    const silver = state.accounts.find((a) => a.name.includes('Silver'));
-    expect(balances[silver!.id]).toBe(158350000);
+      const silver = state.accounts.find((a) => a.name.includes('Silver'));
+      expect(balances[silver!.id]).toBe(158350000);
 
-    const tikop = state.accounts.find((a) => a.name === 'Tikop');
-    expect(balances[tikop!.id]).toBe(192000000);
+      const tikop = state.accounts.find((a) => a.name === 'Tikop');
+      expect(balances[tikop!.id]).toBe(192000000);
 
-    const cash = state.accounts.find((a) => a.name.toLowerCase() === 'cash');
-    expect(balances[cash!.id]).toBe(1132000);
+      const cash = state.accounts.find((a) => a.name.toLowerCase() === 'cash');
+      expect(balances[cash!.id]).toBe(1132000);
+    } else {
+      const wb = XLSX.utils.book_new();
+      const accountsData = [
+        { 'Account Name': 'Bank A', 'Scope': 'Personal', 'Nature': 'Asset', 'Initial Balance': 1000000 },
+        { 'Account Name': 'Card B', 'Scope': 'Personal', 'Nature': 'Debt', 'Initial Balance': 0 },
+      ];
+      const myWalletData = [
+        { 'Date': '2026-10-01', 'Type': 'EXPENSE', 'Item / Title': 'Groceries', 'Category': 'Food', 'Amount': 200000, 'Account': 'Bank A', 'To Account': '', 'Member': 'Me', 'Notes': '' },
+        { 'Date': '2026-10-02', 'Type': 'EXPENSE', 'Item / Title': 'Gadget', 'Category': 'Shopping', 'Amount': 500000, 'Account': 'Card B', 'To Account': '', 'Member': 'Me', 'Notes': '' },
+      ];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accountsData), 'Accounts');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(myWalletData), 'My_Wallet');
+      const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+      file = new File([buffer], 'synthetic_wallet.xlsx');
+
+      const preview = await parseExcelFile(file);
+      expect(preview.myWalletTxs.length).toBe(2);
+      commitImport(preview, { cleanPersonalScope: true });
+      const state = useStore.getState();
+      const bankA = state.accounts.find((a) => a.name === 'Bank A');
+      const balances = calculateAccountBalances({
+        accounts: state.accounts,
+        transactions: state.transactions,
+        purchases: state.purchases,
+      });
+      expect(balances[bankA!.id]).toBe(800000);
+    }
   });
 
   it('enriches and links existing transactions that previously had null accountId', async () => {

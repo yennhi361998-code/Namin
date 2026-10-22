@@ -7,6 +7,5 @@ dist
 .env.local
 .env.*.local
 *.xlsx
-!public/*.xlsx
 *.xls
 *.csv

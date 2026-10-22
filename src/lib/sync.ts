@@ -179,6 +179,15 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
 
       await setDoc(doc(db, 'households', hid), sanitizeForFirestore(householdDocData));
 
+      // 1b. Create secure invite lookup doc (allows direct getDoc lookup without scanning households)
+      await setDoc(doc(db, 'invites', code), {
+        code,
+        householdId: hid,
+        householdName: hName,
+        createdAt: new Date().toISOString(),
+        createdByUid: user.uid,
+      });
+
       // 2. Upload local household shared data
       await uploadCollection('households', hid, 'members', storeState.members);
       await uploadCollection('households', hid, 'tasks', storeState.tasks);
@@ -239,16 +248,26 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
 
     set({ status: 'syncing', error: null });
     try {
-      // Find household with this inviteCode
-      const q = query(collection(db, 'households'), where('inviteCode', '==', code));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        throw new Error('No household found with code ' + code);
-      }
+      // Direct invite document lookup (O(1), private, avoids collection listing)
+      const inviteSnap = await getDoc(doc(db, 'invites', code));
+      let hid: string;
+      let hName = 'Shared Household';
 
-      const hDoc = snap.docs[0];
-      const hid = hDoc.id;
-      const hData = hDoc.data() as any;
+      if (inviteSnap.exists()) {
+        const invData = inviteSnap.data() as any;
+        hid = invData.householdId;
+        hName = invData.householdName || 'Shared Household';
+      } else {
+        // Fallback for legacy households created prior to invites collection
+        const q = query(collection(db, 'households'), where('inviteCode', '==', code));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          throw new Error('No household found with code ' + code);
+        }
+        const hDoc = snap.docs[0];
+        hid = hDoc.id;
+        hName = (hDoc.data() as any).name || 'Shared Household';
+      }
 
       // Add user to household's memberUids
       await updateDoc(doc(db, 'households', hid), {
@@ -266,8 +285,8 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
 
       set({
         householdId: hid,
-        householdName: hData.name || 'Shared Household',
-        inviteCode: hData.inviteCode,
+        householdName: hName,
+        inviteCode: code,
         status: 'synced',
         lastSyncedAt: new Date(),
       });
@@ -275,7 +294,7 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
       // Start listening and download shared data into Zustand store
       startSyncListeners(user.uid, hid);
 
-      toast({ title: `Joined ${hData.name}!`, subtitle: 'Syncing shared tasks and wallet...' });
+      toast({ title: `Joined ${hName}!`, subtitle: 'Syncing shared tasks and wallet...' });
     } catch (err: any) {
       console.error('Failed to join cloud household:', err);
       let msg = err.message || 'Failed to join household';
@@ -442,7 +461,7 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
 function generateInviteCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let res = 'NM-';
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
     res += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return res;

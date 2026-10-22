@@ -156,5 +156,49 @@ describe('Vision & Receipt Parsing', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('scrambles API key in localStorage, avoids cleartext, and migrates legacy key', async () => {
+    let store: Record<string, string> = {};
+    const mockStorage = {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = String(v); },
+      removeItem: (k: string) => { delete store[k]; },
+      clear: () => { store = {}; },
+    };
+    const origLocalStorage = (globalThis as any).localStorage;
+    (globalThis as any).localStorage = mockStorage;
+
+    try {
+      const { getGeminiApiKey, setGeminiApiKey, maskApiKey } = await import('../lib/vision');
+
+      // 1. Setting key stores scrambled value and deletes cleartext key
+      setGeminiApiKey('AIzaSySecretKey9999');
+      expect(mockStorage.getItem('namin:gemini_api_key')).toBeNull();
+      const stored = mockStorage.getItem('namin:sec_v1_gk');
+      expect(stored).toBeDefined();
+      expect(stored).not.toContain('AIzaSy');
+      expect(getGeminiApiKey()).toBe('AIzaSySecretKey9999');
+
+      // 2. Migration: simulate legacy cleartext key
+      mockStorage.removeItem('namin:sec_v1_gk');
+      mockStorage.setItem('namin:gemini_api_key', 'AIzaSyLegacyOldKey8888');
+      const migrated = getGeminiApiKey();
+      expect(migrated).toBe('AIzaSyLegacyOldKey8888');
+      // Cleartext should now be purged
+      expect(mockStorage.getItem('namin:gemini_api_key')).toBeNull();
+      expect(mockStorage.getItem('namin:sec_v1_gk')).toBeDefined();
+
+      // 3. Masking
+      expect(maskApiKey('AIzaSyABCDEF123456XYZ')).toBe('AIzaSy••••••••••••6XYZ');
+      expect(maskApiKey('')).toBe('');
+      expect(maskApiKey('short')).toBe('••••••••');
+    } finally {
+      if (origLocalStorage !== undefined) {
+        (globalThis as any).localStorage = origLocalStorage;
+      } else {
+        delete (globalThis as any).localStorage;
+      }
+    }
+  });
 });
 

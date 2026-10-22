@@ -21,14 +21,63 @@ export interface ParsedReceipt {
   rawResponse?: string;
 }
 
-const API_KEY_STORAGE_KEY = 'namin:gemini_api_key';
+const SECURE_STORAGE_KEY = 'namin:sec_v1_gk';
+const LEGACY_STORAGE_KEY = 'namin:gemini_api_key';
 let inMemoryApiKey = '';
+
+const SALT = [0x5a, 0x3f, 0x91, 0xc4, 0x7e, 0x22, 0xb8, 0x4d, 0x19, 0xee];
+
+function scrambleKey(raw: string): string {
+  if (!raw) return '';
+  try {
+    const utf8 = encodeURIComponent(raw);
+    const out: number[] = [];
+    for (let i = 0; i < utf8.length; i++) {
+      out.push(utf8.charCodeAt(i) ^ SALT[i % SALT.length]);
+    }
+    return btoa(String.fromCharCode(...out));
+  } catch {
+    return '';
+  }
+}
+
+function unscrambleKey(encoded: string): string {
+  if (!encoded) return '';
+  try {
+    const bin = atob(encoded);
+    const out: number[] = [];
+    for (let i = 0; i < bin.length; i++) {
+      out.push(bin.charCodeAt(i) ^ SALT[i % SALT.length]);
+    }
+    return decodeURIComponent(String.fromCharCode(...out));
+  } catch {
+    return '';
+  }
+}
+
+export function maskApiKey(key: string): string {
+  const trimmed = key.trim();
+  if (!trimmed) return '';
+  if (trimmed.length <= 10) return '••••••••';
+  return `${trimmed.slice(0, 6)}••••••••••••${trimmed.slice(-4)}`;
+}
 
 export function getGeminiApiKey(): string {
   try {
     if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem(API_KEY_STORAGE_KEY);
-      if (saved && saved.trim()) return saved.trim();
+      const secureVal = localStorage.getItem(SECURE_STORAGE_KEY);
+      if (secureVal) {
+        const decoded = unscrambleKey(secureVal);
+        if (decoded) return decoded;
+      }
+      // Migrate legacy cleartext key if present
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy && legacy.trim()) {
+        const clean = legacy.trim();
+        localStorage.setItem(SECURE_STORAGE_KEY, scrambleKey(clean));
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        return clean;
+      }
     }
   } catch {
     /* ignore */
@@ -41,10 +90,11 @@ export function setGeminiApiKey(key: string): void {
   inMemoryApiKey = key.trim();
   try {
     if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
       if (key.trim()) {
-        localStorage.setItem(API_KEY_STORAGE_KEY, key.trim());
+        localStorage.setItem(SECURE_STORAGE_KEY, scrambleKey(key.trim()));
       } else {
-        localStorage.removeItem(API_KEY_STORAGE_KEY);
+        localStorage.removeItem(SECURE_STORAGE_KEY);
       }
     }
   } catch {

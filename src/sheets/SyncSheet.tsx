@@ -449,7 +449,7 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
                   <div className="p-4 bg-surface rounded-2xl border border-line flex flex-col gap-3 shadow-2xs">
                     <span className="text-body-md font-bold text-ink">Join your family's household</span>
                     <p className="text-caption text-ink-sub leading-relaxed">
-                      Enter the 6-character Invite Code displayed on your partner's phone (e.g. NM-7K9P).
+                      Enter the 6-character Invite Code displayed on your partner's phone (e.g. NM-7K9P2X).
                     </p>
 
                     <div className="flex flex-col gap-1 mt-1">
@@ -458,8 +458,8 @@ export function SyncSheet({ open, onClose }: { open: boolean; onClose: () => voi
                         type="text"
                         value={inputCode}
                         onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-                        placeholder="NM-XXXX"
-                        maxLength={10}
+                        placeholder="NM-XXXXXX"
+                        maxLength={12}
                         className="w-full min-h-[48px] px-3 rounded-xl bg-canvas border border-line text-headline-sm font-mono font-bold text-center tracking-widest text-ink focus:outline-none focus:border-sky-dark uppercase"
                       />
                     </div>

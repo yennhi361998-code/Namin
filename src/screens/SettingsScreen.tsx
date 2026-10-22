@@ -8,7 +8,7 @@ import { useStore } from '../store';
 import { openSheet, toast } from '../store/ui';
 import { useSync, setBulkImporting, bulkSyncImportToCloud } from '../lib/sync';
 import { exportToExcel, parseExcelFile, commitImport, type ImportPreviewData } from '../lib/excel';
-import { getGeminiApiKey, setGeminiApiKey } from '../lib/vision';
+import { getGeminiApiKey, setGeminiApiKey, maskApiKey } from '../lib/vision';
 
 const BUDGET_PRESETS = [5_000_000, 10_000_000, 15_000_000, 20_000_000, 30_000_000, 50_000_000];
 
@@ -39,6 +39,7 @@ export function SettingsScreen() {
 
   const [apiKeySheetOpen, setApiKeySheetOpen] = useState(false);
   const [geminiApiKeyInput, setGeminiApiKeyInput] = useState(() => getGeminiApiKey());
+  const [showApiKey, setShowApiKey] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isReadingFile, setIsReadingFile] = useState(false);
@@ -300,8 +301,8 @@ export function SettingsScreen() {
               <span className="text-body-md font-medium text-ink">Gemini AI API Key</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className={cx('text-body-sm', getGeminiApiKey() ? 'text-done-ink font-medium' : 'text-ink-sub')}>
-                {getGeminiApiKey() ? 'Configured' : 'Not set'}
+              <span className={cx('text-body-sm font-mono', getGeminiApiKey() ? 'text-done-ink font-medium' : 'text-ink-sub')}>
+                {getGeminiApiKey() ? maskApiKey(getGeminiApiKey()) : 'Not set'}
               </span>
               <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
             </div>
@@ -532,13 +533,23 @@ export function SettingsScreen() {
             <label className="text-caption font-semibold text-ink-sub uppercase tracking-wider">
               Google Gemini API Key
             </label>
-            <input
-              type="password"
-              value={geminiApiKeyInput}
-              onChange={(e) => setGeminiApiKeyInput(e.target.value)}
-              placeholder="Paste API Key (e.g. AQ... or AIzaSy...)"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-line bg-surface text-body-md text-ink placeholder:text-ink-sub/60 focus:outline-none focus:border-sky-dark"
-            />
+            <div className="relative flex items-center">
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                value={geminiApiKeyInput}
+                onChange={(e) => setGeminiApiKeyInput(e.target.value)}
+                placeholder="Paste API Key (e.g. AIzaSy...)"
+                className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-line bg-surface text-body-md text-ink placeholder:text-ink-sub/60 focus:outline-none focus:border-sky-dark font-mono text-[13px]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey((v) => !v)}
+                className="absolute right-2.5 p-1 text-ink-sub hover:text-ink transition-colors cursor-pointer"
+                title={showApiKey ? 'Hide API Key' : 'Show API Key'}
+              >
+                <Icon name={showApiKey ? 'visibility_off' : 'visibility'} className="text-[18px]" />
+              </button>
+            </div>
           </div>
         </div>
       </BottomSheet>
