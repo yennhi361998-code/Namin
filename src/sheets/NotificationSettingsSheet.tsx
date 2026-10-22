@@ -7,8 +7,6 @@ import {
   isNotificationSupported,
   requestNotificationPermission,
   saveNotificationSettings,
-  triggerTestNotification,
-  type NotificationCaseKey,
   type NotificationSettings,
 } from '../lib/notifications';
 import { toast } from '../store/ui';
@@ -68,23 +66,6 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
     }
   };
 
-  const handleTestNotification = async (key: NotificationCaseKey) => {
-    if (permission !== 'granted') {
-      const res = await requestNotificationPermission();
-      setPermission(res);
-      if (res !== 'granted') {
-        toast({ title: 'Notification permission needed', subtitle: 'Grant permission to test.', tone: 'error' });
-        return;
-      }
-    }
-    const success = await triggerTestNotification(key);
-    if (success) {
-      toast({ title: 'Test notification sent' });
-    } else {
-      toast({ title: 'Failed to send', subtitle: 'Ensure notifications are allowed in system settings.', tone: 'error' });
-    }
-  };
-
   const supported = isNotificationSupported();
 
   return (
@@ -135,20 +116,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                   <span className="text-body-sm font-medium text-ink">Morning Briefing</span>
                   <span className="text-caption text-ink-sub">Summary of chores due today</span>
                 </div>
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleTestNotification('morningBriefing')}
-                    className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                  >
-                    Test
-                  </button>
-                  <Toggle
-                    checked={settings.enabled && settings.morningBriefing}
-                    disabled={!settings.enabled || permission !== 'granted'}
-                    onChange={(val) => updateSetting('morningBriefing', val)}
-                  />
-                </div>
+                <Toggle
+                  checked={settings.enabled && settings.morningBriefing}
+                  disabled={!settings.enabled || permission !== 'granted'}
+                  onChange={(val) => updateSetting('morningBriefing', val)}
+                />
               </div>
               {settings.morningBriefing && (
                 <div className="flex items-center justify-between pt-2 border-t border-line/40 text-caption">
@@ -169,20 +141,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                 <span className="text-body-sm font-medium text-ink">Assigned by Partner</span>
                 <span className="text-caption text-ink-sub">When your partner assigns a chore to you</span>
               </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTestNotification('assignedByPartner')}
-                  className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                >
-                  Test
-                </button>
-                <Toggle
-                  checked={settings.enabled && settings.assignedByPartner}
-                  disabled={!settings.enabled || permission !== 'granted'}
-                  onChange={(val) => updateSetting('assignedByPartner', val)}
-                />
-              </div>
+              <Toggle
+                checked={settings.enabled && settings.assignedByPartner}
+                disabled={!settings.enabled || permission !== 'granted'}
+                onChange={(val) => updateSetting('assignedByPartner', val)}
+              />
             </div>
 
             {/* Case 1.3: Periodic Maintenance */}
@@ -191,20 +154,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                 <span className="text-body-sm font-medium text-ink">Periodic Maintenance</span>
                 <span className="text-caption text-ink-sub">1, 3, or 6-month appliance cleaning reminders</span>
               </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTestNotification('periodicMaintenance')}
-                  className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                >
-                  Test
-                </button>
-                <Toggle
-                  checked={settings.enabled && settings.periodicMaintenance}
-                  disabled={!settings.enabled || permission !== 'granted'}
-                  onChange={(val) => updateSetting('periodicMaintenance', val)}
-                />
-              </div>
+              <Toggle
+                checked={settings.enabled && settings.periodicMaintenance}
+                disabled={!settings.enabled || permission !== 'granted'}
+                onChange={(val) => updateSetting('periodicMaintenance', val)}
+              />
             </div>
 
             {/* Case 1.4: Task Completed by Partner */}
@@ -213,20 +167,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                 <span className="text-body-sm font-medium text-ink">Partner Completed Chore</span>
                 <span className="text-caption text-ink-sub">When your partner finishes a major chore</span>
               </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTestNotification('taskCompletedByPartner')}
-                  className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                >
-                  Test
-                </button>
-                <Toggle
-                  checked={settings.enabled && settings.taskCompletedByPartner}
-                  disabled={!settings.enabled || permission !== 'granted'}
-                  onChange={(val) => updateSetting('taskCompletedByPartner', val)}
-                />
-              </div>
+              <Toggle
+                checked={settings.enabled && settings.taskCompletedByPartner}
+                disabled={!settings.enabled || permission !== 'granted'}
+                onChange={(val) => updateSetting('taskCompletedByPartner', val)}
+              />
             </div>
           </div>
         </div>
@@ -244,20 +189,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                 <span className="text-body-sm font-medium text-ink">Running Low Forecast</span>
                 <span className="text-caption text-ink-sub">When consumption cycle predicts ≤ 7 days left</span>
               </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTestNotification('runningLowForecast')}
-                  className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                >
-                  Test
-                </button>
-                <Toggle
-                  checked={settings.enabled && settings.runningLowForecast}
-                  disabled={!settings.enabled || permission !== 'granted'}
-                  onChange={(val) => updateSetting('runningLowForecast', val)}
-                />
-              </div>
+              <Toggle
+                checked={settings.enabled && settings.runningLowForecast}
+                disabled={!settings.enabled || permission !== 'granted'}
+                onChange={(val) => updateSetting('runningLowForecast', val)}
+              />
             </div>
 
             {/* Case 2.2: Out of Stock */}
@@ -266,20 +202,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                 <span className="text-body-sm font-medium text-ink">Out of Stock Alert</span>
                 <span className="text-caption text-ink-sub">When stock hits 0 or due date passed</span>
               </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTestNotification('outOfStock')}
-                  className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                >
-                  Test
-                </button>
-                <Toggle
-                  checked={settings.enabled && settings.outOfStock}
-                  disabled={!settings.enabled || permission !== 'granted'}
-                  onChange={(val) => updateSetting('outOfStock', val)}
-                />
-              </div>
+              <Toggle
+                checked={settings.enabled && settings.outOfStock}
+                disabled={!settings.enabled || permission !== 'granted'}
+                onChange={(val) => updateSetting('outOfStock', val)}
+              />
             </div>
 
             {/* Case 2.3: Live Cart Update */}
@@ -288,20 +215,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                 <span className="text-body-sm font-medium text-ink">Live Cart Update</span>
                 <span className="text-caption text-ink-sub">When partner adds new items to the shopping list</span>
               </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTestNotification('liveCartUpdate')}
-                  className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                >
-                  Test
-                </button>
-                <Toggle
-                  checked={settings.enabled && settings.liveCartUpdate}
-                  disabled={!settings.enabled || permission !== 'granted'}
-                  onChange={(val) => updateSetting('liveCartUpdate', val)}
-                />
-              </div>
+              <Toggle
+                checked={settings.enabled && settings.liveCartUpdate}
+                disabled={!settings.enabled || permission !== 'granted'}
+                onChange={(val) => updateSetting('liveCartUpdate', val)}
+              />
             </div>
           </div>
         </div>
@@ -319,20 +237,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                 <span className="text-body-sm font-medium text-ink">Upcoming Bill Reminder</span>
                 <span className="text-caption text-ink-sub">1–2 days before utility / rent due dates</span>
               </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTestNotification('upcomingBill')}
-                  className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                >
-                  Test
-                </button>
-                <Toggle
-                  checked={settings.enabled && settings.upcomingBill}
-                  disabled={!settings.enabled || permission !== 'granted'}
-                  onChange={(val) => updateSetting('upcomingBill', val)}
-                />
-              </div>
+              <Toggle
+                checked={settings.enabled && settings.upcomingBill}
+                disabled={!settings.enabled || permission !== 'granted'}
+                onChange={(val) => updateSetting('upcomingBill', val)}
+              />
             </div>
 
             {/* Case 3.2: Budget Threshold Alert */}
@@ -341,20 +250,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                 <span className="text-body-sm font-medium text-ink">Budget Threshold Alert</span>
                 <span className="text-caption text-ink-sub">When category spend reaches 90% or 100% of budget</span>
               </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTestNotification('budgetAlert')}
-                  className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                >
-                  Test
-                </button>
-                <Toggle
-                  checked={settings.enabled && settings.budgetAlert}
-                  disabled={!settings.enabled || permission !== 'granted'}
-                  onChange={(val) => updateSetting('budgetAlert', val)}
-                />
-              </div>
+              <Toggle
+                checked={settings.enabled && settings.budgetAlert}
+                disabled={!settings.enabled || permission !== 'granted'}
+                onChange={(val) => updateSetting('budgetAlert', val)}
+              />
             </div>
           </div>
         </div>
@@ -373,20 +273,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
                   <span className="text-body-sm font-medium text-ink">Evening AI Scan Nudge</span>
                   <span className="text-caption text-ink-sub">Gentle reminder if no expenses logged today</span>
                 </div>
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleTestNotification('eveningAiScanNudge')}
-                    className="text-caption font-semibold text-sky-dark hover:bg-sky/20 px-2 py-0.5 rounded transition-colors"
-                  >
-                    Test
-                  </button>
-                  <Toggle
-                    checked={settings.enabled && settings.eveningAiScanNudge}
-                    disabled={!settings.enabled || permission !== 'granted'}
-                    onChange={(val) => updateSetting('eveningAiScanNudge', val)}
-                  />
-                </div>
+                <Toggle
+                  checked={settings.enabled && settings.eveningAiScanNudge}
+                  disabled={!settings.enabled || permission !== 'granted'}
+                  onChange={(val) => updateSetting('eveningAiScanNudge', val)}
+                />
               </div>
               {settings.eveningAiScanNudge && (
                 <div className="flex items-center justify-between pt-2 border-t border-line/40 text-caption">
