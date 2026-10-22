@@ -26,6 +26,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
+        importScripts: ['/sw-notifications.js'],
       },
     }),
   ],

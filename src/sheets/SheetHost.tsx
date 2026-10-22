@@ -9,6 +9,7 @@ import { TransactionSheet } from './TransactionSheet';
 import { CategoriesSheet } from './CategoriesSheet';
 import { SyncSheet } from './SyncSheet';
 import { BackupSheet } from './BackupSheet';
+import { NotificationSettingsSheet } from './NotificationSettingsSheet';
 import { useUi } from '../store/ui';
 
 /** Renders whichever sheet is open. One sheet at a time keeps the modal story simple. */
@@ -33,6 +34,8 @@ export function SheetHost() {
       return <SyncSheet key={sheet.key} {...common} />;
     case 'backup':
       return <BackupSheet key={sheet.key} {...common} />;
+    case 'notification-settings':
+      return <NotificationSettingsSheet key={sheet.key} {...common} />;
     case 'transaction':
       return (
         <TransactionSheet

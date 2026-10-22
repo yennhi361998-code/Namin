@@ -9,6 +9,7 @@ import { openSheet, toast } from '../store/ui';
 import { useSync, setBulkImporting, bulkSyncImportToCloud } from '../lib/sync';
 import { exportToExcel, parseExcelFile, commitImport, type ImportPreviewData } from '../lib/excel';
 import { getGeminiApiKey, setGeminiApiKey, maskApiKey } from '../lib/vision';
+import { getNotificationSettings } from '../lib/notifications';
 
 const BUDGET_PRESETS = [5_000_000, 10_000_000, 15_000_000, 20_000_000, 30_000_000, 50_000_000];
 
@@ -208,6 +209,24 @@ export function SettingsScreen() {
                   {user ? 'Not backed up' : 'Sign in'}
                 </span>
               )}
+              <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
+            </div>
+          </button>
+
+          {/* Notifications */}
+          <button
+            type="button"
+            onClick={() => openSheet({ type: 'notification-settings' })}
+            className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <Icon name="notifications" className="text-[20px] text-ink shrink-0" />
+              <span className="text-body-md font-medium text-ink">Notifications</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={cx('text-body-sm', getNotificationSettings().enabled ? 'text-done-ink font-medium' : 'text-ink-sub')}>
+                {getNotificationSettings().enabled ? 'Active' : 'Off'}
+              </span>
               <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
             </div>
           </button>
