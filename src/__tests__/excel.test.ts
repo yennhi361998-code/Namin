@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { commitImport, type ImportPreviewData } from '../lib/excel';
+import { commitImport, buildExportWorkbook, type ImportPreviewData } from '../lib/excel';
 import { useStore } from '../store';
 
 import { createDemoSeed } from '../store/seed';
@@ -401,6 +401,91 @@ describe('Excel Import & Export Logic', () => {
     const added = updatedItems.find((i) => i.name === 'Extra Fabric Softener Brand X');
     expect(added).toBeDefined();
     expect(added?.room).toBe('Laundry');
+  });
+
+  it('exports Hidden status (Yes/No) in Accounts sheet according to account.archived', async () => {
+    const XLSX = await import('xlsx');
+    // Set up accounts with one archived and one active
+    useStore.setState((s) => ({
+      accounts: [
+        {
+          id: 'acc-active',
+          householdId: s.household.id,
+          name: 'Active Checking',
+          icon: 'account_balance',
+          archived: false,
+          initialBalance: 100000,
+        },
+        {
+          id: 'acc-hidden',
+          householdId: s.household.id,
+          name: 'Old Piggy Bank',
+          icon: 'savings',
+          archived: true,
+          initialBalance: 0,
+        },
+      ],
+    }));
+
+    const wb = buildExportWorkbook();
+    expect(wb.SheetNames).toContain('Accounts');
+
+    const accountsWs = wb.Sheets['Accounts'];
+    const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(accountsWs);
+
+    const activeRow = rows.find((r) => r['Account Name'] === 'Active Checking');
+    const hiddenRow = rows.find((r) => r['Account Name'] === 'Old Piggy Bank');
+
+    expect(activeRow).toBeDefined();
+    expect(activeRow?.['Hidden']).toBe('No');
+
+    expect(hiddenRow).toBeDefined();
+    expect(hiddenRow?.['Hidden']).toBe('Yes');
+  });
+
+  it('imports Hidden status from Accounts sheet and updates archived flag', async () => {
+    const XLSX = await import('xlsx');
+    const { parseExcelFile } = await import('../lib/excel');
+
+    // Start with an existing account that is not archived
+    useStore.setState((s) => ({
+      accounts: [
+        {
+          id: 'acc-ex-1',
+          householdId: s.household.id,
+          name: 'Emergency Fund',
+          icon: 'savings',
+          archived: false,
+          initialBalance: 5000000,
+        },
+      ],
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const accountsData = [
+      // Updates existing account to Hidden = Yes
+      { 'Account Name': 'Emergency Fund', 'Scope': 'Personal', 'Nature': 'Asset', 'Initial Balance': 5000000, 'Hidden': 'Yes' },
+      // Brand new account with Hidden = Yes
+      { 'Account Name': 'Dormant Wallet', 'Scope': 'Personal', 'Nature': 'Asset', 'Initial Balance': 20000, 'Hidden': 'Yes' },
+      // Brand new account with Hidden = No
+      { 'Account Name': 'Active Daily Card', 'Scope': 'Personal', 'Nature': 'Asset', 'Initial Balance': 1000000, 'Hidden': 'No' },
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accountsData), 'Accounts');
+
+    const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    const file = new File([buffer], 'accounts_hidden_test.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    const preview = await parseExcelFile(file);
+    commitImport(preview);
+
+    const state = useStore.getState();
+    const emergencyFund = state.accounts.find((a) => a.name === 'Emergency Fund');
+    const dormantWallet = state.accounts.find((a) => a.name === 'Dormant Wallet');
+    const activeDailyCard = state.accounts.find((a) => a.name === 'Active Daily Card');
+
+    expect(emergencyFund?.archived).toBe(true);
+    expect(dormantWallet?.archived).toBe(true);
+    expect(activeDailyCard?.archived).toBe(false);
   });
 });
 

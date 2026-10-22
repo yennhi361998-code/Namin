@@ -18,9 +18,9 @@ export interface ImportPreviewData {
 }
 
 /**
- * Export all household and personal data into a rich multi-sheet Excel (.xlsx) workbook.
+ * Build the multi-sheet Excel workbook from the current store state.
  */
-export function exportToExcel() {
+export function buildExportWorkbook(): XLSX.WorkBook {
   const state = useStore.getState();
   const wb = XLSX.utils.book_new();
 
@@ -90,9 +90,10 @@ export function exportToExcel() {
     'Nature': a.nature === 'debt' ? 'Debt' : 'Asset',
     'Initial Balance': a.initialBalance ?? 0,
     'Exclude From Total': a.excludeFromTotal ? 'Yes' : 'No',
+    'Hidden': a.archived ? 'Yes' : 'No',
   }));
   const accountsWs = XLSX.utils.json_to_sheet(accountsRows);
-  accountsWs['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 20 }];
+  accountsWs['!cols'] = [{ wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 20 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, accountsWs, 'Accounts');
 
   // 4. Sheet: Tasks
@@ -145,7 +146,14 @@ export function exportToExcel() {
   inventoryWs['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 25 }];
   XLSX.utils.book_append_sheet(wb, inventoryWs, 'Household_Inventory');
 
-  // Download workbook
+  return wb;
+}
+
+/**
+ * Export all household and personal data into a rich multi-sheet Excel (.xlsx) workbook and trigger download.
+ */
+export function exportToExcel() {
+  const wb = buildExportWorkbook();
   const filename = `Namin_Backup_${today()}.xlsx`;
   XLSX.writeFile(wb, filename);
   return filename;
@@ -173,7 +181,8 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
     defaultNature?: AccountNature,
     initialBalance: number = 0,
     excludeFromTotal?: boolean,
-    explicitScope?: FinanceScope
+    explicitScope?: FinanceScope,
+    archived?: boolean
   ): string | null => {
     const trimmed = rawName.trim();
     if (!trimmed) return null;
@@ -194,6 +203,9 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
         if (defaultNature) {
           existingNew.nature = defaultNature;
         }
+        if (archived !== undefined) {
+          existingNew.archived = archived;
+        }
       } else {
         const existingInState = state.accounts.find((a) => a.id === id);
         if (existingInState) {
@@ -212,6 +224,9 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
           }
           if (defaultNature) {
             upd.nature = defaultNature;
+          }
+          if (archived !== undefined) {
+            upd.archived = archived;
           }
           updatedAccountsMap.set(id, upd);
         }
@@ -232,6 +247,7 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
       nature: isDebt ? 'debt' : 'asset',
       initialBalance,
       excludeFromTotal: isExcluded,
+      archived: archived ?? false,
       createdAt: new Date().toISOString(),
     };
     newAccounts.push(newAcc);
@@ -286,7 +302,11 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
         const excludeFromTotal = rawExclude !== undefined && rawExclude !== ''
           ? /yes|có|true|1|y/i.test(String(rawExclude).trim())
           : undefined;
-        ensureAccount(name, scope, nature, initialBalance, excludeFromTotal, scope);
+        const rawHidden = row['Hidden'] ?? row['Ẩn'] ?? row['Archived'] ?? row['Hide'] ?? row['Is Hidden'];
+        const archived = rawHidden !== undefined && rawHidden !== ''
+          ? /yes|có|true|1|y/i.test(String(rawHidden).trim())
+          : undefined;
+        ensureAccount(name, scope, nature, initialBalance, excludeFromTotal, scope, archived);
       }
     }
   }
