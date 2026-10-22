@@ -567,6 +567,15 @@ export function startSyncListeners(userId: string, householdId: string) {
         inviteCode: data.inviteCode,
         lastSyncedAt: new Date(),
       });
+      if (data.inviteCode) {
+        setDoc(doc(db, 'invites', data.inviteCode), {
+          code: data.inviteCode,
+          householdId,
+          householdName: data.name || 'Our Home',
+          createdAt: data.createdAt || new Date().toISOString(),
+          createdByUid: userId,
+        }, { merge: true }).catch(() => {});
+      }
     } finally {
       isApplyingRemote = false;
     }
