@@ -266,11 +266,11 @@ export function NotificationSettingsSheet({ open, onClose }: { open: boolean; on
             <span className="text-label-md font-semibold text-ink">4. AI Assistant & Habit</span>
           </div>
           <div className="bg-surface rounded-xl border border-line divide-y divide-line overflow-hidden shadow-card">
-            {/* Case 4.1: Evening AI Scan Nudge */}
+            {/* Case 4.1: Expense log reminder */}
             <div className="p-3.5 flex flex-col gap-2.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col min-w-0 pr-2">
-                  <span className="text-body-sm font-medium text-ink">Evening AI Scan Nudge</span>
+                  <span className="text-body-sm font-medium text-ink">Expense log reminder</span>
                   <span className="text-caption text-ink-sub">Gentle reminder if no expenses logged today</span>
                 </div>
                 <Toggle

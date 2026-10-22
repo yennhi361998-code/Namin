@@ -44,6 +44,8 @@ export default function App() {
           <Route path="/charts" element={<Navigate to="/our-wallet?tab=chart" replace />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="/spending" element={<Navigate to="/charts" replace />} />
+          <Route path="/wallet" element={<Navigate to="/our-wallet" replace />} />
+          <Route path="/finance" element={<Navigate to="/our-wallet" replace />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
         <ErrorBoundary>

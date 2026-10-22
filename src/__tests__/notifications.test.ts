@@ -111,15 +111,15 @@ describe('notification settings and specs', () => {
 
     // Case 3.1: Upcoming Bill
     expect(NOTIFICATION_CASES.upcomingBill.title).toBe('Upcoming Bill: Electricity');
-    expect(NOTIFICATION_CASES.upcomingBill.url).toBe('/finance');
+    expect(NOTIFICATION_CASES.upcomingBill.url).toBe('/our-wallet');
 
     // Case 3.2: Budget Threshold Alert
     expect(NOTIFICATION_CASES.budgetAlert.title).toBe('Budget Alert');
-    expect(NOTIFICATION_CASES.budgetAlert.url).toBe('/finance');
+    expect(NOTIFICATION_CASES.budgetAlert.url).toBe('/our-wallet');
 
-    // Case 4.1: Evening AI Scan Nudge
-    expect(NOTIFICATION_CASES.eveningAiScanNudge.title).toBe('Evening Spend Catch-Up');
+    // Case 4.1: Expense log reminder
+    expect(NOTIFICATION_CASES.eveningAiScanNudge.title).toBe('Expense log reminder');
     expect(NOTIFICATION_CASES.eveningAiScanNudge.body).toBe('Got any receipts or mobile banking screenshots today?');
-    expect(NOTIFICATION_CASES.eveningAiScanNudge.url).toBe('/finance');
+    expect(NOTIFICATION_CASES.eveningAiScanNudge.url).toBe('/our-wallet');
   });
 });
