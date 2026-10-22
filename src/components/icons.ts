@@ -68,6 +68,7 @@ export const UI_ICONS = {
   point_of_sale: Receipt,
   category: Package,
   package: Package,
+  palette: Palette,
   inventory_2: Package,
   group: Users,
   person: User,

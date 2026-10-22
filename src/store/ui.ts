@@ -47,6 +47,7 @@ export type Sheet =
   | { type: 'sync' }
   | { type: 'backup' }
   | { type: 'notification-settings' }
+  | { type: 'theme' }
   | {
       type: 'date-filter';
       initialSelection: DateFilterSelection;

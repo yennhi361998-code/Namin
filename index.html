@@ -8,6 +8,43 @@
       document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
       document.addEventListener('gesturechange', function (e) { e.preventDefault(); }, { passive: false });
       document.addEventListener('gestureend', function (e) { e.preventDefault(); }, { passive: false });
+      (function() {
+        try {
+          var raw = localStorage.getItem('namin:theme_settings');
+          if (raw) {
+            var t = JSON.parse(raw);
+            function h2rgb(hex) {
+              var c = hex.replace('#', '').trim();
+              if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+              return (parseInt(c.substr(0, 2), 16) || 0) + ' ' + (parseInt(c.substr(2, 2), 16) || 0) + ' ' + (parseInt(c.substr(4, 2), 16) || 0);
+            }
+            function lum(hex) {
+              var c = hex.replace('#', '').trim();
+              if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+              var r = parseInt(c.substr(0, 2), 16) / 255;
+              var g = parseInt(c.substr(2, 2), 16) / 255;
+              var b = parseInt(c.substr(4, 2), 16) / 255;
+              var a = [r, g, b].map(function(v) { return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+              return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+            }
+            if (t.canvasColor) {
+              document.documentElement.style.setProperty('--color-canvas', t.canvasColor);
+              document.documentElement.style.setProperty('--color-canvas-rgb', h2rgb(t.canvasColor));
+            }
+            if (t.headerColor) {
+              document.documentElement.style.setProperty('--color-header', t.headerColor);
+              document.documentElement.style.setProperty('--color-header-rgb', h2rgb(t.headerColor));
+              var hl = lum(t.headerColor);
+              var hInk = hl < 0.4 ? '#FFFFFF' : '#175562';
+              document.documentElement.style.setProperty('--color-header-ink', hInk);
+              document.documentElement.style.setProperty('--color-header-ink-rgb', h2rgb(hInk));
+              document.documentElement.style.setProperty('--color-header-logo', hl > 0.88 ? hInk : '#FFFFFF');
+              var m = document.querySelector('meta[name="theme-color"]');
+              if (m) m.setAttribute('content', t.headerColor);
+            }
+          }
+        } catch (e) {}
+      })();
     </script>
     <meta name="theme-color" content="#B5E7F1" />
     <title>Namin – Smart Family Organizer</title>

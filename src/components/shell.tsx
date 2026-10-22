@@ -214,7 +214,7 @@ export function BrandHeader() {
             aria-label="Reload app"
             className="flex items-center justify-center p-1 rounded-lg active:scale-95 transition-transform cursor-pointer"
           >
-            <Logo height={30} color="#FFFFFF" />
+            <Logo height={30} color="var(--color-header-logo, #FFFFFF)" />
           </button>
         </div>
         <div className="flex justify-end">

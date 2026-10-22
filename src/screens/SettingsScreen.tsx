@@ -10,6 +10,7 @@ import { useSync, setBulkImporting, bulkSyncImportToCloud } from '../lib/sync';
 import { exportToExcel, parseExcelFile, commitImport, type ImportPreviewData } from '../lib/excel';
 import { getGeminiApiKey, setGeminiApiKey, maskApiKey } from '../lib/vision';
 import { getNotificationSettings } from '../lib/notifications';
+import { getThemeSettings } from '../lib/theme';
 
 const BUDGET_PRESETS = [5_000_000, 10_000_000, 15_000_000, 20_000_000, 30_000_000, 50_000_000];
 
@@ -227,6 +228,31 @@ export function SettingsScreen() {
               <span className={cx('text-body-sm', getNotificationSettings().enabled ? 'text-done-ink font-medium' : 'text-ink-sub')}>
                 {getNotificationSettings().enabled ? 'Active' : 'Off'}
               </span>
+              <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
+            </div>
+          </button>
+
+          {/* Theme */}
+          <button
+            type="button"
+            onClick={() => openSheet({ type: 'theme' })}
+            className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <Icon name="palette" className="text-[20px] text-ink shrink-0" />
+              <span className="text-body-md font-medium text-ink">Theme</span>
+            </div>
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex items-center -space-x-1.5" title="Background & Theme colors">
+                <span
+                  className="w-4 h-4 rounded-full border border-black/15 shadow-2xs"
+                  style={{ backgroundColor: getThemeSettings().canvasColor }}
+                />
+                <span
+                  className="w-4 h-4 rounded-full border border-black/15 shadow-2xs"
+                  style={{ backgroundColor: getThemeSettings().headerColor }}
+                />
+              </div>
               <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
             </div>
           </button>

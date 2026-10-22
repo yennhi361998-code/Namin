@@ -2,9 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-canvas: #FFF8E1;
+  --color-canvas-rgb: 255 248 225;
+  --color-header: #B5E7F1;
+  --color-header-rgb: 181 231 241;
+  --color-header-ink: #175562;
+  --color-header-ink-rgb: 23 85 98;
+  --color-header-logo: #FFFFFF;
+}
+
 @layer base {
   html {
-    background: #fff8e1;
+    background: var(--color-canvas, #fff8e1);
     -webkit-text-size-adjust: 100%;
     overflow-x: clip;
   }

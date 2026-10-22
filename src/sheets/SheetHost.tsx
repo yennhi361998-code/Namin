@@ -10,6 +10,7 @@ import { CategoriesSheet } from './CategoriesSheet';
 import { SyncSheet } from './SyncSheet';
 import { BackupSheet } from './BackupSheet';
 import { NotificationSettingsSheet } from './NotificationSettingsSheet';
+import { ThemeSheet } from './ThemeSheet';
 import { useUi } from '../store/ui';
 
 /** Renders whichever sheet is open. One sheet at a time keeps the modal story simple. */
@@ -36,6 +37,8 @@ export function SheetHost() {
       return <BackupSheet key={sheet.key} {...common} />;
     case 'notification-settings':
       return <NotificationSettingsSheet key={sheet.key} {...common} />;
+    case 'theme':
+      return <ThemeSheet key={sheet.key} {...common} />;
     case 'transaction':
       return (
         <TransactionSheet

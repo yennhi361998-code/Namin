@@ -8,7 +8,6 @@ import {
   Coffee,
   Crown,
   Dog,
-  Flower2,
   Gamepad2,
   Glasses,
   Headphones,
@@ -60,6 +59,26 @@ export const MEMBER_AVATARS: AvatarOption[] = [
   { id: 'car', label: 'Car', value: 'car' },
   { id: 'book', label: 'Book', value: 'book' },
 ];
+
+/**
+ * 6-petal flower profile icon with circular center cutout matching user profile graphic.
+ */
+export function FlowerProfileIcon({ size = 20, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="currentColor"
+      fillRule="evenodd"
+      className={className}
+      role="img"
+      aria-hidden="true"
+    >
+      <path d="M 19.05 10.11 A 3.65 3.65 0 1 1 17.16 17.16 A 3.65 3.65 0 1 1 10.11 19.05 A 3.65 3.65 0 1 1 4.95 13.89 A 3.65 3.65 0 1 1 6.84 6.84 A 3.65 3.65 0 1 1 13.89 4.95 A 3.65 3.65 0 1 1 19.05 10.11 Z M 12 8.90 A 3.10 3.10 0 1 0 12 15.10 A 3.10 3.10 0 1 0 12 8.90 Z" />
+    </svg>
+  );
+}
 
 export function MemberAvatarIcon({ id, size = 20, className }: { id: string; size?: number; className?: string }) {
   // Normalize legacy keys
@@ -116,7 +135,7 @@ export function MemberAvatarIcon({ id, size = 20, className }: { id: string; siz
     case 'palette':
       return <Palette size={size} strokeWidth={2} className={className} />;
     case 'flower':
-      return <Flower2 size={size} strokeWidth={2} className={className} />;
+      return <FlowerProfileIcon size={size} className={className} />;
     case 'zap':
       return <Zap size={size} strokeWidth={2} className={className} />;
     case 'bike':
