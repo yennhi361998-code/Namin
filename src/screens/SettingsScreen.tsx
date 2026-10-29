@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { PageHeader } from '../components/shell';
 import { BottomSheet } from '../components/overlay';
-import { cx, GhostButton, Icon, PrimaryButton } from '../components/ui';
+import { cx, GhostButton, Icon, MemberAvatar, PrimaryButton } from '../components/ui';
 import { formatVnd } from '../lib/money';
 import type { FinanceScope } from '../lib/types';
 import { useStore } from '../store';
@@ -30,6 +30,7 @@ function formatBackupDate(isoString: string): string {
 }
 
 export function SettingsScreen() {
+  const currentMember = useStore((s) => s.members.find((m) => m.id === s.currentMemberId) ?? s.members[0]);
   const householdBudget = useStore((s) => s.householdBudget);
   const personalBudget = useStore((s) => s.personalBudget);
   const setBudget = useStore((s) => s.setBudget);
@@ -164,6 +165,33 @@ export function SettingsScreen() {
 
       <main className="max-w-[560px] mx-auto pt-2">
         <div className="divide-y divide-line border-y border-line bg-transparent">
+          {/* Active Profile */}
+          <button
+            type="button"
+            onClick={() => openSheet({ type: 'household' })}
+            className="w-full px-4 py-4 flex items-center justify-between hover:bg-black/[0.03] active:bg-black/[0.06] text-left transition-colors cursor-pointer group bg-transparent"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              {currentMember ? (
+                <MemberAvatar member={currentMember} size={28} />
+              ) : (
+                <Icon name="person" className="text-[20px] text-ink shrink-0" />
+              )}
+              <div className="flex flex-col min-w-0">
+                <span className="text-body-md font-medium text-ink">Active Profile</span>
+                <span className="text-caption text-ink-sub truncate">
+                  {currentMember ? `You are ${currentMember.name} on this device` : 'Tap to select who you are'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-body-sm font-semibold text-header-ink">
+                {currentMember?.name}
+              </span>
+              <Icon name="chevron_right" className="text-[18px] text-ink-sub/50 group-hover:text-ink transition-colors" />
+            </div>
+          </button>
+
           {/* Family Pairing */}
           <button
             type="button"

@@ -48,6 +48,8 @@ export interface Task {
   notes: string;
   completed: boolean;
   completedAt: string | null;
+  /** Member ID of the person who completed this task */
+  completedBy?: string | null;
   /** When a recurring occurrence is completed, the id of the occurrence it spawned. */
   nextOccurrenceId: string | null;
   /** Shared by every occurrence of the same recurring task (equals the first occurrence's id). */

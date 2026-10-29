@@ -45,11 +45,20 @@ export function TaskRow({
   const dueToday = !task.completed && task.dueDate === t;
   const completedTime = task.completedAt ? new Date(task.completedAt) : null;
 
+  const members = useStore((s) => s.members);
+  const completer = task.completedBy ? members.find((m) => m.id === task.completedBy) : undefined;
+  const finisherName = completer?.name || (task.completed ? member?.name : undefined);
+
   let due: ReactNode;
   if (task.completed && completedTime) {
     const doneDay = toDateStr(completedTime);
     const hhmm = `${completedTime.getHours()}:${completedTime.getMinutes()}`;
-    due = <span>Completed {doneDay === t ? formatTime(hhmm) : shortDate(doneDay)}</span>;
+    due = (
+      <span>
+        {finisherName ? `Finished by ${finisherName} · ` : 'Completed '}
+        {doneDay === t ? formatTime(hhmm) : shortDate(doneDay)}
+      </span>
+    );
   } else if (overdue) {
     // The red dot by the title says it; the due date isn't repeated here.
     due = null;
@@ -99,7 +108,7 @@ export function TaskRow({
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 text-ink-sub text-body-sm flex-wrap">
           {joinMeta([
-            member && <span className={cx(!task.completed && 'text-ink font-medium')}>{member.name}</span>,
+            !task.completed && member && <span className="text-ink font-medium">{member.name}</span>,
             showRecurrence && task.recurrence && !task.completed && (
               <span className="flex items-center gap-0.5">
                 {(projected || inDay) && <Icon name="replay" className="text-[14px]" />}

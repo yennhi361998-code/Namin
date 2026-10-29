@@ -287,7 +287,12 @@ export const useStore = create<State>()(
             updatedItems = s.items.map((i) => (i.id === it.id ? { ...i, currentStock: nextStock } : i));
           }
         }
-        const done: Task = { ...task, completed: true, completedAt: new Date().toISOString() };
+        const done: Task = {
+          ...task,
+          completed: true,
+          completedAt: new Date().toISOString(),
+          completedBy: s.currentMemberId,
+        };
         if (!task.recurrence) {
           set({ tasks: s.tasks.map((t) => (t.id === id ? done : t)), items: updatedItems });
           return;
@@ -299,6 +304,7 @@ export const useStore = create<State>()(
           dueDate: nextOccurrence(task.dueDate, task.recurrence, today(), seriesDates(s.tasks, task)),
           completed: false,
           completedAt: null,
+          completedBy: null,
           nextOccurrenceId: null,
           createdAt: new Date().toISOString(),
         };
@@ -336,6 +342,7 @@ export const useStore = create<State>()(
           dueDate: date,
           completed: true,
           completedAt: new Date().toISOString(),
+          completedBy: s.currentMemberId,
           nextOccurrenceId: null,
           // Same as the series so the row keeps its place in the day list when ticked.
           createdAt: anchor.createdAt,
@@ -385,7 +392,7 @@ export const useStore = create<State>()(
         set({
           tasks: s.tasks
             .filter((t) => t.id !== dropId)
-            .map((t) => (t.id === id ? { ...t, completed: false, completedAt: null, nextOccurrenceId: null } : t)),
+            .map((t) => (t.id === id ? { ...t, completed: false, completedAt: null, completedBy: null, nextOccurrenceId: null } : t)),
           checklist: dropId ? s.checklist.filter((c) => c.taskId !== dropId) : s.checklist,
           items: updatedItems,
         });

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { HeaderButton, PageHeader, useBack } from '../components/shell';
 import { Badge, Card, Checkbox, cx, EmptyState, GhostButton, Icon, ListCard, MemberAvatar, PrimaryButton, ProgressBar, SecondaryButton } from '../components/ui';
-import { formatDuration, formatTime, headerDate, relativeDay, shortDate, today } from '../lib/dates';
+import { formatDuration, formatTime, headerDate, relativeDay, shortDate, today, toDateStr } from '../lib/dates';
 import { nextOccurrence, recurrenceLabel } from '../lib/recurrence';
 import { roomStyle } from '../lib/rooms';
 import { useStore } from '../store';
@@ -43,6 +43,7 @@ export function TaskDetail() {
   const checklist = allChecklist.filter((c) => c.taskId === task.id);
   const done = checklist.filter((c) => c.completed).length;
   const assignee = task.assigneeId ? members.get(task.assigneeId) : undefined;
+  const completer = task.completedBy ? members.get(task.completedBy) : undefined;
   const mappedItem = task.mappedItemId ? items.find((i) => i.id === task.mappedItemId) : undefined;
   const mappedItemUnit = mappedItem ? (mappedItem.usageUnit?.trim() || mappedItem.unit || 'unit') : '';
   const t = today();
@@ -83,6 +84,32 @@ export function TaskDetail() {
               'All'
             )}
           </InfoRow>
+          {task.completed && (
+            <InfoRow icon="check_circle" label="Finished by">
+              {completer ? (
+                <>
+                  <MemberAvatar member={completer} size={24} />
+                  {completer.name}
+                </>
+              ) : assignee ? (
+                <>
+                  <MemberAvatar member={assignee} size={24} />
+                  {assignee.name}
+                </>
+              ) : (
+                'Done'
+              )}
+            </InfoRow>
+          )}
+          {task.completed && task.completedAt && (
+            <InfoRow icon="schedule" label="Finished at">
+              {(() => {
+                const d = new Date(task.completedAt);
+                const hhmm = `${d.getHours()}:${d.getMinutes()}`;
+                return `${formatTime(hhmm)} · ${relativeDay(toDateStr(d), t)}`;
+              })()}
+            </InfoRow>
+          )}
           <InfoRow icon="event" label="Due">
             <span className={cx(overdue && 'text-err-ink font-medium')}>{dueLabel}</span>
           </InfoRow>

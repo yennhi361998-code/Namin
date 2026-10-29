@@ -1006,6 +1006,38 @@ describe('Category insight exclusion rules and transaction note handling', () =>
     const createdItem = useStore.getState().items.find((i) => i.id === newItemId);
     expect(createdItem?.unit).toBe('item');
   });
+
+  it('records the active member in completedBy when task is completed and clears it on uncomplete', async () => {
+    const { useStore } = await import('../store');
+    const s = useStore.getState();
+    const memberA = s.members[0];
+    const memberB = s.members[1] || s.members[0];
+    s.setCurrentMember(memberB.id);
+
+    const taskId = s.addTask({
+      title: 'Take out compost',
+      assigneeId: memberA.id,
+      dueDate: '2026-10-29',
+      recurrence: null,
+      estimatedDuration: null,
+      reminder: null,
+      area: 'Kitchen',
+      notes: '',
+      checklist: [],
+    });
+
+    // Member B ticks it done
+    s.completeTask(taskId);
+    let task = useStore.getState().tasks.find((t) => t.id === taskId);
+    expect(task?.completed).toBe(true);
+    expect(task?.completedBy).toBe(memberB.id);
+
+    // Uncomplete
+    s.uncompleteTask(taskId);
+    task = useStore.getState().tasks.find((t) => t.id === taskId);
+    expect(task?.completed).toBe(false);
+    expect(task?.completedBy).toBeNull();
+  });
 });
 
 

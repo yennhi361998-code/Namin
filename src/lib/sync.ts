@@ -594,11 +594,25 @@ export function startSyncListeners(userId: string, householdId: string) {
       isApplyingRemote = true;
       try {
         useStore.setState((s) => {
-          // If currentMemberId not in list, fallback to first member
-          const exists = members.some((m) => m.id === s.currentMemberId);
+          let currentId = s.currentMemberId;
+          const exists = members.some((m) => m.id === currentId);
+          if (!exists) {
+            const user = useSync.getState().user;
+            const nameMatch = user && members.find((m) =>
+              (user.displayName && m.name.toLowerCase().includes(user.displayName.toLowerCase())) ||
+              (user.email && user.email.toLowerCase().includes(m.name.toLowerCase()))
+            );
+            if (nameMatch) {
+              currentId = nameMatch.id;
+            } else if (members.length > 1) {
+              currentId = members[1].id;
+            } else {
+              currentId = members[0].id;
+            }
+          }
           return {
             members,
-            currentMemberId: exists ? s.currentMemberId : members[0].id,
+            currentMemberId: currentId,
           };
         });
       } finally {
@@ -623,8 +637,13 @@ export function startSyncListeners(userId: string, householdId: string) {
           const partner = members.find((m) => m.id !== currentMemberId);
           notifyPartnerAssignedTask(task, partner?.name || 'Your partner').catch(() => {});
         } else if (change.type === 'modified' && task.completed) {
-          const partner = members.find((m) => m.id !== currentMemberId);
-          notifyPartnerCompletedTask(task, partner?.name || 'Your partner').catch(() => {});
+          if (task.completedBy && task.completedBy !== currentMemberId) {
+            const completer = members.find((m) => m.id === task.completedBy);
+            notifyPartnerCompletedTask(task, completer?.name || 'Your partner').catch(() => {});
+          } else if (!task.completedBy) {
+            const partner = members.find((m) => m.id !== currentMemberId);
+            notifyPartnerCompletedTask(task, partner?.name || 'Your partner').catch(() => {});
+          }
         }
       }
     }

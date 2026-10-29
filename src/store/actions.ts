@@ -8,13 +8,21 @@ function when(d: string) {
   return r === 'Today' || r === 'Tomorrow' ? r.toLowerCase() : `on ${r}`;
 }
 
-/** One-tap completion. The checkbox itself shows the change and unticking undoes it, so no toast. */
 export function toggleTask(id: string) {
   const s = useStore.getState();
   const task = s.tasks.find((t) => t.id === id);
   if (!task) return;
-  if (task.completed) s.uncompleteTask(id);
-  else s.completeTask(id);
+  if (task.completed) {
+    s.uncompleteTask(id);
+  } else {
+    s.completeTask(id);
+    const me = s.members.find((m) => m.id === s.currentMemberId);
+    const name = me?.name || 'You';
+    toast({
+      title: 'Task completed',
+      subtitle: `${name} finished "${task.title}"`,
+    });
+  }
 }
 
 export function deleteTask(id: string) {
@@ -47,5 +55,13 @@ export function removeFromList(shoppingId: string) {
 
 /** Tick a scheduled future repeat from the calendar. Only that date is marked done. */
 export function completeOccurrence(anchorId: string, date: string) {
-  useStore.getState().completeOccurrence(anchorId, date);
+  const s = useStore.getState();
+  const anchor = s.tasks.find((t) => t.id === anchorId);
+  s.completeOccurrence(anchorId, date);
+  const me = s.members.find((m) => m.id === s.currentMemberId);
+  const name = me?.name || 'You';
+  toast({
+    title: 'Task completed',
+    subtitle: `${name} finished "${anchor?.title || 'task'}"`,
+  });
 }
