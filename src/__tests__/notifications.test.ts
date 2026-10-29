@@ -28,8 +28,16 @@ describe('notification settings and specs', () => {
   beforeEach(() => {
     mockStorage = createMockLocalStorage();
     vi.stubGlobal('localStorage', mockStorage);
+    const mockNotification = class MockNotification {
+      static permission: NotificationPermission = 'granted';
+      static requestPermission = vi.fn().mockResolvedValue('granted');
+      onclick: (() => void) | null = null;
+      constructor(public title: string, public options?: NotificationOptions) {}
+    };
+    vi.stubGlobal('Notification', mockNotification);
     vi.stubGlobal('window', {
       location: { href: 'http://localhost/' },
+      Notification: mockNotification,
     });
   });
 
@@ -122,4 +130,227 @@ describe('notification settings and specs', () => {
     expect(NOTIFICATION_CASES.eveningAiScanNudge.body).toBe('Got any receipts or mobile banking screenshots today?');
     expect(NOTIFICATION_CASES.eveningAiScanNudge.url).toBe('/our-wallet');
   });
+
+  describe('notification scheduler & deduplication', () => {
+    it('records and checks notified tags correctly to prevent duplicate alerts', async () => {
+      const { hasBeenNotified, markAsNotified } = await import('../lib/notificationScheduler');
+      expect(hasBeenNotified('test-tag-1')).toBe(false);
+      markAsNotified('test-tag-1');
+      expect(hasBeenNotified('test-tag-1')).toBe(true);
+      expect(hasBeenNotified('test-tag-2')).toBe(false);
+    });
+
+    it('evaluates task reminders, morning briefing, and evening expense reminder', async () => {
+      const { checkScheduledNotifications, getLocalDateString } = await import('../lib/notificationScheduler');
+      const { useStore } = await import('../store');
+
+      saveNotificationSettings({
+        enabled: true,
+        morningBriefing: true,
+        morningBriefingTime: '08:00',
+        eveningAiScanNudge: true,
+        eveningAiScanTime: '21:00',
+        outOfStock: true,
+      });
+
+      const today = getLocalDateString(new Date(2026, 9, 29, 9, 15)); // 2026-10-29 09:15
+      useStore.setState({
+        tasks: [
+          {
+            id: 'task-remind-1',
+            householdId: 'h1',
+            title: 'Water the plants',
+            assigneeId: null,
+            dueDate: today,
+            recurrence: null,
+            estimatedDuration: null,
+            reminder: '09:00',
+            area: null,
+            notes: '',
+            completed: false,
+            completedAt: null,
+            nextOccurrenceId: null,
+            seriesId: 'series-1',
+            createdAt: '2026-10-29T00:00:00Z',
+          },
+        ],
+        items: [
+          {
+            id: 'item-out-1',
+            householdId: 'h1',
+            name: 'Coffee Beans',
+            category: 'Kitchen',
+            quantity: 0,
+            currentStock: 0,
+            status: 'out',
+            unit: 'bag',
+            expectedUsageDays: null,
+            notes: '',
+          },
+        ],
+        transactions: [],
+      });
+
+      // Mock notifications module sendNotification
+      const notifModule = await import('../lib/notifications');
+      const sendSpy = vi.spyOn(notifModule, 'sendNotification').mockResolvedValue(true);
+
+      // Run check at 09:15
+      const mockNow = new Date(2026, 9, 29, 9, 15);
+      await checkScheduledNotifications(mockNow);
+
+      // Should have triggered task reminder, morning briefing (08:00 < 09:15), and out of stock
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Reminder: Water the plants',
+          url: '/tasks',
+        }),
+      );
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Today's Household Plan",
+          url: '/tasks',
+        }),
+      );
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Out of Stock: Coffee Beans',
+          url: '/inventory',
+        }),
+      );
+
+      // A second check at the same time shouldn't duplicate notifications
+      sendSpy.mockClear();
+      await checkScheduledNotifications(mockNow);
+      expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it('triggers partner sync notifications when enabled', async () => {
+      const {
+        notifyPartnerAssignedTask,
+        notifyPartnerCompletedTask,
+        notifyPartnerUpdatedShopping,
+      } = await import('../lib/notificationScheduler');
+      const notifModule = await import('../lib/notifications');
+      const sendSpy = vi.spyOn(notifModule, 'sendNotification').mockResolvedValue(true);
+
+      saveNotificationSettings({
+        enabled: true,
+        assignedByPartner: true,
+        taskCompletedByPartner: true,
+        liveCartUpdate: true,
+      });
+
+      await notifyPartnerAssignedTask(
+        {
+          id: 'task-1',
+          householdId: 'h1',
+          title: 'Buy groceries',
+          assigneeId: null,
+          dueDate: '2026-10-29',
+          recurrence: null,
+          estimatedDuration: null,
+          reminder: null,
+          area: null,
+          notes: '',
+          completed: false,
+          completedAt: null,
+          nextOccurrenceId: null,
+          seriesId: 'series-1',
+          createdAt: '2026-10-29T00:00:00Z',
+        },
+        'Minh',
+      );
+
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'New Task from Minh',
+          body: 'Minh assigned: "Buy groceries".',
+          url: '/tasks',
+        }),
+      );
+
+      await notifyPartnerCompletedTask(
+        {
+          id: 'task-1',
+          householdId: 'h1',
+          title: 'Buy groceries',
+          assigneeId: null,
+          dueDate: '2026-10-29',
+          recurrence: null,
+          estimatedDuration: null,
+          reminder: null,
+          area: null,
+          notes: '',
+          completed: true,
+          completedAt: '2026-10-29T10:00:00Z',
+          nextOccurrenceId: null,
+          seriesId: 'series-1',
+          createdAt: '2026-10-29T00:00:00Z',
+        },
+        'Minh',
+      );
+
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Task Completed',
+          body: 'Minh just finished: "Buy groceries".',
+          url: '/tasks',
+        }),
+      );
+
+      await notifyPartnerUpdatedShopping(
+        [
+          {
+            id: 's1',
+            householdId: 'h1',
+            itemId: 'i1',
+            name: 'Eggs',
+            category: 'Groceries',
+            quantity: 1,
+            unit: 'pack',
+            estimatedPrice: null,
+            store: '',
+            note: '',
+            completed: false,
+            createdAt: '2026-10-29',
+          },
+          {
+            id: 's2',
+            householdId: 'h1',
+            itemId: 'i2',
+            name: 'Milk',
+            category: 'Groceries',
+            quantity: 1,
+            unit: 'carton',
+            estimatedPrice: null,
+            store: '',
+            note: '',
+            completed: false,
+            createdAt: '2026-10-29',
+          },
+        ],
+        'Minh',
+      );
+
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Shopping List Updated',
+          body: 'Minh added Eggs and Milk to the shopping list.',
+          url: '/shopping',
+        }),
+      );
+    });
+
+    it('starts and stops scheduler cleanly without errors', async () => {
+      const { startNotificationScheduler, stopNotificationScheduler } = await import(
+        '../lib/notificationScheduler'
+      );
+      const stop = startNotificationScheduler();
+      expect(typeof stop).toBe('function');
+      stop();
+      stopNotificationScheduler();
+    });
+  });
 });
+

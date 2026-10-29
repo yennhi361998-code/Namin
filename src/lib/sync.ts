@@ -37,6 +37,11 @@ import type {
   Transaction,
 } from './types';
 import { toast } from '../store/ui';
+import {
+  notifyPartnerAssignedTask,
+  notifyPartnerCompletedTask,
+  notifyPartnerUpdatedShopping,
+} from './notificationScheduler';
 
 export interface MyWalletBackupMeta {
   backedUpAt: string;
@@ -604,8 +609,25 @@ export function startSyncListeners(userId: string, householdId: string) {
   activeUnsubscribes.push(memUnsub);
 
   // 3. Tasks listener
+  let isInitialTasksSnapshot = true;
   const tasksUnsub = onSnapshot(collection(db, 'households', householdId, 'tasks'), (snapshot) => {
     const tasks = snapshot.docs.map((d) => d.data() as Task);
+    if (isInitialTasksSnapshot) {
+      isInitialTasksSnapshot = false;
+    } else {
+      const currentMemberId = useStore.getState().currentMemberId;
+      const members = useStore.getState().members;
+      for (const change of snapshot.docChanges()) {
+        const task = change.doc.data() as Task;
+        if (change.type === 'added' && task.assigneeId === currentMemberId) {
+          const partner = members.find((m) => m.id !== currentMemberId);
+          notifyPartnerAssignedTask(task, partner?.name || 'Your partner').catch(() => {});
+        } else if (change.type === 'modified' && task.completed) {
+          const partner = members.find((m) => m.id !== currentMemberId);
+          notifyPartnerCompletedTask(task, partner?.name || 'Your partner').catch(() => {});
+        }
+      }
+    }
     isApplyingRemote = true;
     try {
       useStore.setState({ tasks });
@@ -629,8 +651,25 @@ export function startSyncListeners(userId: string, householdId: string) {
   activeUnsubscribes.push(checkUnsub);
 
   // 5. Shopping listener
+  let isInitialShopSnapshot = true;
   const shopUnsub = onSnapshot(collection(db, 'households', householdId, 'shopping'), (snapshot) => {
     const shopping = snapshot.docs.map((d) => d.data() as ShoppingItem);
+    if (isInitialShopSnapshot) {
+      isInitialShopSnapshot = false;
+    } else {
+      const addedItems: ShoppingItem[] = [];
+      for (const change of snapshot.docChanges()) {
+        if (change.type === 'added') {
+          addedItems.push(change.doc.data() as ShoppingItem);
+        }
+      }
+      if (addedItems.length > 0) {
+        const currentMemberId = useStore.getState().currentMemberId;
+        const members = useStore.getState().members;
+        const partner = members.find((m) => m.id !== currentMemberId);
+        notifyPartnerUpdatedShopping(addedItems, partner?.name || 'Your partner').catch(() => {});
+      }
+    }
     isApplyingRemote = true;
     try {
       useStore.setState({ shopping });

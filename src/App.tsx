@@ -10,6 +10,7 @@ import { Tasks } from './screens/Tasks';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SheetHost } from './sheets/SheetHost';
 import { initSyncAuth } from './lib/sync';
+import { startNotificationScheduler } from './lib/notificationScheduler';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 /** New screens start at the top; going back keeps the browser's restored scroll position. */
@@ -24,8 +25,12 @@ function ScrollOnNavigate() {
 
 export default function App() {
   useEffect(() => {
-    const unsub = initSyncAuth();
-    return () => unsub();
+    const unsubAuth = initSyncAuth();
+    const unsubScheduler = startNotificationScheduler();
+    return () => {
+      unsubAuth();
+      unsubScheduler();
+    };
   }, []);
 
   return (

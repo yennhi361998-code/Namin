@@ -120,14 +120,15 @@ export async function sendNotification({
     badge: '/favicon-32.png',
     tag,
     data: { url },
-    silent: true, // No sound as requested!
   };
 
   // Try via ServiceWorker first (best for PWA & Lockscreen)
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.ready;
-      if (reg && reg.showNotification) {
+      const swReadyPromise = navigator.serviceWorker.ready;
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+      const reg = await Promise.race([swReadyPromise, timeoutPromise]);
+      if (reg && 'showNotification' in reg) {
         await reg.showNotification(title, options);
         return true;
       }
