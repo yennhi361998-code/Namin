@@ -3,7 +3,7 @@ import { monthKey, today } from '../lib/dates';
 import { projectOccurrences } from '../lib/calendar';
 import { estimateRestock, LOW_THRESHOLD_DAYS, type RestockEstimate, type RestockPurchaseInput } from '../lib/restock';
 import { DAILY_CATEGORY_ID, OTHER_COLOR } from '../lib/moneyCategories';
-import type { Account, DateStr, Member, MoneyCategory, Purchase, Task, Transaction, TxType } from '../lib/types';
+import type { Account, DateStr, Member, MoneyCategory, Purchase, Recurrence, Task, Transaction, TxType } from '../lib/types';
 import { useStore } from './index';
 import type { Data } from './types';
 
@@ -24,20 +24,36 @@ export function useCurrentMember() {
 const byDue = (a: Task, b: Task) => a.dueDate.localeCompare(b.dueDate) || (a.reminder ?? '99').localeCompare(b.reminder ?? '99');
 
 export function taskLists(tasks: Task[], t: DateStr = today()) {
-  const open = tasks.filter((x) => !x.completed);
+  const seriesRecurrenceMap = new Map<string, Recurrence>();
+  for (const x of tasks) {
+    if (x.recurrence && x.seriesId) {
+      const currentRec = seriesRecurrenceMap.get(x.seriesId);
+      if (!currentRec || (!currentRec.endDate && x.recurrence.endDate)) {
+        seriesRecurrenceMap.set(x.seriesId, x.recurrence);
+      }
+    }
+  }
+
+  const validTasks = tasks.filter((x) => {
+    const seriesRec = x.seriesId ? seriesRecurrenceMap.get(x.seriesId) : null;
+    const seriesEndDate = seriesRec?.endDate || x.recurrence?.endDate;
+    return !(seriesEndDate && x.dueDate > seriesEndDate);
+  });
+
+  const open = validTasks.filter((x) => !x.completed);
   return {
     /**
      * Due today, including tasks completed today for today's due date.
      * Overdue uncompleted or completed tasks remain on their original due date and are not automatically moved to today.
      * One stable order regardless of completion, so rows never jump under the user's thumb.
      */
-    today: tasks
+    today: validTasks
       .filter((x) => x.dueDate === t)
       .sort((a, b) => byDue(a, b) || a.createdAt.localeCompare(b.createdAt)),
     overdue: open.filter((x) => x.dueDate < t),
     upcoming: open.filter((x) => x.dueDate > t).sort(byDue),
     recurring: open.filter((x) => x.recurrence).sort(byDue),
-    completed: tasks
+    completed: validTasks
       .filter((x) => x.completed)
       .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? '')),
     openCount: open.length,
@@ -254,6 +270,26 @@ export function tasksByDay(tasks: Task[], from: DateStr, to: DateStr, t: DateStr
     if (date < from || date > to) return;
     map.set(date, [...(map.get(date) ?? []), e]);
   };
+
+  // Find authoritative recurrence settings (cadence and endDate) for each recurring series
+  const seriesRecurrenceMap = new Map<string, Recurrence>();
+  const recurringSeries = new Map<string, { earliest: Task; latest: Task }>();
+  for (const x of tasks) {
+    if (x.recurrence && x.seriesId) {
+      const currentRec = seriesRecurrenceMap.get(x.seriesId);
+      if (!currentRec || (!currentRec.endDate && x.recurrence.endDate)) {
+        seriesRecurrenceMap.set(x.seriesId, x.recurrence);
+      }
+      const current = recurringSeries.get(x.seriesId);
+      if (!current) {
+        recurringSeries.set(x.seriesId, { earliest: x, latest: x });
+      } else {
+        if (x.dueDate < current.earliest.dueDate) current.earliest = x;
+        if (x.dueDate > current.latest.dueDate) current.latest = x;
+      }
+    }
+  }
+
   const taken = new Map<string, Set<DateStr>>();
   for (const x of tasks) {
     const s = taken.get(x.seriesId) ?? new Set();
@@ -264,32 +300,40 @@ export function tasksByDay(tasks: Task[], from: DateStr, to: DateStr, t: DateStr
     taken.set(x.seriesId, s);
   }
 
-  // 1. All stored tasks sit on their due dates (completed stay on their dueDate, overdue stay on original dueDate)
+  // 1. All stored tasks sit on their due dates (skip occurrences past the series repeat end date)
   for (const x of tasks) {
+    const seriesRec = x.seriesId ? seriesRecurrenceMap.get(x.seriesId) : null;
+    const seriesEndDate = seriesRec?.endDate || x.recurrence?.endDate;
+    if (seriesEndDate && x.dueDate > seriesEndDate) {
+      continue;
+    }
     const overdue = !x.completed && x.dueDate < t;
     push(x.dueDate, { task: x, projected: false, anchorId: x.id, overdue });
   }
 
   // 2. Project future repeats for recurring series that are not yet stored in tasks
   // Stepping starts from the earliest occurrence in the series, ensuring future days are always projected
-  // even if past or current occurrences are marked completed.
-  const recurringSeries = new Map<string, { earliest: Task; latest: Task }>();
-  for (const x of tasks) {
-    if (!x.recurrence) continue;
-    const current = recurringSeries.get(x.seriesId);
-    if (!current) {
-      recurringSeries.set(x.seriesId, { earliest: x, latest: x });
-    } else {
-      if (x.dueDate < current.earliest.dueDate) current.earliest = x;
-      if (x.dueDate > current.latest.dueDate) current.latest = x;
-    }
-  }
-
+  // even if past or current occurrences are marked completed, stopping strictly at recurrence.endDate.
   for (const { earliest, latest } of recurringSeries.values()) {
+    const effectiveRecurrence = seriesRecurrenceMap.get(earliest.seriesId) ?? earliest.recurrence ?? latest.recurrence;
+    if (!effectiveRecurrence) continue;
+    const anchorForProjection = {
+      ...earliest,
+      recurrence: effectiveRecurrence,
+    };
     const seriesTaken = taken.get(earliest.seriesId) ?? new Set();
-    for (const date of projectOccurrences(earliest, from, to, t, seriesTaken)) {
+    for (const date of projectOccurrences(anchorForProjection, from, to, t, seriesTaken)) {
+      if (effectiveRecurrence.endDate && date > effectiveRecurrence.endDate) break;
       push(date, {
-        task: { ...latest, id: `${latest.id}@${date}`, dueDate: date, completed: false, completedAt: null, completedBy: null },
+        task: {
+          ...latest,
+          recurrence: effectiveRecurrence,
+          id: `${latest.id}@${date}`,
+          dueDate: date,
+          completed: false,
+          completedAt: null,
+          completedBy: null,
+        },
         projected: true,
         anchorId: latest.id,
         overdue: date < t,

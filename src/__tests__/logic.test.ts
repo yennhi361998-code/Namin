@@ -1329,6 +1329,68 @@ describe('pre-generated recurring tasks in time range', () => {
     expect(weekMap.get(wednesday)?.find((e) => e.task.title === 'Water plants daily')?.task.completed).toBe(false);
     expect(weekMap.get(thursday)?.find((e) => e.task.title === 'Water plants daily')?.task.completed).toBe(false);
   });
+
+  it('migration v13 prunes tasks after recurrence.endDate and tasksByDay strictly stops at 15-Nov', async () => {
+    const { useStore } = await import('../store');
+    const { tasksByDay, taskLists } = await import('../store/selectors');
+
+    // Simulate pre-existing state with tasks on 15-Nov, 16-Nov, 17-Nov for a series ending on 15-Nov
+    const sid = 'test-series-15nov';
+    const fakeData = {
+      tasks: [
+        {
+          id: 't-15',
+          seriesId: sid,
+          title: 'Daily until 15 Nov',
+          dueDate: '2026-11-15',
+          recurrence: { unit: 'day', interval: 1, endDate: '2026-11-15' },
+          completed: false,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 't-16',
+          seriesId: sid,
+          title: 'Daily until 15 Nov',
+          dueDate: '2026-11-16',
+          recurrence: { unit: 'day', interval: 1, endDate: '2026-11-15' },
+          completed: false,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 't-17',
+          seriesId: sid,
+          title: 'Daily until 15 Nov',
+          dueDate: '2026-11-17',
+          recurrence: { unit: 'day', interval: 1, endDate: '2026-11-15' },
+          completed: false,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      checklist: [
+        { id: 'c-16', taskId: 't-16', title: 'Step', completed: false },
+      ],
+    };
+
+    const migrate = useStore.persist.getOptions().migrate!;
+    const migrated = migrate(fakeData as any, 12) as typeof fakeData;
+
+    // In migrated data: t-16 and t-17 must be pruned! Only t-15 remains!
+    expect(migrated.tasks.some((t) => t.dueDate === '2026-11-15')).toBe(true);
+    expect(migrated.tasks.some((t) => t.dueDate === '2026-11-16')).toBe(false);
+    expect(migrated.tasks.some((t) => t.dueDate === '2026-11-17')).toBe(false);
+    expect(migrated.checklist.some((c) => c.taskId === 't-16')).toBe(false);
+
+    // Verify tasksByDay and taskLists with tasks stopping at 15-Nov
+    const map = tasksByDay(migrated.tasks as any, '2026-11-14', '2026-11-20', '2026-11-14');
+    expect(map.get('2026-11-15')?.some((e) => e.task.title === 'Daily until 15 Nov')).toBe(true);
+    expect(Boolean(map.get('2026-11-16')?.some((e) => e.task.title === 'Daily until 15 Nov'))).toBe(false);
+    expect(Boolean(map.get('2026-11-17')?.some((e) => e.task.title === 'Daily until 15 Nov'))).toBe(false);
+
+    const lists = taskLists(migrated.tasks as any, '2026-11-14');
+    expect(lists.upcoming.some((t) => t.dueDate === '2026-11-15')).toBe(true);
+    expect(lists.upcoming.some((t) => t.dueDate === '2026-11-16')).toBe(false);
+    expect(lists.upcoming.some((t) => t.dueDate === '2026-11-17')).toBe(false);
+  });
 });
 
 

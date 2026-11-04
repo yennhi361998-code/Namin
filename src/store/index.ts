@@ -394,7 +394,11 @@ export const useStore = create<State>()(
 
         if ((recurrenceChanged || !hasFutureTasks) && input.recurrence) {
           const toRemove = s.tasks.filter(
-            (t) => t.seriesId === seriesId && t.id !== id && !t.completed && t.dueDate >= existing.dueDate,
+            (t) =>
+              t.seriesId === seriesId &&
+              t.id !== id &&
+              !t.completed &&
+              (t.dueDate >= existing.dueDate || (input.recurrence?.endDate && t.dueDate > input.recurrence.endDate)),
           );
           const removeIds = new Set(toRemove.map((t) => t.id));
 
@@ -445,9 +449,13 @@ export const useStore = create<State>()(
               count++;
             }
 
+          const updatedSeriesTasks = s.tasks
+            .filter((t) => !removeIds.has(t.id) && t.id !== id)
+            .map((t) => (t.seriesId === seriesId ? { ...t, recurrence: input.recurrence } : t));
+
           set({
             tasks: [
-              ...s.tasks.filter((t) => !removeIds.has(t.id) && t.id !== id),
+              ...updatedSeriesTasks,
               updatedCurrentTask,
               ...newGeneratedTasks,
             ],
@@ -1223,7 +1231,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'namin:data',
-      version: 12,
+      version: 13,
       migrate: (persisted, version) => {
         const data = persisted as Data;
         if (version < 2) {
@@ -1315,6 +1323,15 @@ export const useStore = create<State>()(
         }
         if (version < 12) {
           // Pre-generate occurrences for existing recurring series that only had 1 task
+          const seriesRecMap = new Map<string, Recurrence>();
+          for (const t of data.tasks ?? []) {
+            if (t.recurrence && t.seriesId) {
+              const cur = seriesRecMap.get(t.seriesId);
+              if (!cur || (!cur.endDate && t.recurrence.endDate)) {
+                seriesRecMap.set(t.seriesId, t.recurrence);
+              }
+            }
+          }
           const recurringAnchors = new Map<string, Task>();
           for (const t of data.tasks ?? []) {
             if (t.recurrence) {
@@ -1331,8 +1348,9 @@ export const useStore = create<State>()(
               (t) => t.seriesId === anchor.seriesId && t.dueDate > anchor.dueDate,
             );
             if (!hasFuture && anchor.recurrence && anchor.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(anchor.dueDate)) {
-              const rangeEnd = anchor.recurrence.endDate || addMonths(anchor.dueDate, 3);
-              let nextDate = step(anchor.dueDate, anchor.recurrence);
+              const rec = (anchor.seriesId ? seriesRecMap.get(anchor.seriesId) : null) || anchor.recurrence;
+              const rangeEnd = rec.endDate || addMonths(anchor.dueDate, 3);
+              let nextDate = step(anchor.dueDate, rec);
               let count = 1;
               const seriesChecklist = (data.checklist ?? []).filter((c) => c.taskId === anchor.id);
               while (nextDate <= rangeEnd && count < 100) {
@@ -1341,6 +1359,7 @@ export const useStore = create<State>()(
                   ...anchor,
                   id: occurrenceId,
                   dueDate: nextDate,
+                  recurrence: rec,
                   completed: false,
                   completedAt: null,
                   completedBy: null,
@@ -1356,7 +1375,7 @@ export const useStore = create<State>()(
                     completed: false,
                   })),
                 );
-                nextDate = step(nextDate, anchor.recurrence);
+                nextDate = step(nextDate, rec);
                 count++;
               }
             }
@@ -1365,6 +1384,42 @@ export const useStore = create<State>()(
             data.tasks = [...(data.tasks ?? []), ...newTasks];
             data.checklist = [...(data.checklist ?? []), ...newChecklists];
           }
+        }
+        if (version < 13) {
+          // 1. Identify true recurrence settings for each series (finding any endDate set on any occurrence)
+          const seriesRecurrenceMap = new Map<string, Recurrence>();
+          for (const t of data.tasks ?? []) {
+            if (t.recurrence && t.seriesId) {
+              const current = seriesRecurrenceMap.get(t.seriesId);
+              if (!current || (!current.endDate && t.recurrence.endDate)) {
+                seriesRecurrenceMap.set(t.seriesId, t.recurrence);
+              }
+            }
+          }
+
+          // 2. Remove any tasks that exceed their series's recurrence endDate
+          const toRemoveIds = new Set<string>();
+          for (const t of data.tasks ?? []) {
+            if (t.seriesId) {
+              const rec = seriesRecurrenceMap.get(t.seriesId) || t.recurrence;
+              if (rec?.endDate && t.dueDate > rec.endDate) {
+                toRemoveIds.add(t.id);
+              }
+            }
+          }
+
+          if (toRemoveIds.size > 0) {
+            data.tasks = (data.tasks ?? []).filter((t) => !toRemoveIds.has(t.id));
+            data.checklist = (data.checklist ?? []).filter((c) => !toRemoveIds.has(c.taskId));
+          }
+
+          // 3. Synchronize recurrence across all remaining tasks in each series
+          data.tasks = (data.tasks ?? []).map((t) => {
+            if (t.seriesId && seriesRecurrenceMap.has(t.seriesId)) {
+              return { ...t, recurrence: seriesRecurrenceMap.get(t.seriesId)! };
+            }
+            return t;
+          });
         }
         return data;
       },
