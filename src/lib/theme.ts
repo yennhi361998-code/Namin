@@ -123,7 +123,7 @@ export function applyTheme(settings: ThemeSettings): void {
   // 3. Contrast calculation for text and icons sitting on Header
   const headerLum = getRelativeLuminance(settings.headerColor);
   const isDarkHeader = headerLum < 0.4;
-  const headerInk = isDarkHeader ? '#FFFFFF' : '#175562';
+  const headerInk = isDarkHeader ? '#FFFFFF' : '#26343B';
   root.style.setProperty('--color-header-ink', headerInk);
   root.style.setProperty('--color-header-ink-rgb', hexToRgb(headerInk));
 

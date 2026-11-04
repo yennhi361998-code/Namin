@@ -1227,7 +1227,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'namin:data',
-      version: 13,
+      version: 14,
       migrate: (persisted, version) => {
         const data = persisted as Data;
         if (version < 2) {
@@ -1416,6 +1416,14 @@ export const useStore = create<State>()(
             }
             return t;
           });
+        }
+        if (version < 14) {
+          // Update Fuchsia purple account color #D946EF to soft pastel pink #E9A3E0
+          if (data.accounts) {
+            data.accounts = data.accounts.map((a) =>
+              a.color?.toLowerCase() === '#d946ef' ? { ...a, color: '#E9A3E0' } : a,
+            );
+          }
         }
         return data;
       },

@@ -9,8 +9,8 @@ export default {
         canvas: 'rgb(var(--color-canvas-rgb, 255 248 225) / <alpha-value>)',
         // Header band, active menu tab pill, and FAB '+' button border: Aqua Sky (#B5E7F1).
         header: 'rgb(var(--color-header-rgb, 181 231 241) / <alpha-value>)',
-        // Text and icon color on header background (#175562).
-        'header-ink': 'rgb(var(--color-header-ink-rgb, 23 85 98) / <alpha-value>)',
+        // Text and icon color on header background (#26343B).
+        'header-ink': 'rgb(var(--color-header-ink-rgb, 38 52 59) / <alpha-value>)',
         // Note-paper task lists (Home Today, Tasks day list).
         note: { DEFAULT: '#F4FAFD', edge: '#BBD8EB', line: '#A2CDE4', fold: '#D4E7F4', ring: '#7AAECB' },
         // Sticky-note task paper: yellow, a step stronger than the butter-cream canvas so it stands out.

@@ -242,7 +242,7 @@ export async function parseExcelFile(file: File): Promise<ImportPreviewData> {
       householdId: state.household.id,
       name: trimmed,
       icon: isDebt ? 'credit_card' : /momo|zalopay|ví/i.test(trimmed) ? 'account_balance_wallet' : /tiền mặt|cash/i.test(trimmed) ? 'payments' : 'account_balance',
-      color: isDebt ? '#8B5CF6' : /momo/i.test(trimmed) ? '#D946EF' : '#4B7BFF',
+      color: isDebt ? '#8B5CF6' : /momo/i.test(trimmed) ? '#E9A3E0' : '#4B7BFF',
       scope: resolvedScope,
       nature: isDebt ? 'debt' : 'asset',
       initialBalance,

@@ -38,7 +38,7 @@ export function ThemeSheet({ open, onClose }: { open: boolean; onClose: () => vo
 
   // Preview calculations
   const headerLum = getRelativeLuminance(theme.headerColor);
-  const previewHeaderInk = headerLum < 0.4 ? '#FFFFFF' : '#175562';
+  const previewHeaderInk = headerLum < 0.4 ? '#FFFFFF' : '#26343B';
   const previewLogoColor = headerLum > 0.88 ? previewHeaderInk : '#FFFFFF';
 
   return (

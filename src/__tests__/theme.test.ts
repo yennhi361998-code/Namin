@@ -132,7 +132,7 @@ describe('theme system', () => {
     expect(root.style.getPropertyValue('--color-canvas-rgb')).toBe('255 248 225');
     expect(root.style.getPropertyValue('--color-header')).toBe('#B5E7F1');
     expect(root.style.getPropertyValue('--color-header-rgb')).toBe('181 231 241');
-    expect(root.style.getPropertyValue('--color-header-ink')).toBe('#175562');
+    expect(root.style.getPropertyValue('--color-header-ink')).toBe('#26343B');
     expect(root.style.getPropertyValue('--color-header-logo')).toBe('#FFFFFF');
 
     // 2. Dark header (#111111): ink must flip to white #FFFFFF
@@ -141,10 +141,10 @@ describe('theme system', () => {
     expect(root.style.getPropertyValue('--color-header-ink')).toBe('#FFFFFF');
     expect(root.style.getPropertyValue('--color-header-logo')).toBe('#FFFFFF');
 
-    // 3. Pure white header (#FFFFFF): logo must be tinted #175562 so it does not disappear
+    // 3. Pure white header (#FFFFFF): logo must be tinted #26343B so it does not disappear
     applyTheme({ canvasColor: '#FFF5ED', headerColor: '#FFFFFF' });
     expect(root.style.getPropertyValue('--color-header')).toBe('#FFFFFF');
-    expect(root.style.getPropertyValue('--color-header-ink')).toBe('#175562');
-    expect(root.style.getPropertyValue('--color-header-logo')).toBe('#175562');
+    expect(root.style.getPropertyValue('--color-header-ink')).toBe('#26343B');
+    expect(root.style.getPropertyValue('--color-header-logo')).toBe('#26343B');
   });
 });

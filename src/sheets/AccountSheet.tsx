@@ -12,7 +12,7 @@ import type { AccountNature, FinanceScope, TxType } from '../lib/types';
 const ACCOUNT_COLORS = [
   '#3FA88B', // Green / Cash
   '#4B7BFF', // Blue / Bank
-  '#D946EF', // Purple / Momo
+  '#E9A3E0', // Purple / Momo
   '#F59E0B', // Amber / Gold
   '#EF4444', // Red
   '#06B6D4', // Cyan

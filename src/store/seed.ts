@@ -9,7 +9,7 @@ export function defaultAccounts(householdId: string): Account[] {
   return [
     { id: 'acc-cash', householdId, name: 'Cash', icon: 'payments', color: '#3FA88B', scope: 'personal', nature: 'asset', createdAt: now },
     { id: 'acc-bank', householdId, name: 'Bank Account', icon: 'account_balance', color: '#4B7BFF', scope: 'household', nature: 'asset', createdAt: now },
-    { id: 'acc-momo', householdId, name: 'E-Wallet', icon: 'account_balance_wallet', color: '#D946EF', scope: 'household', nature: 'asset', createdAt: now },
+    { id: 'acc-momo', householdId, name: 'E-Wallet', icon: 'account_balance_wallet', color: '#E9A3E0', scope: 'household', nature: 'asset', createdAt: now },
     { id: 'acc-personal-cash', householdId, name: 'Personal Cash', icon: 'payments', color: '#06B6D4', scope: 'personal', nature: 'asset', createdAt: now },
     { id: 'acc-personal-bank', householdId, name: 'Personal Credit Card', icon: 'credit_card', color: '#8B5CF6', scope: 'personal', nature: 'debt', createdAt: now },
   ];

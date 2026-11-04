@@ -309,7 +309,7 @@ export function TaskSheet({
                           className={cx(
                             'w-9 h-9 rounded-full flex items-center justify-center text-body-sm font-bold transition-colors cursor-pointer select-none',
                             active
-                              ? 'bg-sky text-white shadow-xs [text-shadow:0_1px_1.5px_rgba(23,85,98,0.35)]'
+                              ? 'bg-sky text-white shadow-xs [text-shadow:0_1px_1.5px_rgba(38,52,59,0.35)]'
                               : 'bg-soft text-ink hover:bg-line/40',
                           )}
                           aria-label={`Repeat on ${title}`}

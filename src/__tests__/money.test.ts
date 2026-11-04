@@ -80,7 +80,7 @@ describe('money totals', () => {
     const s = useStore.getState();
     const id1 = s.addAccount('Wallet 1', 'payments', '#3FA88B', 'personal');
     const id2 = s.addAccount('Wallet 2', 'payments', '#4B7BFF', 'personal');
-    const id3 = s.addAccount('Wallet 3', 'payments', '#D946EF', 'personal');
+    const id3 = s.addAccount('Wallet 3', 'payments', '#E9A3E0', 'personal');
 
     const accountsBefore = useStore.getState().accounts;
     const initialOrder = accountsBefore.map((a) => a.id);
@@ -180,6 +180,21 @@ describe('money totals', () => {
     expect(matches.length).toBe(2);
     expect(matches.some((m) => m.date === '2026-09-10')).toBe(true);
     expect(matches.some((m) => m.date === '2026-11-02')).toBe(true);
+  });
+
+  it('migrates v13 account color #D946EF to #E9A3E0', () => {
+    const migrate = useStore.persist.getOptions().migrate!;
+    const v13 = {
+      accounts: [
+        { id: 'acc-1', name: 'Cash', color: '#3FA88B' },
+        { id: 'acc-2', name: 'Momo', color: '#D946EF' },
+        { id: 'acc-3', name: 'ZaloPay', color: '#d946ef' },
+      ],
+    };
+    const out = migrate(v13, 13) as { accounts: { id: string; color: string }[] };
+    expect(out.accounts[0].color).toBe('#3FA88B');
+    expect(out.accounts[1].color).toBe('#E9A3E0');
+    expect(out.accounts[2].color).toBe('#E9A3E0');
   });
 });
 
