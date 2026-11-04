@@ -26,7 +26,7 @@ describe('recurrence', () => {
     expect(recurrenceLabel({ unit: 'day', interval: 1 })).toBe('Daily');
     expect(recurrenceLabel({ unit: 'week', interval: 1 }, '2026-09-26')).toBe('Every Saturday');
     expect(recurrenceLabel({ unit: 'week', interval: 2 })).toBe('Every 2 weeks');
-    expect(recurrenceLabel({ unit: 'day', interval: 1, endDate: '2026-11-20' })).toBe('Daily · Until 20 Nov');
+    expect(recurrenceLabel({ unit: 'day', interval: 1, endDate: '2026-11-20' })).toBe('Daily · Stop after 20 Nov');
   });
   it('respects recurrence endDate', () => {
     const dailyUntilNov10 = { unit: 'day' as const, interval: 1, endDate: '2026-11-10' };

@@ -186,7 +186,7 @@ export function TaskSheet({
               <div className="flex flex-col min-w-0">
                 <span className="text-body-sm font-medium text-ink">Repeat until</span>
                 <span className="text-caption text-ink-sub truncate">
-                  {recurrenceEndDate ? `Stops after ${shortDate(recurrenceEndDate)}` : 'No end date (repeats indefinitely)'}
+                  {recurrenceEndDate ? `Stop after ${shortDate(recurrenceEndDate)}` : 'No end date (repeats indefinitely)'}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">

@@ -36,7 +36,7 @@ export function recurrenceLabel(r: Recurrence | null, dueDate?: DateStr): string
     base = `Every ${interval} months`;
   }
   if (endDate) {
-    return `${base} · Until ${shortDate(endDate)}`;
+    return `${base} · Stop after ${shortDate(endDate)}`;
   }
   return base;
 }
