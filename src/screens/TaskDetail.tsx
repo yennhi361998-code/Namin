@@ -58,7 +58,7 @@ export function TaskDetail() {
   const overdue = !task.completed && selectedDate < t;
   const rel = relativeDay(selectedDate, t);
   const dueLabel = rel === shortDate(selectedDate) ? rel : `${rel} · ${shortDate(selectedDate)}`;
-  const nextDue = task.recurrence && !task.completed ? nextOccurrence(task.dueDate, task.recurrence, t) : null;
+  const nextDue = task.recurrence && !task.completed ? nextOccurrence(task.dueDate, task.recurrence, task.dueDate) : null;
 
   return (
     <>

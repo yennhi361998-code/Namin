@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { guessCategory } from '../lib/categories';
-import { today } from '../lib/dates';
 import { uid } from '../lib/id';
 import { nextOccurrence } from '../lib/recurrence';
 import { computeItemStatus, estimateRestock } from '../lib/restock';
@@ -307,7 +306,7 @@ export const useStore = create<State>()(
         const next: Task = {
           ...task,
           id: uid(),
-          dueDate: nextOccurrence(task.dueDate, task.recurrence, today(), seriesDates(s.tasks, task)),
+          dueDate: nextOccurrence(task.dueDate, task.recurrence, task.dueDate, seriesDates(s.tasks, task)),
           completed: false,
           completedAt: null,
           completedBy: null,

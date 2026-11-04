@@ -272,7 +272,7 @@ export function tasksByDay(tasks: Task[], from: DateStr, to: DateStr, t: DateStr
     const overdue = x.dueDate < t;
     push(x.dueDate, { task: x, projected: false, anchorId: x.id, overdue });
     for (const date of projectOccurrences(x, from, to, t, taken.get(x.seriesId))) {
-      push(date, { task: { ...x, id: `${x.id}@${date}`, dueDate: date }, projected: true, anchorId: x.id, overdue: false });
+      push(date, { task: { ...x, id: `${x.id}@${date}`, dueDate: date }, projected: true, anchorId: x.id, overdue: date < t });
     }
   }
   for (const list of map.values())

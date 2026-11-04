@@ -24,8 +24,8 @@ describe('projection', () => {
   it('projects after the current occurrence', () => {
     expect(projectOccurrences(daily, '2026-09-21', '2026-09-27', '2026-09-24')).toEqual(['2026-09-25', '2026-09-26', '2026-09-27']);
   });
-  it('an overdue recurring task stays on its due date, and projection starts from today onward', () => {
-    expect(projectOccurrences({ ...daily, dueDate: '2026-09-22' }, '2026-09-21', '2026-09-26', '2026-09-24')).toEqual(['2026-09-24', '2026-09-25', '2026-09-26']);
+  it('an overdue recurring task stays on its due date, and projects all occurrences in range', () => {
+    expect(projectOccurrences({ ...daily, dueDate: '2026-09-22' }, '2026-09-21', '2026-09-26', '2026-09-24')).toEqual(['2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26']);
   });
   it('skips taken dates and handles intervals and year ends', () => {
     expect(projectOccurrences(daily, '2026-09-21', '2026-09-27', '2026-09-24', new Set(['2026-09-26']))).toEqual(['2026-09-25', '2026-09-27']);
@@ -62,6 +62,51 @@ describe('ticking ahead', () => {
     useStore.getState().uncompleteTask(record.id);
     expect(useStore.getState().tasks.some((t) => t.id === record.id)).toBe(false);
     expect(useStore.getState().tasks.filter((t) => t.seriesId === trash.seriesId && !t.completed).length).toBe(1);
+  });
+
+  it('ticking an overdue occurrence does not skip subsequent occurrences (e.g. ticking Monday keeps Tuesday and Wednesday)', async () => {
+    const monday = '2026-11-02';
+    const tuesday = '2026-11-03';
+    const wednesday = '2026-11-04';
+    const thursday = '2026-11-05';
+
+    const taskId = useStore.getState().addTask({
+      title: 'Daily vitamins',
+      assigneeId: null,
+      dueDate: monday,
+      recurrence: { unit: 'day', interval: 1 },
+      estimatedDuration: null,
+      reminder: null,
+      area: null,
+      notes: '',
+      checklist: [],
+    });
+
+    const { tasksByDay } = await import('../store/selectors');
+    // Before ticking Monday: Monday has anchor task. Tuesday and Wednesday are projected.
+    let byDay = tasksByDay(useStore.getState().tasks, monday, thursday, wednesday);
+    expect(byDay.get(monday)?.some((e) => e.task.title === 'Daily vitamins')).toBe(true);
+    expect(byDay.get(tuesday)?.some((e) => e.task.title === 'Daily vitamins')).toBe(true);
+    expect(byDay.get(wednesday)?.some((e) => e.task.title === 'Daily vitamins')).toBe(true);
+
+    // Tick Monday
+    useStore.getState().completeTask(taskId);
+
+    // After ticking Monday:
+    // Monday is completed.
+    // Tuesday is now the active anchor task (uncompleted).
+    // Wednesday is still projected (uncompleted)! Neither is deleted or skipped!
+    byDay = tasksByDay(useStore.getState().tasks, monday, thursday, wednesday);
+    const mondayEntry = byDay.get(monday)?.find((e) => e.task.title === 'Daily vitamins');
+    expect(mondayEntry?.task.completed).toBe(true);
+
+    const tuesdayEntry = byDay.get(tuesday)?.find((e) => e.task.title === 'Daily vitamins');
+    expect(tuesdayEntry).toBeDefined();
+    expect(tuesdayEntry?.task.completed).toBe(false);
+
+    const wednesdayEntry = byDay.get(wednesday)?.find((e) => e.task.title === 'Daily vitamins');
+    expect(wednesdayEntry).toBeDefined();
+    expect(wednesdayEntry?.task.completed).toBe(false);
   });
 
   it('migrates v1 data by linking occurrence chains', () => {
