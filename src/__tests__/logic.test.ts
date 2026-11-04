@@ -198,19 +198,15 @@ describe('store flows', () => {
     useStore.setState(createDemoSeed());
   });
 
-  it('completing a recurring task spawns the next occurrence, undo retracts it', () => {
+  it('completing a recurring task marks it completed and does NOT auto-spawn a new task, uncomplete restores it', () => {
     const s = useStore.getState();
     const task = s.tasks.find((t) => t.title === 'Clean bathroom')!;
     const before = s.tasks.length;
     s.completeTask(task.id);
     let st = useStore.getState();
     const done = st.tasks.find((t) => t.id === task.id)!;
-    const next = st.tasks.find((t) => t.id === done.nextOccurrenceId)!;
     expect(done.completed).toBe(true);
-    expect(st.tasks.length).toBe(before + 1);
-    expect(next.dueDate).toBe(addDays(task.dueDate, 7));
-    expect(next.recurrence).toEqual(task.recurrence);
-    expect(st.checklist.filter((c) => c.taskId === next.id).map((c) => c.completed)).toEqual([false, false, false, false]);
+    expect(st.tasks.length).toBe(before); // Does not auto-spawn a new task!
     st.uncompleteTask(task.id);
     st = useStore.getState();
     expect(st.tasks.length).toBe(before);
@@ -266,11 +262,10 @@ describe('store flows', () => {
     let updatedTrash = st.items.find((i) => i.id === trash.id)!;
     expect(updatedTrash.currentStock).toBe(98);
 
-    // Next occurrence inherits mapping
     const doneTask = st.tasks.find((t) => t.id === task.id)!;
-    const nextTask = st.tasks.find((t) => t.id === doneTask.nextOccurrenceId)!;
-    expect(nextTask.mappedItemId).toBe(trash.id);
-    expect(nextTask.mappedQuantity).toBe(2);
+    expect(doneTask.completed).toBe(true);
+    expect(doneTask.mappedItemId).toBe(trash.id);
+    expect(doneTask.mappedQuantity).toBe(2);
 
     // Uncomplete restores stock
     st.uncompleteTask(task.id);
@@ -1054,14 +1049,14 @@ describe('Category insight exclusion rules and transaction note handling', () =>
     expect(task?.completedBy).toBeNull();
   });
 
-  it('deletes occurrence only for active due date by advancing to next occurrence', async () => {
+  it('deletes occurrence only for active due date without deleting other days', async () => {
     const { useStore } = await import('../store');
     const s = useStore.getState();
     const taskId = s.addTask({
       title: 'Water plants daily',
       assigneeId: null,
       dueDate: '2026-11-04',
-      recurrence: { unit: 'day', interval: 1 },
+      recurrence: { unit: 'day', interval: 1, endDate: '2026-11-08' },
       estimatedDuration: null,
       reminder: null,
       area: 'Balcony',
@@ -1069,28 +1064,32 @@ describe('Category insight exclusion rules and transaction note handling', () =>
       checklist: [],
     });
 
+    const seriesTasks = useStore.getState().tasks.filter((t) => t.title === 'Water plants daily');
+    expect(seriesTasks.length).toBe(5);
+
     // Delete occurrence for 2026-11-04
     const undo = s.deleteTaskOccurrence(taskId, '2026-11-04');
-    let task = useStore.getState().tasks.find((t) => t.id === taskId);
-    expect(task?.dueDate).toBe('2026-11-05');
-    expect(task?.excludedDates).toContain('2026-11-04');
+    let remaining = useStore.getState().tasks.filter((t) => t.title === 'Water plants daily');
+    expect(remaining.length).toBe(4);
+    expect(remaining.some((t) => t.dueDate === '2026-11-04')).toBe(false);
+    expect(remaining.some((t) => t.dueDate === '2026-11-05')).toBe(true);
 
-    // Undo restores previous due date and excludedDates
+    // Undo restores 2026-11-04
     undo();
-    task = useStore.getState().tasks.find((t) => t.id === taskId);
-    expect(task?.dueDate).toBe('2026-11-04');
-    expect(task?.excludedDates?.includes('2026-11-04')).toBeFalsy();
+    remaining = useStore.getState().tasks.filter((t) => t.title === 'Water plants daily');
+    expect(remaining.length).toBe(5);
+    expect(remaining.some((t) => t.dueDate === '2026-11-04')).toBe(true);
   });
 
-  it('deletes occurrence for future projected date by recording in excludedDates', async () => {
+  it('deletes occurrence for future projected or pre-generated date', async () => {
     const { useStore } = await import('../store');
     const { tasksByDay } = await import('../store/selectors');
     const s = useStore.getState();
-    const taskId = s.addTask({
+    s.addTask({
       title: 'Vacuum living room',
       assigneeId: null,
       dueDate: '2026-11-04',
-      recurrence: { unit: 'day', interval: 1 },
+      recurrence: { unit: 'day', interval: 1, endDate: '2026-11-08' },
       estimatedDuration: null,
       reminder: null,
       area: 'Living Room',
@@ -1098,15 +1097,13 @@ describe('Category insight exclusion rules and transaction note handling', () =>
       checklist: [],
     });
 
-    // Before deleting, 2026-11-06 has projected occurrence
+    // Before deleting, 2026-11-06 has occurrence
     let dayMap = tasksByDay(useStore.getState().tasks, '2026-11-04', '2026-11-07', '2026-11-04');
     expect(dayMap.get('2026-11-06')?.some((e) => e.task.title === 'Vacuum living room')).toBe(true);
 
     // Delete occurrence for 2026-11-06 only
-    const undo = s.deleteTaskOccurrence(taskId, '2026-11-06');
-    let task = useStore.getState().tasks.find((t) => t.id === taskId);
-    expect(task?.dueDate).toBe('2026-11-04');
-    expect(task?.excludedDates).toContain('2026-11-06');
+    const taskOnNov6 = useStore.getState().tasks.find((t) => t.title === 'Vacuum living room' && t.dueDate === '2026-11-06')!;
+    const undo = s.deleteTaskOccurrence(taskOnNov6.id, '2026-11-06');
 
     // Now 2026-11-06 should NOT have this task
     dayMap = tasksByDay(useStore.getState().tasks, '2026-11-04', '2026-11-07', '2026-11-04');
@@ -1129,7 +1126,7 @@ describe('Category insight exclusion rules and transaction note handling', () =>
       title: 'Mop floor weekly',
       assigneeId: null,
       dueDate: '2026-11-04',
-      recurrence: { unit: 'week', interval: 1 },
+      recurrence: { unit: 'week', interval: 1, endDate: '2026-11-25' },
       estimatedDuration: null,
       reminder: null,
       area: 'House',
@@ -1138,9 +1135,8 @@ describe('Category insight exclusion rules and transaction note handling', () =>
     });
 
     const task = useStore.getState().tasks.find((t) => t.id === taskId)!;
-    // Complete one occurrence ahead on 2026-11-11
-    useStore.getState().completeOccurrence(taskId, '2026-11-11');
-    expect(useStore.getState().tasks.filter((t) => t.seriesId === task.seriesId).length).toBe(2);
+    const seriesCount = useStore.getState().tasks.filter((t) => t.seriesId === task.seriesId).length;
+    expect(seriesCount).toBe(4);
 
     // Delete all occurrences
     const undo = useStore.getState().deleteTaskSeries(task.seriesId);
@@ -1148,7 +1144,7 @@ describe('Category insight exclusion rules and transaction note handling', () =>
 
     // Undo restores all occurrences in series
     undo();
-    expect(useStore.getState().tasks.filter((t) => t.seriesId === task.seriesId).length).toBe(2);
+    expect(useStore.getState().tasks.filter((t) => t.seriesId === task.seriesId).length).toBe(4);
   });
 });
 
@@ -1230,6 +1226,108 @@ describe('pre-generated recurring tasks in time range', () => {
       '2026-11-09',
       '2026-11-10',
     ]);
+  });
+
+  it('clicking done today preserves tomorrow and day after tomorrow in all views', async () => {
+    const { useStore } = await import('../store');
+    const { tasksByDay, taskLists } = await import('../store/selectors');
+    const s = useStore.getState();
+
+    const todayDate = '2026-11-04';
+    const tomorrowDate = '2026-11-05';
+    const dayAfterDate = '2026-11-06';
+
+    const taskId = s.addTask({
+      title: 'Take vitamins',
+      assigneeId: null,
+      dueDate: todayDate,
+      recurrence: { unit: 'day', interval: 1, endDate: '2026-11-10' },
+      estimatedDuration: null,
+      reminder: null,
+      area: null,
+      notes: '',
+      checklist: [],
+    });
+
+    // Check before: today, tomorrow, day after tomorrow all exist
+    let dayMap = tasksByDay(useStore.getState().tasks, todayDate, dayAfterDate, todayDate);
+    expect(dayMap.get(todayDate)?.some((e) => e.task.title === 'Take vitamins' && !e.task.completed)).toBe(true);
+    expect(dayMap.get(tomorrowDate)?.some((e) => e.task.title === 'Take vitamins' && !e.task.completed)).toBe(true);
+    expect(dayMap.get(dayAfterDate)?.some((e) => e.task.title === 'Take vitamins' && !e.task.completed)).toBe(true);
+
+    // Click done on today's task
+    s.completeTask(taskId);
+
+    // After clicking done:
+    // 1. Today is completed
+    const currentTodayTask = useStore.getState().tasks.find((t) => t.id === taskId);
+    expect(currentTodayTask?.completed).toBe(true);
+
+    // 2. Tomorrow and day after are STILL present and uncompleted in tasksByDay
+    dayMap = tasksByDay(useStore.getState().tasks, todayDate, dayAfterDate, todayDate);
+    expect(dayMap.get(todayDate)?.find((e) => e.task.title === 'Take vitamins')?.task.completed).toBe(true);
+
+    const tomorrowEntry = dayMap.get(tomorrowDate)?.find((e) => e.task.title === 'Take vitamins');
+    expect(tomorrowEntry).toBeDefined();
+    expect(tomorrowEntry?.task.completed).toBe(false);
+
+    const dayAfterEntry = dayMap.get(dayAfterDate)?.find((e) => e.task.title === 'Take vitamins');
+    expect(dayAfterEntry).toBeDefined();
+    expect(dayAfterEntry?.task.completed).toBe(false);
+
+    // 3. In upcoming task list, tomorrow and day after are still listed
+    const lists = taskLists(useStore.getState().tasks, todayDate);
+    expect(lists.upcoming.some((t) => t.dueDate === tomorrowDate && t.title === 'Take vitamins')).toBe(true);
+    expect(lists.upcoming.some((t) => t.dueDate === dayAfterDate && t.title === 'Take vitamins')).toBe(true);
+  });
+
+  it('clicking done on Monday when today is Wednesday does not delete Tuesday or Wednesday', async () => {
+    const { useStore } = await import('../store');
+    const { tasksByDay } = await import('../store/selectors');
+    const s = useStore.getState();
+
+    const monday = '2026-11-02';
+    const tuesday = '2026-11-03';
+    const wednesday = '2026-11-04';
+    const thursday = '2026-11-05';
+
+    s.addTask({
+      title: 'Water plants daily',
+      assigneeId: null,
+      dueDate: monday,
+      recurrence: { unit: 'day', interval: 1, endDate: '2026-11-10' },
+      estimatedDuration: null,
+      reminder: null,
+      area: null,
+      notes: '',
+      checklist: [],
+    });
+
+    const mondayTask = useStore.getState().tasks.find((t) => t.title === 'Water plants daily' && t.dueDate === monday)!;
+    const tuesdayTask = useStore.getState().tasks.find((t) => t.title === 'Water plants daily' && t.dueDate === tuesday)!;
+    const wednesdayTask = useStore.getState().tasks.find((t) => t.title === 'Water plants daily' && t.dueDate === wednesday)!;
+
+    // Ticking done Monday on Wednesday
+    s.completeTask(mondayTask.id);
+
+    // Monday is completed
+    expect(useStore.getState().tasks.find((t) => t.id === mondayTask.id)?.completed).toBe(true);
+
+    // Tuesday and Wednesday are NOT deleted and NOT completed!
+    const tuesdayAfter = useStore.getState().tasks.find((t) => t.id === tuesdayTask.id);
+    expect(tuesdayAfter).toBeDefined();
+    expect(tuesdayAfter?.completed).toBe(false);
+
+    const wednesdayAfter = useStore.getState().tasks.find((t) => t.id === wednesdayTask.id);
+    expect(wednesdayAfter).toBeDefined();
+    expect(wednesdayAfter?.completed).toBe(false);
+
+    // In tasksByDay for the week: Monday is done, Tuesday/Wednesday/Thursday are open
+    const weekMap = tasksByDay(useStore.getState().tasks, monday, thursday, wednesday);
+    expect(weekMap.get(monday)?.find((e) => e.task.title === 'Water plants daily')?.task.completed).toBe(true);
+    expect(weekMap.get(tuesday)?.find((e) => e.task.title === 'Water plants daily')?.task.completed).toBe(false);
+    expect(weekMap.get(wednesday)?.find((e) => e.task.title === 'Water plants daily')?.task.completed).toBe(false);
+    expect(weekMap.get(thursday)?.find((e) => e.task.title === 'Water plants daily')?.task.completed).toBe(false);
   });
 });
 

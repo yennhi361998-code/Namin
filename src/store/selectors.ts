@@ -264,17 +264,39 @@ export function tasksByDay(tasks: Task[], from: DateStr, to: DateStr, t: DateStr
     taken.set(x.seriesId, s);
   }
 
+  // 1. All stored tasks sit on their due dates (completed stay on their dueDate, overdue stay on original dueDate)
   for (const x of tasks) {
-    if (x.completed) {
-      push(x.dueDate, { task: x, projected: false, anchorId: x.id, overdue: false });
-      continue;
-    }
-    const overdue = x.dueDate < t;
+    const overdue = !x.completed && x.dueDate < t;
     push(x.dueDate, { task: x, projected: false, anchorId: x.id, overdue });
-    for (const date of projectOccurrences(x, from, to, t, taken.get(x.seriesId))) {
-      push(date, { task: { ...x, id: `${x.id}@${date}`, dueDate: date }, projected: true, anchorId: x.id, overdue: date < t });
+  }
+
+  // 2. Project future repeats for recurring series that are not yet stored in tasks
+  // Stepping starts from the earliest occurrence in the series, ensuring future days are always projected
+  // even if past or current occurrences are marked completed.
+  const recurringSeries = new Map<string, { earliest: Task; latest: Task }>();
+  for (const x of tasks) {
+    if (!x.recurrence) continue;
+    const current = recurringSeries.get(x.seriesId);
+    if (!current) {
+      recurringSeries.set(x.seriesId, { earliest: x, latest: x });
+    } else {
+      if (x.dueDate < current.earliest.dueDate) current.earliest = x;
+      if (x.dueDate > current.latest.dueDate) current.latest = x;
     }
   }
+
+  for (const { earliest, latest } of recurringSeries.values()) {
+    const seriesTaken = taken.get(earliest.seriesId) ?? new Set();
+    for (const date of projectOccurrences(earliest, from, to, t, seriesTaken)) {
+      push(date, {
+        task: { ...latest, id: `${latest.id}@${date}`, dueDate: date, completed: false, completedAt: null, completedBy: null },
+        projected: true,
+        anchorId: latest.id,
+        overdue: date < t,
+      });
+    }
+  }
+
   for (const list of map.values())
     list.sort(
       (a, b) =>

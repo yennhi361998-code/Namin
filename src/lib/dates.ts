@@ -43,6 +43,10 @@ export function addMonths(s: DateStr, n: number): DateStr {
   return toDateStr(d);
 }
 
+export function addYears(s: DateStr, n: number): DateStr {
+  return addMonths(s, n * 12);
+}
+
 /** Whole days from a to b (b - a). DST-safe because both are local midnights, rounded. */
 export function daysBetween(a: DateStr, b: DateStr): number {
   return Math.round((parseDate(b).getTime() - parseDate(a).getTime()) / DAY_MS);

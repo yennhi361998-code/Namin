@@ -166,7 +166,7 @@ export function TaskSheet({
           <DatePicker label="Due date" value={due} onChange={setDue} />
         </FormField>
 
-        <FormField label="Repeat" hint={effectiveRecurrence ? `${recurrenceLabel(effectiveRecurrence, due)}. The next one is scheduled when you complete this.` : undefined}>
+        <FormField label="Repeat" hint={effectiveRecurrence ? `${recurrenceLabel(effectiveRecurrence, due)}.` : undefined}>
           <ChipGroup
             label="Repeat"
             value={recurrence}

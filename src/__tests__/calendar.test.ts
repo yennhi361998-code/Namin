@@ -55,23 +55,40 @@ describe('ticking ahead', () => {
     useStore.setState(createDemoSeed());
   });
 
-  it('ticks one future date; the series skips it; unticking restores it', () => {
-    const trash = useStore.getState().tasks.find((t) => t.title === 'Take out trash' && !t.completed)!;
-    const d2 = addDays(today(), 2);
-    useStore.getState().completeOccurrence(trash.id, d2);
-    let record = useStore.getState().tasks.find((t) => t.seriesId === trash.seriesId && t.dueDate === d2)!;
-    expect(record.completed).toBe(true);
-    // Doing today's and tomorrow's normally, then the series jumps over the ticked day.
-    useStore.getState().completeTask(trash.id);
-    const tomorrow = useStore.getState().tasks.find((t) => t.seriesId === trash.seriesId && !t.completed)!;
-    expect(tomorrow.dueDate).toBe(addDays(today(), 1));
-    useStore.getState().completeTask(tomorrow.id);
-    const after = useStore.getState().tasks.find((t) => t.seriesId === trash.seriesId && !t.completed)!;
-    expect(after.dueDate).toBe(addDays(today(), 3));
-    // Unticking the ticked-ahead record removes it rather than leaving two open occurrences.
-    useStore.getState().uncompleteTask(record.id);
-    expect(useStore.getState().tasks.some((t) => t.id === record.id)).toBe(false);
-    expect(useStore.getState().tasks.filter((t) => t.seriesId === trash.seriesId && !t.completed).length).toBe(1);
+  it('ticks today; tomorrow and day after remain uncompleted and are NOT deleted or auto-spawned', () => {
+    const monday = '2026-11-02';
+    const tuesday = '2026-11-03';
+    const wednesday = '2026-11-04';
+
+    const taskId = useStore.getState().addTask({
+      title: 'Take out trash daily',
+      assigneeId: null,
+      dueDate: monday,
+      recurrence: { unit: 'day', interval: 1, endDate: wednesday },
+      estimatedDuration: null,
+      reminder: null,
+      area: 'Kitchen',
+      notes: '',
+      checklist: [],
+    });
+
+    const series = useStore.getState().tasks.filter((t) => t.title === 'Take out trash daily');
+    expect(series.length).toBe(3);
+
+    // Tick Monday
+    useStore.getState().completeTask(taskId);
+
+    // Monday is completed; Tuesday and Wednesday are still there, uncompleted!
+    const afterDone = useStore.getState().tasks.filter((t) => t.title === 'Take out trash daily');
+    expect(afterDone.length).toBe(3);
+    expect(afterDone.find((t) => t.dueDate === monday)?.completed).toBe(true);
+    expect(afterDone.find((t) => t.dueDate === tuesday)?.completed).toBe(false);
+    expect(afterDone.find((t) => t.dueDate === wednesday)?.completed).toBe(false);
+
+    // Unticking Monday restores Monday to uncompleted without touching Tuesday/Wednesday
+    useStore.getState().uncompleteTask(taskId);
+    const afterUntick = useStore.getState().tasks.filter((t) => t.title === 'Take out trash daily');
+    expect(afterUntick.every((t) => !t.completed)).toBe(true);
   });
 
   it('ticking an overdue occurrence does not skip subsequent occurrences (e.g. ticking Monday keeps Tuesday and Wednesday)', async () => {

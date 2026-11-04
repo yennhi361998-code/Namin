@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { guessCategory } from '../lib/categories';
+import { addMonths } from '../lib/dates';
 import { uid } from '../lib/id';
-import { nextOccurrence, step } from '../lib/recurrence';
+import { step } from '../lib/recurrence';
 import { computeItemStatus, estimateRestock } from '../lib/restock';
 import { defaultMoneyCategories, demoPersonalTransactions, demoTransactions, EMOJI_TO_ICON } from '../lib/moneyCategories';
 import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, LedgerEntry, Member, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, Transaction, TxType } from '../lib/types';
@@ -267,8 +268,8 @@ export const useStore = create<State>()(
         const newTasks: Task[] = [initialTask];
         const newChecklists: TaskChecklistItem[] = [...buildChecklist(id, checklist)];
 
-        if (input.recurrence?.endDate) {
-          const rangeEnd = input.recurrence.endDate;
+        if (input.recurrence) {
+          const rangeEnd = input.recurrence.endDate || addMonths(input.dueDate, 12);
           let nextDate = step(input.dueDate, input.recurrence);
           let count = 1;
           while (nextDate <= rangeEnd && count < 500) {
@@ -377,7 +378,8 @@ export const useStore = create<State>()(
           return;
         }
 
-        // Case 3: Recurrence settings changed (cadence or endDate) or turned ON
+        // Case 3: Recurrence settings changed (cadence or endDate) or turned ON,
+        // OR the series has recurrence but future occurrences were never pre-generated
         const recurrenceChanged =
           !existing.recurrence ||
           !input.recurrence ||
@@ -386,7 +388,11 @@ export const useStore = create<State>()(
           (existing.recurrence.endDate ?? null) !== (input.recurrence.endDate ?? null) ||
           existing.dueDate !== input.dueDate;
 
-        if (recurrenceChanged && input.recurrence) {
+        const hasFutureTasks = s.tasks.some(
+          (t) => t.seriesId === seriesId && t.id !== id && t.dueDate > existing.dueDate,
+        );
+
+        if ((recurrenceChanged || !hasFutureTasks) && input.recurrence) {
           const toRemove = s.tasks.filter(
             (t) => t.seriesId === seriesId && t.id !== id && !t.completed && t.dueDate >= existing.dueDate,
           );
@@ -409,9 +415,8 @@ export const useStore = create<State>()(
 
           const newGeneratedTasks: Task[] = [];
           const newGeneratedChecklists: TaskChecklistItem[] = [];
-          if (input.recurrence.endDate) {
-            const rangeEnd = input.recurrence.endDate;
-            let nextDate = step(input.dueDate, input.recurrence);
+          const rangeEnd = input.recurrence.endDate || addMonths(input.dueDate, 12);
+          let nextDate = step(input.dueDate, input.recurrence);
             let count = 1;
             while (nextDate <= rangeEnd && count < 500) {
               const occurrenceId = uid();
@@ -439,7 +444,6 @@ export const useStore = create<State>()(
               nextDate = step(nextDate, input.recurrence);
               count++;
             }
-          }
 
           set({
             tasks: [
@@ -515,45 +519,7 @@ export const useStore = create<State>()(
           completedBy: s.currentMemberId,
         };
 
-        // If the task does not repeat, OR if it has a recurrence with an endDate (where occurrences were pre-generated in a time range):
-        // Do NOT spawn any new task on completion!
-        const hasTimeRange = Boolean(
-          task.recurrence?.endDate ||
-          (task.seriesId && s.tasks.some((t) => t.seriesId === task.seriesId && t.recurrence?.endDate))
-        );
-
-        if (!task.recurrence || hasTimeRange) {
-          set({ tasks: s.tasks.map((t) => (t.id === id ? done : t)), items: updatedItems });
-          return;
-        }
-
-        const nextDue = nextOccurrence(task.dueDate, task.recurrence, task.dueDate, seriesDates(s.tasks, task));
-        if (!nextDue) {
-          set({ tasks: s.tasks.map((t) => (t.id === id ? done : t)), items: updatedItems });
-          return;
-        }
-        const next: Task = {
-          ...task,
-          id: uid(),
-          dueDate: nextDue,
-          completed: false,
-          completedAt: null,
-          completedBy: null,
-          createdBy: s.currentMemberId,
-          assignedBy: null,
-          isRecurringSpawn: true,
-          nextOccurrenceId: null,
-          createdAt: new Date().toISOString(),
-        };
-        done.nextOccurrenceId = next.id;
-        const nextChecklist = s.checklist
-          .filter((c) => c.taskId === id)
-          .map((c) => ({ ...c, id: uid(), taskId: next.id, completed: false }));
-        set({
-          tasks: [...s.tasks.map((t) => (t.id === id ? done : t)), next],
-          checklist: [...s.checklist, ...nextChecklist],
-          items: updatedItems,
-        });
+        set({ tasks: s.tasks.map((t) => (t.id === id ? done : t)), items: updatedItems });
       },
 
       completeOccurrence: (anchorId, date) => {
@@ -618,27 +584,8 @@ export const useStore = create<State>()(
             updatedItems = s.items.map((i) => (i.id === it.id ? { ...i, currentStock: (i.currentStock ?? 0) + task.mappedQuantity! } : i));
           }
         }
-        if (task.recurrence?.endDate) {
-          set({
-            tasks: s.tasks.map((t) => (t.id === id ? { ...t, completed: false, completedAt: null, completedBy: null } : t)),
-            items: updatedItems,
-          });
-          return;
-        }
-        // Legacy: A ticked-ahead record: unticking removes it so the date goes back to "scheduled"
-        const seriesOpen = s.tasks.some((t) => t.id !== id && t.seriesId === task.seriesId && !t.completed);
-        if (task.recurrence && !task.nextOccurrenceId && seriesOpen) {
-          set({ tasks: s.tasks.filter((t) => t.id !== id), checklist: s.checklist.filter((c) => c.taskId !== id), items: updatedItems });
-          return;
-        }
-        // Retract the occurrence this completion spawned, unless it has already been completed itself.
-        const spawned = task.nextOccurrenceId ? s.tasks.find((t) => t.id === task.nextOccurrenceId) : undefined;
-        const dropId = spawned && !spawned.completed ? spawned.id : null;
         set({
-          tasks: s.tasks
-            .filter((t) => t.id !== dropId)
-            .map((t) => (t.id === id ? { ...t, completed: false, completedAt: null, completedBy: null, nextOccurrenceId: null } : t)),
-          checklist: dropId ? s.checklist.filter((c) => c.taskId !== dropId) : s.checklist,
+          tasks: s.tasks.map((t) => (t.id === id ? { ...t, completed: false, completedAt: null, completedBy: null } : t)),
           items: updatedItems,
         });
       },
@@ -662,67 +609,21 @@ export const useStore = create<State>()(
         const prevTasks = s.tasks;
         const prevChecklist = s.checklist;
 
-        if (target.recurrence?.endDate) {
-          set({
-            tasks: s.tasks.filter((t) => t.id !== id),
-            checklist: s.checklist.filter((c) => c.taskId !== id),
-          });
-          return () => set({ tasks: prevTasks, checklist: prevChecklist });
-        }
+        const anchor =
+          s.tasks.find((t) => t.seriesId === target.seriesId && !t.isRecurringSpawn) ??
+          s.tasks.find((t) => t.seriesId === target.seriesId) ??
+          target;
 
-        const anchor = s.tasks.find((t) => t.seriesId === target.seriesId && t.recurrence != null) ?? target;
-
-        if (target.completed) {
-          const nextTasks = s.tasks.filter((t) => t.id !== id);
-          const updatedTasks = nextTasks.map((t) =>
+        const nextTasks = s.tasks
+          .filter((t) => !(t.id === id || (t.seriesId === target.seriesId && t.dueDate === date)))
+          .map((t) =>
             t.id === anchor.id
               ? { ...t, excludedDates: [...(t.excludedDates ?? []).filter((d) => d !== date), date] }
-              : t
+              : t,
           );
-          set({
-            tasks: updatedTasks,
-            checklist: s.checklist.filter((c) => c.taskId !== id),
-          });
-          return () => set({ tasks: prevTasks, checklist: prevChecklist });
-        }
-
-        if (date === target.dueDate) {
-          if (target.recurrence) {
-            const nextDate = nextOccurrence(
-              target.dueDate,
-              target.recurrence,
-              target.dueDate,
-              seriesDates(s.tasks, target),
-            );
-            if (!nextDate) {
-              return get().deleteTask(id);
-            }
-            const updatedTasks = s.tasks.map((t) =>
-              t.id === id
-                ? {
-                    ...t,
-                    dueDate: nextDate,
-                    excludedDates: [...(t.excludedDates ?? []).filter((d) => d !== date), date],
-                  }
-                : t
-            );
-            set({ tasks: updatedTasks });
-            return () => set({ tasks: prevTasks });
-          } else {
-            return get().deleteTask(id);
-          }
-        }
-
-        const updatedTasks = s.tasks.map((t) =>
-          t.id === anchor.id
-            ? {
-                ...t,
-                excludedDates: [...(t.excludedDates ?? []).filter((d) => d !== date), date],
-              }
-            : t
-        );
-        set({ tasks: updatedTasks });
-        return () => set({ tasks: prevTasks });
+        const nextChecklist = s.checklist.filter((c) => c.taskId !== id);
+        set({ tasks: nextTasks, checklist: nextChecklist });
+        return () => set({ tasks: prevTasks, checklist: prevChecklist });
       },
 
       deleteTaskSeries: (seriesId) => {
@@ -1322,7 +1223,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'namin:data',
-      version: 11,
+      version: 12,
       migrate: (persisted, version) => {
         const data = persisted as Data;
         if (version < 2) {
@@ -1410,6 +1311,59 @@ export const useStore = create<State>()(
                 cashAcc.scope = 'personal';
               }
             }
+          }
+        }
+        if (version < 12) {
+          // Pre-generate occurrences for existing recurring series that only had 1 task
+          const recurringAnchors = new Map<string, Task>();
+          for (const t of data.tasks ?? []) {
+            if (t.recurrence) {
+              const current = recurringAnchors.get(t.seriesId);
+              if (!current || t.dueDate < current.dueDate) {
+                recurringAnchors.set(t.seriesId, t);
+              }
+            }
+          }
+          const newTasks: Task[] = [];
+          const newChecklists: TaskChecklistItem[] = [];
+          for (const anchor of recurringAnchors.values()) {
+            const hasFuture = (data.tasks ?? []).some(
+              (t) => t.seriesId === anchor.seriesId && t.dueDate > anchor.dueDate,
+            );
+            if (!hasFuture && anchor.recurrence && anchor.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(anchor.dueDate)) {
+              const rangeEnd = anchor.recurrence.endDate || addMonths(anchor.dueDate, 3);
+              let nextDate = step(anchor.dueDate, anchor.recurrence);
+              let count = 1;
+              const seriesChecklist = (data.checklist ?? []).filter((c) => c.taskId === anchor.id);
+              while (nextDate <= rangeEnd && count < 100) {
+                const occurrenceId = uid();
+                newTasks.push({
+                  ...anchor,
+                  id: occurrenceId,
+                  dueDate: nextDate,
+                  completed: false,
+                  completedAt: null,
+                  completedBy: null,
+                  isRecurringSpawn: true,
+                  nextOccurrenceId: null,
+                  createdAt: new Date().toISOString(),
+                });
+                newChecklists.push(
+                  ...seriesChecklist.map((c) => ({
+                    ...c,
+                    id: uid(),
+                    taskId: occurrenceId,
+                    completed: false,
+                  })),
+                );
+                nextDate = step(nextDate, anchor.recurrence);
+                count++;
+              }
+            }
+          }
+          if (newTasks.length > 0) {
+            data.tasks = [...(data.tasks ?? []), ...newTasks];
+            data.checklist = [...(data.checklist ?? []), ...newChecklists];
           }
         }
         return data;
