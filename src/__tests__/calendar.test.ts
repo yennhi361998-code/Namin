@@ -178,6 +178,39 @@ describe('ticking ahead', () => {
     const third = all.find((t) => t.title === 'Practice Guitar' && !t.completed);
     expect(third).toBeUndefined(); // Series stopped, no more tasks spawned!
   });
+
+  it('pre-generates occurrences for custom weekly recurrence on specific days', () => {
+    // 2026-11-02 is Monday (1)
+    useStore.getState().addTask({
+      title: 'Workout MWF',
+      assigneeId: null,
+      dueDate: '2026-11-02',
+      recurrence: {
+        unit: 'week',
+        interval: 1,
+        daysOfWeek: [1, 3, 5],
+        endDate: '2026-11-13', // stops after Nov 13
+      },
+      reminder: null,
+      estimatedDuration: null,
+      area: null,
+      notes: '',
+      checklist: [],
+    });
+
+    const tasks = useStore.getState().tasks.filter((t) => t.title === 'Workout MWF');
+    const dates = tasks.map((t) => t.dueDate).sort();
+    // Expected MWF from Nov 2 to Nov 13:
+    // Nov 2 (Mon), Nov 4 (Wed), Nov 6 (Fri), Nov 9 (Mon), Nov 11 (Wed), Nov 13 (Fri)
+    expect(dates).toEqual([
+      '2026-11-02',
+      '2026-11-04',
+      '2026-11-06',
+      '2026-11-09',
+      '2026-11-11',
+      '2026-11-13',
+    ]);
+  });
 });
 
 describe('rangeLabel', () => {

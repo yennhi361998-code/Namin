@@ -1,15 +1,35 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { DatePicker, FormField, Select, Stepper, TextArea, TextInput } from '../components/forms';
 import { DatePickerModal } from '../components/DatePickerModal';
 import { BottomSheet } from '../components/overlay';
 import { ChipGroup, cx, Icon, PrimaryButton } from '../components/ui';
-import { shortDate, today } from '../lib/dates';
+import { parseDate, shortDate, today } from '../lib/dates';
 import { uid } from '../lib/id';
 import { ROOMS } from '../lib/rooms';
-import { RECURRENCE_PRESETS, recurrenceLabel, sameCadence } from '../lib/recurrence';
-import type { DateStr, Recurrence } from '../lib/types';
+import type { DateStr, Recurrence, RecurrenceUnit } from '../lib/types';
 import { useStore, type TaskInput } from '../store';
 import { toast } from '../store/ui';
+
+type RepeatOption = 'never' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+
+const REPEAT_OPTIONS: { label: string; value: RepeatOption }[] = [
+  { label: 'Never', value: 'never' },
+  { label: 'Daily', value: 'daily' },
+  { label: 'Weekly', value: 'weekly' },
+  { label: 'Bi-weekly', value: 'biweekly' },
+  { label: 'Monthly', value: 'monthly' },
+  { label: 'Custom', value: 'custom' },
+];
+
+function getInitialRepeatMode(r: Recurrence | null | undefined): RepeatOption {
+  if (!r) return 'never';
+  if (r.daysOfWeek && r.daysOfWeek.length > 0) return 'custom';
+  if (r.unit === 'day' && r.interval === 1) return 'daily';
+  if (r.unit === 'week' && r.interval === 1) return 'weekly';
+  if (r.unit === 'week' && r.interval === 2) return 'biweekly';
+  if (r.unit === 'month' && r.interval === 1) return 'monthly';
+  return 'custom';
+}
 
 export function TaskSheet({
   open,
@@ -40,9 +60,19 @@ export function TaskSheet({
   const [title, setTitle] = useState(existing?.title ?? initialValues?.title ?? '');
   const [assigneeId, setAssigneeId] = useState<string | null>(existing ? existing.assigneeId : currentMemberId);
   const [due, setDue] = useState<DateStr>(existing?.dueDate ?? dueDate ?? today());
-  const [recurrence, setRecurrence] = useState<Recurrence | null>(existing?.recurrence ?? null);
+  const [repeatMode, setRepeatMode] = useState<RepeatOption>(() => getInitialRepeatMode(existing?.recurrence));
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<DateStr | null>(existing?.recurrence?.endDate ?? null);
   const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
+
+  const [customInterval, setCustomInterval] = useState<number>(() => existing?.recurrence?.interval || 1);
+  const [customUnit, setCustomUnit] = useState<RecurrenceUnit>(() => existing?.recurrence?.unit || 'week');
+  const [customDaysOfWeek, setCustomDaysOfWeek] = useState<number[]>(() => {
+    if (existing?.recurrence?.daysOfWeek && existing.recurrence.daysOfWeek.length > 0) {
+      return existing.recurrence.daysOfWeek;
+    }
+    return [parseDate(existing?.dueDate ?? dueDate ?? today()).getDay()];
+  });
+
   const [mappedItemId, setMappedItemId] = useState<string | null>(existing?.mappedItemId ?? initialValues?.mappedItemId ?? null);
   const [mappedQuantity, setMappedQuantity] = useState<number>(existing?.mappedQuantity ?? initialValues?.mappedQuantity ?? 1);
   const [area, setArea] = useState<string | null>(existing?.area ?? initialValues?.area ?? null);
@@ -58,11 +88,28 @@ export function TaskSheet({
   const [error, setError] = useState<string | null>(null);
   const submitted = useRef(false);
 
-  // Keep a custom recurrence (e.g. every 3 months) selectable when editing.
-  const presets =
-    recurrence && !RECURRENCE_PRESETS.some((p) => sameCadence(p.value, recurrence))
-      ? [...RECURRENCE_PRESETS, { label: recurrenceLabel({ unit: recurrence.unit, interval: recurrence.interval }), value: recurrence }]
-      : RECURRENCE_PRESETS;
+  const handleSelectRepeatMode = (mode: RepeatOption) => {
+    setRepeatMode(mode);
+    if (mode === 'daily') {
+      setCustomUnit('day');
+      setCustomInterval(1);
+    } else if (mode === 'weekly') {
+      setCustomUnit('week');
+      setCustomInterval(1);
+      setCustomDaysOfWeek([parseDate(due).getDay()]);
+    } else if (mode === 'biweekly') {
+      setCustomUnit('week');
+      setCustomInterval(2);
+      setCustomDaysOfWeek([parseDate(due).getDay()]);
+    } else if (mode === 'monthly') {
+      setCustomUnit('month');
+      setCustomInterval(1);
+    } else if (mode === 'custom') {
+      if (customDaysOfWeek.length === 0) {
+        setCustomDaysOfWeek([parseDate(due).getDay()]);
+      }
+    }
+  };
 
   const addStep = () => {
     if (!step.trim()) return;
@@ -70,13 +117,36 @@ export function TaskSheet({
     setStep('');
   };
 
-  const effectiveRecurrence: Recurrence | null = recurrence
-    ? {
-        unit: recurrence.unit,
-        interval: recurrence.interval,
+  const effectiveRecurrence: Recurrence | null = useMemo(() => {
+    if (repeatMode === 'never') return null;
+    if (repeatMode === 'daily') {
+      return { unit: 'day', interval: 1, endDate: recurrenceEndDate || null };
+    }
+    if (repeatMode === 'weekly') {
+      return { unit: 'week', interval: 1, endDate: recurrenceEndDate || null };
+    }
+    if (repeatMode === 'biweekly') {
+      return { unit: 'week', interval: 2, endDate: recurrenceEndDate || null };
+    }
+    if (repeatMode === 'monthly') {
+      return { unit: 'month', interval: 1, endDate: recurrenceEndDate || null };
+    }
+    if (repeatMode === 'custom') {
+      const days =
+        customUnit === 'week'
+          ? customDaysOfWeek.length > 0
+            ? [...new Set(customDaysOfWeek)].sort((a, b) => a - b)
+            : [parseDate(due).getDay()]
+          : undefined;
+      return {
+        unit: customUnit,
+        interval: Math.max(1, customInterval || 1),
         endDate: recurrenceEndDate || null,
-      }
-    : null;
+        daysOfWeek: days,
+      };
+    }
+    return null;
+  }, [repeatMode, customUnit, customInterval, recurrenceEndDate, customDaysOfWeek, due]);
 
   const submit = () => {
     if (submitted.current) return;
@@ -84,7 +154,7 @@ export function TaskSheet({
       setError('Give the task a name.');
       return;
     }
-    if (recurrence && recurrenceEndDate && recurrenceEndDate < due) {
+    if (effectiveRecurrence && recurrenceEndDate && recurrenceEndDate < due) {
       setError('Repeat end date must be on or after the due date.');
       return;
     }
@@ -169,19 +239,93 @@ export function TaskSheet({
         <FormField label="Repeat">
           <ChipGroup
             label="Repeat"
-            value={recurrence}
-            onChange={(val) => {
-              if (!val) {
-                setRecurrence(null);
-              } else {
-                setRecurrence({ ...val, endDate: recurrenceEndDate });
-              }
-            }}
-            isEqual={sameCadence}
-            options={presets}
+            value={repeatMode}
+            onChange={handleSelectRepeatMode}
+            options={REPEAT_OPTIONS}
           />
 
-          {recurrence && (
+          {repeatMode === 'custom' && (
+            <div className="mt-3 p-4 rounded-2xl bg-canvas border border-line/60 flex flex-col gap-4">
+              <div className="text-body-md font-semibold text-ink border-b border-line/40 pb-2.5">
+                Custom repeat
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-body-sm font-medium text-ink">Repeat every</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <TextInput
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={customInterval}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setCustomInterval(isNaN(val) ? 1 : Math.max(1, Math.min(99, val)));
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Select
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value as RecurrenceUnit)}
+                    >
+                      <option value="day">{customInterval > 1 ? 'Days' : 'Day'}</option>
+                      <option value="week">{customInterval > 1 ? 'Weeks' : 'Week'}</option>
+                      <option value="month">{customInterval > 1 ? 'Months' : 'Month'}</option>
+                      <option value="year">{customInterval > 1 ? 'Years' : 'Year'}</option>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {customUnit === 'week' && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-body-sm font-medium text-ink">Repeat on</label>
+                  <div className="flex items-center justify-between">
+                    {[
+                      { day: 0, label: 'S', title: 'Sunday' },
+                      { day: 1, label: 'M', title: 'Monday' },
+                      { day: 2, label: 'T', title: 'Tuesday' },
+                      { day: 3, label: 'W', title: 'Wednesday' },
+                      { day: 4, label: 'T', title: 'Thursday' },
+                      { day: 5, label: 'F', title: 'Friday' },
+                      { day: 6, label: 'S', title: 'Saturday' },
+                    ].map(({ day, label, title }) => {
+                      const active = customDaysOfWeek.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            setCustomDaysOfWeek((prev) => {
+                              if (prev.includes(day)) {
+                                if (prev.length <= 1) return prev;
+                                return prev.filter((d) => d !== day);
+                              }
+                              return [...prev, day].sort((a, b) => a - b);
+                            });
+                          }}
+                          className={cx(
+                            'w-9 h-9 rounded-full flex items-center justify-center text-body-sm font-medium transition-colors cursor-pointer select-none',
+                            active
+                              ? 'bg-[#1A73E8] text-white shadow-xs'
+                              : 'bg-soft text-ink hover:bg-line/40',
+                          )}
+                          aria-label={`Repeat on ${title}`}
+                          aria-pressed={active}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {repeatMode !== 'never' && (
             <div className="mt-2.5 pt-2.5 border-t border-line/40 flex items-center justify-between gap-2">
               <div className="flex flex-col min-w-0">
                 <span className="text-body-sm font-medium text-ink">Repeat until</span>
@@ -195,7 +339,7 @@ export function TaskSheet({
                   onClick={() => setEndDatePickerOpen(true)}
                   className={cx(
                     'min-h-[34px] px-3 py-1 rounded-full text-body-sm border inline-flex items-center gap-1.5 transition-colors cursor-pointer',
-                    recurrenceEndDate ? 'bg-soft border-sky text-ink font-semibold' : 'bg-surface border-line text-ink-sub hover:text-ink'
+                    recurrenceEndDate ? 'bg-soft border-sky text-ink font-semibold' : 'bg-surface border-line text-ink-sub hover:text-ink',
                   )}
                 >
                   <Icon name="event" className="text-[16px] text-sky-dark" />
@@ -204,10 +348,7 @@ export function TaskSheet({
                 {recurrenceEndDate && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setRecurrenceEndDate(null);
-                      setRecurrence((prev) => (prev ? { ...prev, endDate: null } : null));
-                    }}
+                    onClick={() => setRecurrenceEndDate(null)}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-ink-sub hover:text-err-ink hover:bg-err-ink/10 active:bg-err-ink/20 transition-colors"
                     title="Clear end date"
                     aria-label="Clear end date"
@@ -351,7 +492,6 @@ export function TaskSheet({
         value={recurrenceEndDate || due}
         onChange={(d) => {
           setRecurrenceEndDate(d);
-          setRecurrence((prev) => (prev ? { ...prev, endDate: d } : null));
           setEndDatePickerOpen(false);
         }}
         title="Repeat until"

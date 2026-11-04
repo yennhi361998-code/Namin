@@ -3,7 +3,7 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 import { guessCategory } from '../lib/categories';
 import { addMonths } from '../lib/dates';
 import { uid } from '../lib/id';
-import { step } from '../lib/recurrence';
+import { sameRecurrence, step } from '../lib/recurrence';
 import { computeItemStatus, estimateRestock } from '../lib/restock';
 import { defaultMoneyCategories, demoPersonalTransactions, demoTransactions, EMOJI_TO_ICON } from '../lib/moneyCategories';
 import type { Account, AccountNature, Category, DateStr, FinanceScope, HouseholdItem, LedgerEntry, Member, MoneyCategory, Purchase, Recurrence, ShoppingItem, Task, TaskChecklistItem, Transaction, TxType } from '../lib/types';
@@ -378,14 +378,10 @@ export const useStore = create<State>()(
           return;
         }
 
-        // Case 3: Recurrence settings changed (cadence or endDate) or turned ON,
+        // Case 3: Recurrence settings changed (cadence, daysOfWeek, or endDate) or turned ON,
         // OR the series has recurrence but future occurrences were never pre-generated
         const recurrenceChanged =
-          !existing.recurrence ||
-          !input.recurrence ||
-          existing.recurrence.unit !== input.recurrence.unit ||
-          existing.recurrence.interval !== input.recurrence.interval ||
-          (existing.recurrence.endDate ?? null) !== (input.recurrence.endDate ?? null) ||
+          !sameRecurrence(existing.recurrence, input.recurrence) ||
           existing.dueDate !== input.dueDate;
 
         const hasFutureTasks = s.tasks.some(

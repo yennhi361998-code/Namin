@@ -25,8 +25,24 @@ describe('recurrence', () => {
   it('labels', () => {
     expect(recurrenceLabel({ unit: 'day', interval: 1 })).toBe('Daily');
     expect(recurrenceLabel({ unit: 'week', interval: 1 }, '2026-09-26')).toBe('Every Saturday');
-    expect(recurrenceLabel({ unit: 'week', interval: 2 })).toBe('Every 2 weeks');
+    expect(recurrenceLabel({ unit: 'week', interval: 2 })).toBe('Bi-weekly');
     expect(recurrenceLabel({ unit: 'day', interval: 1, endDate: '2026-11-20' })).toBe('Daily · Stop after 20 Nov');
+    expect(recurrenceLabel({ unit: 'week', interval: 1, daysOfWeek: [1, 3, 5] })).toBe('Weekly on Mon, Wed, Fri');
+    expect(recurrenceLabel({ unit: 'week', interval: 2, daysOfWeek: [1, 3, 5] })).toBe('Bi-weekly on Mon, Wed, Fri');
+    expect(recurrenceLabel({ unit: 'year', interval: 1 })).toBe('Yearly');
+    expect(recurrenceLabel({ unit: 'year', interval: 2 })).toBe('Every 2 years');
+  });
+  it('steps with custom daysOfWeek within week and across intervals', () => {
+    // 2026-11-02 is Monday (1)
+    const mwf = { unit: 'week' as const, interval: 1, daysOfWeek: [1, 3, 5] };
+    expect(nextOccurrence('2026-11-02', mwf, '2026-11-02')).toBe('2026-11-04'); // Wed
+    expect(nextOccurrence('2026-11-04', mwf, '2026-11-04')).toBe('2026-11-06'); // Fri
+    expect(nextOccurrence('2026-11-06', mwf, '2026-11-06')).toBe('2026-11-09'); // Next Mon
+
+    // Interval 2 weeks on Mon, Wed
+    const biMonWed = { unit: 'week' as const, interval: 2, daysOfWeek: [1, 3] };
+    expect(nextOccurrence('2026-11-02', biMonWed, '2026-11-02')).toBe('2026-11-04'); // Wed of same week
+    expect(nextOccurrence('2026-11-04', biMonWed, '2026-11-04')).toBe('2026-11-16'); // Mon 2 weeks later
   });
   it('respects recurrence endDate', () => {
     const dailyUntilNov10 = { unit: 'day' as const, interval: 1, endDate: '2026-11-10' };
@@ -38,9 +54,14 @@ describe('recurrence', () => {
     const r1 = { unit: 'day' as const, interval: 1 };
     const r2 = { unit: 'day' as const, interval: 1, endDate: '2026-11-20' };
     const r3 = { unit: 'day' as const, interval: 1, endDate: '2026-11-20' };
+    const r4 = { unit: 'week' as const, interval: 1, daysOfWeek: [1, 3] };
+    const r5 = { unit: 'week' as const, interval: 1, daysOfWeek: [3, 1] };
+    const r6 = { unit: 'week' as const, interval: 1, daysOfWeek: [1, 5] };
     expect(sameCadence(r1, r2)).toBe(true);
     expect(sameRecurrence(r1, r2)).toBe(false);
     expect(sameRecurrence(r2, r3)).toBe(true);
+    expect(sameCadence(r4, r5)).toBe(true);
+    expect(sameCadence(r4, r6)).toBe(false);
   });
 });
 
