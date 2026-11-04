@@ -342,6 +342,42 @@ describe('notification settings and specs', () => {
       );
     });
 
+    it('sets createdBy and isRecurringSpawn correctly so self or recurring tasks do not trigger partner assigned notifications', async () => {
+      const { useStore } = await import('../store');
+      const s = useStore.getState();
+      const innhi = s.members[0];
+      s.setCurrentMember(innhi.id);
+
+      // 1. Task created by innhi
+      const taskId = s.addTask({
+        title: 'Task ABC',
+        assigneeId: innhi.id,
+        dueDate: '2026-11-04',
+        recurrence: { unit: 'day', interval: 1 },
+        estimatedDuration: null,
+        reminder: null,
+        area: null,
+        notes: '',
+        checklist: [],
+      });
+
+      let taskABC = useStore.getState().tasks.find((t) => t.id === taskId)!;
+      expect(taskABC.createdBy).toBe(innhi.id);
+      expect(taskABC.assignedBy).toBe(innhi.id);
+      expect(taskABC.isRecurringSpawn).toBe(false);
+
+      // 2. innhi completes task ABC
+      s.completeTask(taskId);
+
+      // Spawned next occurrence
+      const allTasks = useStore.getState().tasks;
+      const nextOccurrence = allTasks.find((t) => t.seriesId === taskABC.seriesId && !t.completed)!;
+      expect(nextOccurrence).toBeDefined();
+      expect(nextOccurrence.isRecurringSpawn).toBe(true);
+      expect(nextOccurrence.createdBy).toBe(innhi.id);
+      expect(nextOccurrence.assignedBy).toBeNull();
+    });
+
     it('starts and stops scheduler cleanly without errors', async () => {
       const { startNotificationScheduler, stopNotificationScheduler } = await import(
         '../lib/notificationScheduler'

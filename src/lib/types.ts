@@ -50,6 +50,12 @@ export interface Task {
   completedAt: string | null;
   /** Member ID of the person who completed this task */
   completedBy?: string | null;
+  /** Member ID of the person who created this task */
+  createdBy?: string | null;
+  /** Member ID of the person who assigned this task to assigneeId */
+  assignedBy?: string | null;
+  /** True if this occurrence was auto-spawned by completing a prior recurring task */
+  isRecurringSpawn?: boolean;
   /** When a recurring occurrence is completed, the id of the occurrence it spawned. */
   nextOccurrenceId: string | null;
   /** Shared by every occurrence of the same recurring task (equals the first occurrence's id). */
@@ -75,6 +81,8 @@ export interface ShoppingItem {
   store: string;
   note: string;
   completed: boolean;
+  /** Member ID of the person who added this item */
+  createdBy?: string | null;
   createdAt: string;
 }
 

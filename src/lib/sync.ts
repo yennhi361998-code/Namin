@@ -632,17 +632,29 @@ export function startSyncListeners(userId: string, householdId: string) {
       const currentMemberId = useStore.getState().currentMemberId;
       const members = useStore.getState().members;
       for (const change of snapshot.docChanges()) {
+        if (change.doc.metadata.hasPendingWrites) continue;
+
         const task = change.doc.data() as Task;
-        if (change.type === 'added' && task.assigneeId === currentMemberId) {
-          const partner = members.find((m) => m.id !== currentMemberId);
-          notifyPartnerAssignedTask(task, partner?.name || 'Your partner').catch(() => {});
-        } else if (change.type === 'modified' && task.completed) {
-          if (task.completedBy && task.completedBy !== currentMemberId) {
-            const completer = members.find((m) => m.id === task.completedBy);
-            notifyPartnerCompletedTask(task, completer?.name || 'Your partner').catch(() => {});
-          } else if (!task.completedBy) {
-            const partner = members.find((m) => m.id !== currentMemberId);
-            notifyPartnerCompletedTask(task, partner?.name || 'Your partner').catch(() => {});
+        const assignerId = task.assignedBy || task.createdBy;
+
+        if (change.type === 'added') {
+          if (task.isRecurringSpawn) continue;
+
+          if (task.assigneeId === currentMemberId && assignerId && assignerId !== currentMemberId) {
+            const assigner = members.find((m) => m.id === assignerId);
+            notifyPartnerAssignedTask(task, assigner?.name || 'Your partner').catch(() => {});
+          }
+        } else if (change.type === 'modified') {
+          if (task.completed) {
+            if (task.completedBy && task.completedBy !== currentMemberId) {
+              const completer = members.find((m) => m.id === task.completedBy);
+              notifyPartnerCompletedTask(task, completer?.name || 'Your partner').catch(() => {});
+            }
+          } else {
+            if (task.assigneeId === currentMemberId && task.assignedBy && task.assignedBy !== currentMemberId) {
+              const assigner = members.find((m) => m.id === task.assignedBy);
+              notifyPartnerAssignedTask(task, assigner?.name || 'Your partner').catch(() => {});
+            }
           }
         }
       }
@@ -676,15 +688,19 @@ export function startSyncListeners(userId: string, householdId: string) {
     if (isInitialShopSnapshot) {
       isInitialShopSnapshot = false;
     } else {
+      const currentMemberId = useStore.getState().currentMemberId;
+      const members = useStore.getState().members;
       const addedItems: ShoppingItem[] = [];
       for (const change of snapshot.docChanges()) {
+        if (change.doc.metadata.hasPendingWrites) continue;
         if (change.type === 'added') {
-          addedItems.push(change.doc.data() as ShoppingItem);
+          const item = change.doc.data() as ShoppingItem;
+          if (item.createdBy && item.createdBy !== currentMemberId) {
+            addedItems.push(item);
+          }
         }
       }
       if (addedItems.length > 0) {
-        const currentMemberId = useStore.getState().currentMemberId;
-        const members = useStore.getState().members;
         const partner = members.find((m) => m.id !== currentMemberId);
         notifyPartnerUpdatedShopping(addedItems, partner?.name || 'Your partner').catch(() => {});
       }

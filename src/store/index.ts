@@ -241,6 +241,7 @@ export const useStore = create<State>()(
       addTask: (input) => {
         const id = uid();
         const { checklist, ...rest } = input;
+        const currentMemberId = get().currentMemberId;
         const task: Task = {
           ...rest,
           id,
@@ -251,6 +252,10 @@ export const useStore = create<State>()(
           mappedQuantity: input.mappedQuantity ?? null,
           completed: false,
           completedAt: null,
+          completedBy: null,
+          createdBy: currentMemberId,
+          assignedBy: input.assigneeId ? currentMemberId : null,
+          isRecurringSpawn: false,
           nextOccurrenceId: null,
           seriesId: id,
           createdAt: new Date().toISOString(),
@@ -261,6 +266,7 @@ export const useStore = create<State>()(
 
       updateTask: (id, input) => {
         const { checklist, ...rest } = input;
+        const currentMemberId = get().currentMemberId;
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === id
@@ -271,6 +277,10 @@ export const useStore = create<State>()(
                   notes: input.notes.trim(),
                   mappedItemId: input.mappedItemId ?? null,
                   mappedQuantity: input.mappedQuantity ?? null,
+                  assignedBy:
+                    input.assigneeId !== undefined && input.assigneeId !== t.assigneeId
+                      ? (input.assigneeId ? currentMemberId : null)
+                      : t.assignedBy,
                 }
               : t,
           ),
@@ -310,6 +320,9 @@ export const useStore = create<State>()(
           completed: false,
           completedAt: null,
           completedBy: null,
+          createdBy: s.currentMemberId,
+          assignedBy: null,
+          isRecurringSpawn: true,
           nextOccurrenceId: null,
           createdAt: new Date().toISOString(),
         };
@@ -348,6 +361,8 @@ export const useStore = create<State>()(
           completed: true,
           completedAt: new Date().toISOString(),
           completedBy: s.currentMemberId,
+          createdBy: s.currentMemberId,
+          assignedBy: null,
           nextOccurrenceId: null,
           // Same as the series so the row keeps its place in the day list when ticked.
           createdAt: anchor.createdAt,
@@ -534,6 +549,7 @@ export const useStore = create<State>()(
           store: input.store?.trim() || last?.store || '',
           note: input.note?.trim() ?? '',
           completed: false,
+          createdBy: s.currentMemberId,
           createdAt: new Date().toISOString(),
         };
         set({ items: newItems, shopping: [...s.shopping, entry] });
