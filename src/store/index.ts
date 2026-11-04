@@ -107,6 +107,8 @@ interface Actions {
   uncompleteTask: (id: string) => void;
   postponeTask: (id: string, dueDate: DateStr) => void;
   deleteTask: (id: string) => Undo;
+  deleteTaskOccurrence: (id: string, date: DateStr) => Undo;
+  deleteTaskSeries: (seriesId: string) => Undo;
   toggleChecklistItem: (id: string) => void;
 
   addToShopping: (input: ShoppingInput) => { ok: true; id: string } | { ok: false; reason: 'duplicate' | 'empty' };
@@ -190,7 +192,11 @@ function refreshStatus(
 
 /** Due dates already stored for a task's series (other occurrences only). */
 function seriesDates(tasks: Task[], task: Task): Set<DateStr> {
-  return new Set(tasks.filter((t) => t.seriesId === task.seriesId && t.id !== task.id).map((t) => t.dueDate));
+  const dates = new Set(tasks.filter((t) => t.seriesId === task.seriesId && t.id !== task.id).map((t) => t.dueDate));
+  if (task.excludedDates) {
+    for (const d of task.excludedDates) dates.add(d);
+  }
+  return dates;
 }
 
 function buildChecklist(taskId: string, list: TaskInput['checklist']): TaskChecklistItem[] {
@@ -408,6 +414,84 @@ export const useStore = create<State>()(
         set({ tasks: s.tasks.filter((t) => t.id !== id), checklist: s.checklist.filter((c) => c.taskId !== id) });
         return () => {
           if (task) set((st) => ({ tasks: [...st.tasks, task], checklist: [...st.checklist, ...items] }));
+        };
+      },
+
+      deleteTaskOccurrence: (id, date) => {
+        const s = get();
+        const target = s.tasks.find((t) => t.id === id);
+        if (!target) return () => {};
+
+        const anchor = s.tasks.find((t) => t.seriesId === target.seriesId && t.recurrence != null) ?? target;
+        const prevTasks = s.tasks;
+        const prevChecklist = s.checklist;
+
+        if (target.completed) {
+          const nextTasks = s.tasks.filter((t) => t.id !== id);
+          const updatedTasks = nextTasks.map((t) =>
+            t.id === anchor.id
+              ? { ...t, excludedDates: [...(t.excludedDates ?? []).filter((d) => d !== date), date] }
+              : t
+          );
+          set({
+            tasks: updatedTasks,
+            checklist: s.checklist.filter((c) => c.taskId !== id),
+          });
+          return () => set({ tasks: prevTasks, checklist: prevChecklist });
+        }
+
+        if (date === target.dueDate) {
+          if (target.recurrence) {
+            const nextDate = nextOccurrence(
+              target.dueDate,
+              target.recurrence,
+              target.dueDate,
+              seriesDates(s.tasks, target),
+            );
+            const updatedTasks = s.tasks.map((t) =>
+              t.id === id
+                ? {
+                    ...t,
+                    dueDate: nextDate,
+                    excludedDates: [...(t.excludedDates ?? []).filter((d) => d !== date), date],
+                  }
+                : t
+            );
+            set({ tasks: updatedTasks });
+            return () => set({ tasks: prevTasks });
+          } else {
+            return get().deleteTask(id);
+          }
+        }
+
+        const updatedTasks = s.tasks.map((t) =>
+          t.id === anchor.id
+            ? {
+                ...t,
+                excludedDates: [...(t.excludedDates ?? []).filter((d) => d !== date), date],
+              }
+            : t
+        );
+        set({ tasks: updatedTasks });
+        return () => set({ tasks: prevTasks });
+      },
+
+      deleteTaskSeries: (seriesId) => {
+        const s = get();
+        const deletedTasks = s.tasks.filter((t) => t.seriesId === seriesId);
+        const deletedIds = new Set(deletedTasks.map((t) => t.id));
+        const deletedItems = s.checklist.filter((c) => deletedIds.has(c.taskId));
+
+        set({
+          tasks: s.tasks.filter((t) => !deletedIds.has(t.id)),
+          checklist: s.checklist.filter((c) => !deletedIds.has(c.taskId)),
+        });
+
+        return () => {
+          set((st) => ({
+            tasks: [...st.tasks, ...deletedTasks],
+            checklist: [...st.checklist, ...deletedItems],
+          }));
         };
       },
 

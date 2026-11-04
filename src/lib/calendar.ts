@@ -33,7 +33,7 @@ export function monthGrid(key: string): DateStr[] {
  * Dates in `taken` already have a stored record.
  */
 export function projectOccurrences(
-  anchor: { dueDate: DateStr; recurrence: Recurrence | null },
+  anchor: { dueDate: DateStr; recurrence: Recurrence | null; excludedDates?: DateStr[] },
   from: DateStr,
   to: DateStr,
   todayStr: DateStr,
@@ -44,7 +44,7 @@ export function projectOccurrences(
   let d = step(anchor.dueDate, anchor.recurrence);
   for (let i = 0; d <= to && i < 2000; i++, d = step(d, anchor.recurrence)) {
     const isFutureOrToday = anchor.dueDate < todayStr ? d >= todayStr : d > anchor.dueDate;
-    if (d > anchor.dueDate && isFutureOrToday && d >= from && !taken.has(d)) {
+    if (d > anchor.dueDate && isFutureOrToday && d >= from && !taken.has(d) && !anchor.excludedDates?.includes(d)) {
       out.push(d);
     }
   }

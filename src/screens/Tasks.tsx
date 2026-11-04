@@ -9,8 +9,9 @@ import { EmptyState, NotePaper, paperRowBg, SectionHeader, SpiralCard } from '..
 import { monthGrid, weekDays } from '../lib/calendar';
 import { addDays, addMonths, monthKey, relativeDay, shortDate, shortWeekday, today, weekdayName } from '../lib/dates';
 import type { DateStr, Task } from '../lib/types';
+import { DeleteRecurrenceModal } from '../components/DeleteRecurrenceModal';
 import { useStore } from '../store';
-import { completeOccurrence, deleteTask, postponeTask, toggleTask } from '../store/actions';
+import { completeOccurrence, deleteTask, deleteTaskOccurrence, deleteTaskSeries, postponeTask, toggleTask } from '../store/actions';
 import { useMembers, useTaskLists, useTasksByDay, type DayEntry } from '../store/selectors';
 import { matchesAssignee, openSheet, useUi } from '../store/ui';
 import { ToBuySection } from '../components/ToBuySection';
@@ -72,8 +73,19 @@ export function Tasks() {
   }, [allByDay, filter]);
   const entries = byDay.get(mode === 'today' ? t : selected) ?? [];
   const [menuFor, setMenuFor] = useState<Task | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ task: Task; date: string } | null>(null);
+  const allTasks = useStore((s) => s.tasks);
   const addDate = mode === 'today' ? t : selected < t ? t : selected;
   const navigate = useNavigate();
+
+  const requestDelete = (task: Task, date: string) => {
+    const isRecurring = Boolean(task.recurrence) || allTasks.some((t) => t.seriesId === task.seriesId && t.recurrence != null);
+    if (isRecurring) {
+      setConfirmDelete({ task, date });
+    } else {
+      deleteTask(task.id);
+    }
+  };
 
   return (
     <>
@@ -103,7 +115,7 @@ export function Tasks() {
           <div>
             <SectionHeader id="today-title" title={dayTitle(t, t)} />
             {entries.length ? (
-              <DayList entries={entries} date={t} onMenu={setMenuFor} />
+              <DayList entries={entries} date={t} onMenu={setMenuFor} onDelete={requestDelete} />
             ) : (
               <EmptyState
                 message="No tasks for today."
@@ -121,7 +133,7 @@ export function Tasks() {
                     <button
                       key={task.id}
                       type="button"
-                      onClick={() => navigate(`/tasks/${task.id}`)}
+                      onClick={() => navigate(`/tasks/${task.id}?date=${task.dueDate}`)}
                       className="w-full text-left flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-black/[0.02] active:bg-black/[0.04] transition-colors group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -157,7 +169,7 @@ export function Tasks() {
                 onPrev={() => select(addDays(selected, -7))}
                 onNext={() => select(addDays(selected, 7))}
                 onToggle={(e, d) => (e.projected ? completeOccurrence(e.anchorId, d) : toggleTask(e.task.id))}
-                onOpen={(e) => navigate(`/tasks/${e.anchorId}`)}
+                onOpen={(e) => navigate(`/tasks/${e.anchorId}?date=${e.task.dueDate}`)}
               />
             ) : (
               <WeekTimetable
@@ -170,7 +182,7 @@ export function Tasks() {
                 onSelect={select}
                 onPrev={() => select(addDays(selected, -7))}
                 onNext={() => select(addDays(selected, 7))}
-                onOpen={(e) => navigate(`/tasks/${e.anchorId}`)}
+                onOpen={(e) => navigate(`/tasks/${e.anchorId}?date=${e.task.dueDate}`)}
               />
             )}
           </SpiralCard>
@@ -207,7 +219,7 @@ export function Tasks() {
                 }
               />
               {entries.length ? (
-                <DayList entries={entries} date={selected} onMenu={setMenuFor} />
+                <DayList entries={entries} date={selected} onMenu={setMenuFor} onDelete={requestDelete} />
               ) : (
                 <EmptyState message="Nothing planned for this day." action={{ label: 'Add task', onClick: () => openSheet({ type: 'task', dueDate: addDate }) }} />
               )}
@@ -219,12 +231,39 @@ export function Tasks() {
         </>
       )}
 
-      <TaskMenu task={menuFor} onClose={() => setMenuFor(null)} />
+      <TaskMenu task={menuFor} onClose={() => setMenuFor(null)} onDelete={(task) => requestDelete(task, task.dueDate)} />
+
+      {confirmDelete && (
+        <DeleteRecurrenceModal
+          open={Boolean(confirmDelete)}
+          onClose={() => setConfirmDelete(null)}
+          taskTitle={confirmDelete.task.title}
+          selectedDate={confirmDelete.date}
+          onDeleteOccurrence={() => {
+            deleteTaskOccurrence(confirmDelete.task.id, confirmDelete.date);
+            setConfirmDelete(null);
+          }}
+          onDeleteSeries={() => {
+            deleteTaskSeries(confirmDelete.task.seriesId);
+            setConfirmDelete(null);
+          }}
+        />
+      )}
     </>
   );
 }
 
-function DayList({ entries, date, onMenu }: { entries: DayEntry[]; date: DateStr; onMenu: (t: Task) => void }) {
+function DayList({
+  entries,
+  date,
+  onMenu,
+  onDelete,
+}: {
+  entries: DayEntry[];
+  date: DateStr;
+  onMenu: (t: Task) => void;
+  onDelete: (t: Task, date: DateStr) => void;
+}) {
   const navigate = useNavigate();
   const members = useMembers();
   const checklist = useStore((s) => s.checklist);
@@ -240,7 +279,7 @@ function DayList({ entries, date, onMenu }: { entries: DayEntry[]; date: DateStr
             projected={projected}
             inDay
             onToggle={() => (projected ? completeOccurrence(anchorId, date) : toggleTask(task.id))}
-            onOpen={() => navigate(`/tasks/${anchorId}`)}
+            onOpen={() => navigate(`/tasks/${anchorId}?date=${task.dueDate}`)}
           />
         );
         // Scheduled repeats aren't stored yet, so there's nothing to postpone or delete.
@@ -252,7 +291,7 @@ function DayList({ entries, date, onMenu }: { entries: DayEntry[]; date: DateStr
             onLongPress={() => onMenu(task)}
             actions={[
               ...(!task.completed ? [{ label: 'Postpone', icon: 'event' as const, tone: 'sky' as const, onSelect: () => postponeTask(task.id) }] : []),
-              { label: 'Delete', icon: 'delete', tone: 'err' as const, onSelect: () => deleteTask(task.id) },
+              { label: 'Delete', icon: 'delete', tone: 'err' as const, onSelect: () => onDelete(task, date) },
             ]}
           >
             {row}
@@ -263,7 +302,7 @@ function DayList({ entries, date, onMenu }: { entries: DayEntry[]; date: DateStr
   );
 }
 
-function TaskMenu({ task, onClose }: { task: Task | null; onClose: () => void }) {
+function TaskMenu({ task, onClose, onDelete }: { task: Task | null; onClose: () => void; onDelete: (t: Task) => void }) {
   const navigate = useNavigate();
   const [last, setLast] = useState<Task | null>(null);
   if (task && task !== last) setLast(task);
@@ -271,10 +310,10 @@ function TaskMenu({ task, onClose }: { task: Task | null; onClose: () => void })
   const actions: SheetAction[] = t
     ? [
         { label: t.completed ? 'Mark as not done' : 'Complete', icon: t.completed ? ('undo' as const) : ('check_circle' as const), onSelect: () => toggleTask(t.id) },
-        { label: 'Open details', icon: 'open_in_full', onSelect: () => navigate(`/tasks/${t.id}`) },
+        { label: 'Open details', icon: 'open_in_full', onSelect: () => navigate(`/tasks/${t.id}?date=${t.dueDate}`) },
         { label: 'Edit', icon: 'edit', onSelect: () => openSheet({ type: 'task', taskId: t.id }) },
         ...(!t.completed ? [{ label: 'Postpone a day', icon: 'event' as const, onSelect: () => postponeTask(t.id) }] : []),
-        { label: 'Delete', icon: 'delete', destructive: true, onSelect: () => deleteTask(t.id) },
+        { label: 'Delete', icon: 'delete', destructive: true, onSelect: () => onDelete(t) },
       ]
     : [];
   return <ActionSheet open={!!task} onClose={onClose} title={t?.title ?? ''} actions={actions} />;

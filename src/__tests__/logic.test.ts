@@ -1038,7 +1038,105 @@ describe('Category insight exclusion rules and transaction note handling', () =>
     expect(task?.completed).toBe(false);
     expect(task?.completedBy).toBeNull();
   });
+
+  it('deletes occurrence only for active due date by advancing to next occurrence', async () => {
+    const { useStore } = await import('../store');
+    const s = useStore.getState();
+    const taskId = s.addTask({
+      title: 'Water plants daily',
+      assigneeId: null,
+      dueDate: '2026-11-04',
+      recurrence: { unit: 'day', interval: 1 },
+      estimatedDuration: null,
+      reminder: null,
+      area: 'Balcony',
+      notes: '',
+      checklist: [],
+    });
+
+    // Delete occurrence for 2026-11-04
+    const undo = s.deleteTaskOccurrence(taskId, '2026-11-04');
+    let task = useStore.getState().tasks.find((t) => t.id === taskId);
+    expect(task?.dueDate).toBe('2026-11-05');
+    expect(task?.excludedDates).toContain('2026-11-04');
+
+    // Undo restores previous due date and excludedDates
+    undo();
+    task = useStore.getState().tasks.find((t) => t.id === taskId);
+    expect(task?.dueDate).toBe('2026-11-04');
+    expect(task?.excludedDates?.includes('2026-11-04')).toBeFalsy();
+  });
+
+  it('deletes occurrence for future projected date by recording in excludedDates', async () => {
+    const { useStore } = await import('../store');
+    const { tasksByDay } = await import('../store/selectors');
+    const s = useStore.getState();
+    const taskId = s.addTask({
+      title: 'Vacuum living room',
+      assigneeId: null,
+      dueDate: '2026-11-04',
+      recurrence: { unit: 'day', interval: 1 },
+      estimatedDuration: null,
+      reminder: null,
+      area: 'Living Room',
+      notes: '',
+      checklist: [],
+    });
+
+    // Before deleting, 2026-11-06 has projected occurrence
+    let dayMap = tasksByDay(useStore.getState().tasks, '2026-11-04', '2026-11-07', '2026-11-04');
+    expect(dayMap.get('2026-11-06')?.some((e) => e.task.title === 'Vacuum living room')).toBe(true);
+
+    // Delete occurrence for 2026-11-06 only
+    const undo = s.deleteTaskOccurrence(taskId, '2026-11-06');
+    let task = useStore.getState().tasks.find((t) => t.id === taskId);
+    expect(task?.dueDate).toBe('2026-11-04');
+    expect(task?.excludedDates).toContain('2026-11-06');
+
+    // Now 2026-11-06 should NOT have this task
+    dayMap = tasksByDay(useStore.getState().tasks, '2026-11-04', '2026-11-07', '2026-11-04');
+    expect(dayMap.get('2026-11-06')?.some((e) => e.task.title === 'Vacuum living room')).toBe(false);
+
+    // But 2026-11-05 and 2026-11-07 still have it
+    expect(dayMap.get('2026-11-05')?.some((e) => e.task.title === 'Vacuum living room')).toBe(true);
+    expect(dayMap.get('2026-11-07')?.some((e) => e.task.title === 'Vacuum living room')).toBe(true);
+
+    // Undo restores it
+    undo();
+    dayMap = tasksByDay(useStore.getState().tasks, '2026-11-04', '2026-11-07', '2026-11-04');
+    expect(dayMap.get('2026-11-06')?.some((e) => e.task.title === 'Vacuum living room')).toBe(true);
+  });
+
+  it('deletes entire recurring task series', async () => {
+    const { useStore } = await import('../store');
+    const s = useStore.getState();
+    const taskId = s.addTask({
+      title: 'Mop floor weekly',
+      assigneeId: null,
+      dueDate: '2026-11-04',
+      recurrence: { unit: 'week', interval: 1 },
+      estimatedDuration: null,
+      reminder: null,
+      area: 'House',
+      notes: '',
+      checklist: [{ title: 'Fill bucket', completed: false }],
+    });
+
+    const task = useStore.getState().tasks.find((t) => t.id === taskId)!;
+    // Complete one occurrence ahead on 2026-11-11
+    useStore.getState().completeOccurrence(taskId, '2026-11-11');
+    expect(useStore.getState().tasks.filter((t) => t.seriesId === task.seriesId).length).toBe(2);
+
+    // Delete all occurrences
+    const undo = useStore.getState().deleteTaskSeries(task.seriesId);
+    expect(useStore.getState().tasks.filter((t) => t.seriesId === task.seriesId).length).toBe(0);
+
+    // Undo restores all occurrences in series
+    undo();
+    expect(useStore.getState().tasks.filter((t) => t.seriesId === task.seriesId).length).toBe(2);
+  });
 });
+
 
 
 

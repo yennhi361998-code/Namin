@@ -31,6 +31,27 @@ export function deleteTask(id: string) {
   toast({ title: 'Task deleted', subtitle: task?.title, action: { label: 'Undo', run: undo } });
 }
 
+export function deleteTaskOccurrence(id: string, date: string) {
+  const task = useStore.getState().tasks.find((t) => t.id === id);
+  const undo = useStore.getState().deleteTaskOccurrence(id, date);
+  toast({
+    title: 'Occurrence deleted',
+    subtitle: task ? `${task.title} (${date})` : undefined,
+    action: { label: 'Undo', run: undo },
+  });
+}
+
+export function deleteTaskSeries(seriesId: string) {
+  const s = useStore.getState();
+  const seriesTasks = s.tasks.filter((t) => t.seriesId === seriesId);
+  const undo = s.deleteTaskSeries(seriesId);
+  toast({
+    title: 'Series deleted',
+    subtitle: `${seriesTasks.length} recurring ${seriesTasks.length === 1 ? 'task' : 'tasks'} removed`,
+    action: { label: 'Undo', run: undo },
+  });
+}
+
 export function postponeTask(id: string) {
   const s = useStore.getState();
   const task = s.tasks.find((t) => t.id === id);

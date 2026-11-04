@@ -58,6 +58,8 @@ export interface Task {
   mappedItemId?: string | null;
   /** Quantity of the item to consume per completion (in usage units). */
   mappedQuantity?: number | null;
+  /** Dates explicitly deleted / skipped from recurrence projection */
+  excludedDates?: DateStr[];
   createdAt: string;
 }
 

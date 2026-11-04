@@ -255,7 +255,14 @@ export function tasksByDay(tasks: Task[], from: DateStr, to: DateStr, t: DateStr
     map.set(date, [...(map.get(date) ?? []), e]);
   };
   const taken = new Map<string, Set<DateStr>>();
-  for (const x of tasks) taken.set(x.seriesId, (taken.get(x.seriesId) ?? new Set()).add(x.dueDate));
+  for (const x of tasks) {
+    const s = taken.get(x.seriesId) ?? new Set();
+    s.add(x.dueDate);
+    if (x.excludedDates) {
+      for (const d of x.excludedDates) s.add(d);
+    }
+    taken.set(x.seriesId, s);
+  }
 
   for (const x of tasks) {
     if (x.completed) {

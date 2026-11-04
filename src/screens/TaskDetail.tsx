@@ -1,13 +1,14 @@
 import type { IconName } from '../components/icons';
-import type { ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useState, type ReactNode } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { DeleteRecurrenceModal } from '../components/DeleteRecurrenceModal';
 import { HeaderButton, PageHeader, useBack } from '../components/shell';
 import { Badge, Card, Checkbox, cx, EmptyState, GhostButton, Icon, ListCard, MemberAvatar, PrimaryButton, ProgressBar, SecondaryButton } from '../components/ui';
 import { formatDuration, formatTime, headerDate, relativeDay, shortDate, today, toDateStr } from '../lib/dates';
 import { nextOccurrence, recurrenceLabel } from '../lib/recurrence';
 import { roomStyle } from '../lib/rooms';
 import { useStore } from '../store';
-import { deleteTask, postponeTask, toggleTask } from '../store/actions';
+import { deleteTask, deleteTaskOccurrence, deleteTaskSeries, postponeTask, toggleTask } from '../store/actions';
 import { useMembers } from '../store/selectors';
 import { openSheet } from '../store/ui';
 
@@ -23,12 +24,15 @@ function InfoRow({ icon, label, children }: { icon: IconName; label: string; chi
 
 export function TaskDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const back = useBack('/tasks');
-  const task = useStore((s) => s.tasks.find((t) => t.id === id));
+  const allTasks = useStore((s) => s.tasks);
+  const task = allTasks.find((t) => t.id === id);
   const allChecklist = useStore((s) => s.checklist);
   const items = useStore((s) => s.items);
   const toggleChecklistItem = useStore((s) => s.toggleChecklistItem);
   const members = useMembers();
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   if (!task) {
     return (
@@ -40,6 +44,10 @@ export function TaskDetail() {
     );
   }
 
+  const dateParam = searchParams.get('date');
+  const selectedDate = dateParam || task.dueDate;
+  const isRecurring = Boolean(task.recurrence) || allTasks.some((t) => t.seriesId === task.seriesId && t.recurrence != null);
+
   const checklist = allChecklist.filter((c) => c.taskId === task.id);
   const done = checklist.filter((c) => c.completed).length;
   const assignee = task.assigneeId ? members.get(task.assigneeId) : undefined;
@@ -47,9 +55,9 @@ export function TaskDetail() {
   const mappedItem = task.mappedItemId ? items.find((i) => i.id === task.mappedItemId) : undefined;
   const mappedItemUnit = mappedItem ? (mappedItem.usageUnit?.trim() || mappedItem.unit || 'unit') : '';
   const t = today();
-  const overdue = !task.completed && task.dueDate < t;
-  const rel = relativeDay(task.dueDate, t);
-  const dueLabel = rel === shortDate(task.dueDate) ? rel : `${rel} · ${shortDate(task.dueDate)}`;
+  const overdue = !task.completed && selectedDate < t;
+  const rel = relativeDay(selectedDate, t);
+  const dueLabel = rel === shortDate(selectedDate) ? rel : `${rel} · ${shortDate(selectedDate)}`;
   const nextDue = task.recurrence && !task.completed ? nextOccurrence(task.dueDate, task.recurrence, t) : null;
 
   return (
@@ -201,8 +209,12 @@ export function TaskDetail() {
           <button
             type="button"
             onClick={() => {
-              deleteTask(task.id);
-              back();
+              if (isRecurring) {
+                setConfirmDeleteOpen(true);
+              } else {
+                deleteTask(task.id);
+                back();
+              }
             }}
             className="min-h-[48px] rounded-xl text-err-ink text-body-md font-medium flex items-center justify-center gap-1.5 active:bg-err/50"
           >
@@ -211,6 +223,21 @@ export function TaskDetail() {
           </button>
         </div>
       </div>
+
+      <DeleteRecurrenceModal
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        taskTitle={task.title}
+        selectedDate={selectedDate}
+        onDeleteOccurrence={() => {
+          deleteTaskOccurrence(task.id, selectedDate);
+          back();
+        }}
+        onDeleteSeries={() => {
+          deleteTaskSeries(task.seriesId);
+          back();
+        }}
+      />
     </>
   );
 }

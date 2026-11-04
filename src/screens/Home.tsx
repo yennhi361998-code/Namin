@@ -53,7 +53,7 @@ export function Home() {
                   checklist={{ done: items.filter((c) => c.completed).length, total: items.length }}
                   showRecurrence={false}
                   onToggle={() => toggleTask(t.id)}
-                  onOpen={() => navigate(`/tasks/${t.id}`)}
+                  onOpen={() => navigate(`/tasks/${t.id}?date=${t.dueDate}`)}
                 />
               );
             })}
@@ -79,7 +79,7 @@ export function Home() {
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => navigate(`/tasks/${t.id}`)}
+                  onClick={() => navigate(`/tasks/${t.id}?date=${t.dueDate}`)}
                   className="w-full text-left flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-black/[0.02] active:bg-black/[0.04] transition-colors group"
                 >
                   <div className="flex items-center gap-3 min-w-0">
