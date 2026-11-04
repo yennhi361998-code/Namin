@@ -1152,6 +1152,87 @@ describe('Category insight exclusion rules and transaction note handling', () =>
   });
 });
 
+describe('pre-generated recurring tasks in time range', () => {
+  it('pre-generates all occurrences within the time range at creation time and does NOT auto-spawn on completeTask', async () => {
+    const { useStore } = await import('../store');
+    const s = useStore.getState();
+    s.addTask({
+      title: 'Morning Yoga',
+      assigneeId: null,
+      dueDate: '2026-11-04',
+      recurrence: { unit: 'day', interval: 1, endDate: '2026-11-08' },
+      estimatedDuration: null,
+      reminder: null,
+      area: 'Living Room',
+      notes: '15 mins stretch',
+      checklist: [{ title: 'Warm up', completed: false }],
+    });
+
+    // 1. Pre-generated at creation time: 5 occurrences (Nov 4, 5, 6, 7, 8)
+    const seriesTasks = useStore.getState().tasks.filter((t) => t.title === 'Morning Yoga');
+    expect(seriesTasks.length).toBe(5);
+    expect(seriesTasks.map((t) => t.dueDate)).toEqual([
+      '2026-11-04',
+      '2026-11-05',
+      '2026-11-06',
+      '2026-11-07',
+      '2026-11-08',
+    ]);
+    expect(seriesTasks.every((t) => !t.completed)).toBe(true);
+
+    // 2. Tick done on Nov 4 task:
+    const nov4 = seriesTasks.find((t) => t.dueDate === '2026-11-04')!;
+    useStore.getState().completeTask(nov4.id);
+
+    // After tick done: Nov 4 is completed, total count is STILL 5 (NO auto-spawned next task!)
+    const afterDone = useStore.getState().tasks.filter((t) => t.title === 'Morning Yoga');
+    expect(afterDone.length).toBe(5);
+    expect(afterDone.find((t) => t.dueDate === '2026-11-04')?.completed).toBe(true);
+    expect(afterDone.find((t) => t.dueDate === '2026-11-05')?.completed).toBe(false);
+    expect(afterDone.find((t) => t.dueDate === '2026-11-06')?.completed).toBe(false);
+
+    // 3. Untick Nov 4 task:
+    useStore.getState().uncompleteTask(nov4.id);
+    const afterUntick = useStore.getState().tasks.filter((t) => t.title === 'Morning Yoga');
+    expect(afterUntick.length).toBe(5);
+    expect(afterUntick.find((t) => t.dueDate === '2026-11-04')?.completed).toBe(false);
+
+    // 4. Delete occurrence on Nov 6 only:
+    const nov6 = afterUntick.find((t) => t.dueDate === '2026-11-06')!;
+    useStore.getState().deleteTaskOccurrence(nov6.id, '2026-11-06');
+    const afterDeleteOne = useStore.getState().tasks.filter((t) => t.title === 'Morning Yoga');
+    expect(afterDeleteOne.length).toBe(4);
+    expect(afterDeleteOne.some((t) => t.dueDate === '2026-11-06')).toBe(false);
+    expect(afterDeleteOne.some((t) => t.dueDate === '2026-11-05')).toBe(true);
+    expect(afterDeleteOne.some((t) => t.dueDate === '2026-11-07')).toBe(true);
+
+    // 5. Edit task: update title and extend time range to Nov 10
+    useStore.getState().updateTask(nov4.id, {
+      title: 'Power Yoga',
+      assigneeId: null,
+      dueDate: '2026-11-04',
+      recurrence: { unit: 'day', interval: 1, endDate: '2026-11-10' },
+      estimatedDuration: null,
+      reminder: null,
+      area: 'Living Room',
+      notes: 'Updated notes',
+      checklist: [{ title: 'Warm up', completed: false }],
+    });
+
+    const afterEdit = useStore.getState().tasks.filter((t) => t.title === 'Power Yoga');
+    expect(afterEdit.length).toBe(7); // Nov 4, 5, 6, 7, 8, 9, 10
+    expect(afterEdit.map((t) => t.dueDate)).toEqual([
+      '2026-11-04',
+      '2026-11-05',
+      '2026-11-06',
+      '2026-11-07',
+      '2026-11-08',
+      '2026-11-09',
+      '2026-11-10',
+    ]);
+  });
+});
+
 
 
 

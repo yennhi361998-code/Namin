@@ -1,5 +1,5 @@
 import type { IconName } from '../components/icons';
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { DeleteRecurrenceModal } from '../components/DeleteRecurrenceModal';
 import { HeaderButton, PageHeader, useBack } from '../components/shell';
@@ -58,6 +58,14 @@ export function TaskDetail() {
   const overdue = !task.completed && selectedDate < t;
   const rel = relativeDay(selectedDate, t);
   const dueLabel = rel === shortDate(selectedDate) ? rel : `${rel} · ${shortDate(selectedDate)}`;
+  const nextOccurrenceInSeries = useMemo(() => {
+    if (!task.seriesId) return null;
+    return (
+      allTasks
+        .filter((t) => t.seriesId === task.seriesId && t.dueDate > task.dueDate)
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0] || null
+    );
+  }, [allTasks, task.seriesId, task.dueDate]);
   const nextDue = task.recurrence && !task.completed ? nextOccurrence(task.dueDate, task.recurrence, task.dueDate) : null;
 
   return (
@@ -189,8 +197,8 @@ export function TaskDetail() {
               <SecondaryButton icon="undo" onClick={() => toggleTask(task.id)}>
                 Mark as not done
               </SecondaryButton>
-              {task.nextOccurrenceId && (
-                <Link to={`/tasks/${task.nextOccurrenceId}`} replace className="min-h-[44px] flex items-center justify-center gap-1 text-link text-label-md font-medium">
+              {(nextOccurrenceInSeries || task.nextOccurrenceId) && (
+                <Link to={`/tasks/${nextOccurrenceInSeries?.id || task.nextOccurrenceId}`} replace className="min-h-[44px] flex items-center justify-center gap-1 text-link text-label-md font-medium">
                   View next occurrence <Icon name="arrow_forward" className="text-[18px]" />
                 </Link>
               )}
@@ -200,7 +208,9 @@ export function TaskDetail() {
               <PrimaryButton icon="check" onClick={() => toggleTask(task.id)}>
                 Complete task
               </PrimaryButton>
-              {nextDue ? (
+              {nextOccurrenceInSeries ? (
+                <p className="text-center text-body-sm text-ink-sub">The next one is scheduled for {headerDate(nextOccurrenceInSeries.dueDate)}.</p>
+              ) : nextDue ? (
                 <p className="text-center text-body-sm text-ink-sub">The next one will be scheduled for {headerDate(nextDue)}.</p>
               ) : task.recurrence?.endDate ? (
                 <p className="text-center text-body-sm text-ink-sub">This is the last occurrence before repeat ends.</p>
