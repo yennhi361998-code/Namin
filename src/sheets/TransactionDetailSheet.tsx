@@ -6,7 +6,7 @@ import { longDate, shortDate, today, weekdayName } from '../lib/dates';
 import { formatVnd } from '../lib/money';
 import { DAILY_CATEGORY_ID, isCategoryHiddenFromInsights, isCategoryCycleHidden } from '../lib/moneyCategories';
 import { computeItemStatus, estimateRestock, statusFromEstimate, STATUS_LABEL } from '../lib/restock';
-import type { LedgerEntry } from '../lib/types';
+import type { LedgerEntry, TxType } from '../lib/types';
 import { quantityLabel } from '../components/rows';
 import { useStore } from '../store';
 import { toast } from '../store/ui';
@@ -38,7 +38,14 @@ export function TransactionDetailSheet({
     setLinkedItemId(null);
   }, [entry?.id, open]);
 
-  const rawItemName = (entry?.itemName || entry?.notes || '').trim();
+  const rawItemName = (
+    entry?.rawTransaction?.itemName ||
+    entry?.rawPurchase?.itemName ||
+    entry?.itemName ||
+    entry?.rawTransaction?.note ||
+    entry?.notes ||
+    ''
+  ).trim();
   const entryName = rawItemName.toLowerCase();
 
   const item = useMemo(() => {
@@ -62,14 +69,26 @@ export function TransactionDetailSheet({
       unit: string;
       store: string;
       notes: string;
+      type: TxType;
       isCurrent: boolean;
     }> = [];
     const currentRawId = (entry.id || '').replace(/^(pur-|tx-)/, '');
 
+    const hasCustomName = Boolean(
+      entry.rawTransaction?.itemName?.trim() ||
+      entry.rawPurchase?.itemName?.trim() ||
+      entry.rawTransaction?.note?.trim() ||
+      entry.notes?.trim() ||
+      item
+    );
+
     // 1. Household purchases
     for (const p of allPurchases) {
       const pName = (p.itemName || '').trim().toLowerCase();
-      const match = (item && p.itemId === item.id) || (Boolean(entryName) && pName === entryName);
+      const pNote = (p.notes || '').trim().toLowerCase();
+      const match =
+        (item && p.itemId === item.id) ||
+        (hasCustomName && Boolean(entryName) && (pName === entryName || pNote === entryName));
       if (match) {
         list.push({
           id: `pur-${p.id}`,
@@ -79,25 +98,32 @@ export function TransactionDetailSheet({
           unit: p.unit || item?.unit || 'item',
           store: p.store || '',
           notes: p.notes || '',
+          type: 'expense',
           isCurrent: entry.kind === 'purchase' && (entry.rawPurchase?.id === p.id || currentRawId === p.id),
         });
       }
     }
 
-    // 2. Personal / household transactions
+    // 2. Personal / household transactions across all time (including income, expense, transfer)
     for (const tx of transactions) {
-      if (tx.type !== 'expense') continue;
+      const txName = (tx.itemName || '').trim().toLowerCase();
       const txNote = (tx.note || '').trim().toLowerCase();
-      const match = (item && tx.itemId === item.id) || (Boolean(entryName) && txNote === entryName);
+      const txTitle = (tx.itemName?.trim() || tx.note?.trim() || '').toLowerCase();
+      const match =
+        (item && tx.itemId === item.id) ||
+        (hasCustomName &&
+          Boolean(entryName) &&
+          (txName === entryName || txNote === entryName || txTitle === entryName));
       if (match) {
         list.push({
           id: `tx-${tx.id}`,
           date: tx.date || '',
           price: tx.amount ?? null,
           quantity: tx.quantity || 1,
-          unit: tx.unit || item?.unit || 'item',
+          unit: tx.unit || (item ? item.unit : ''),
           store: '',
           notes: tx.note || '',
+          type: tx.type,
           isCurrent: entry.kind === 'transaction' && (entry.rawTransaction?.id === tx.id || currentRawId === tx.id),
         });
       }
@@ -109,9 +135,10 @@ export function TransactionDetailSheet({
         date: entry.date || '',
         price: entry.amount ?? null,
         quantity: entry.rawPurchase?.quantity ?? entry.rawTransaction?.quantity ?? 1,
-        unit: entry.rawPurchase?.unit ?? entry.rawTransaction?.unit ?? item?.unit ?? 'item',
+        unit: entry.rawPurchase?.unit ?? entry.rawTransaction?.unit ?? item?.unit ?? '',
         store: entry.rawPurchase?.store ?? '',
         notes: entry.notes ?? '',
+        type: entry.type,
         isCurrent: true,
       });
     }
@@ -571,8 +598,17 @@ export function TransactionDetailSheet({
                       {[quantityLabel(p.quantity, p.unit), p.store, p.notes].filter(Boolean).join(' · ') || '—'}
                     </span>
                   </div>
-                  <span className="font-semibold text-ink tabular-nums shrink-0">
-                    {p.price != null ? formatVnd(p.price) : '—'}
+                  <span
+                    className={cx(
+                      'font-semibold tabular-nums shrink-0',
+                      p.type === 'income' ? 'text-done-ink' : 'text-ink'
+                    )}
+                  >
+                    {p.price != null
+                      ? p.type === 'income'
+                        ? `+${formatVnd(p.price)}`
+                        : formatVnd(p.price)
+                      : '—'}
                   </span>
                 </div>
               ))}

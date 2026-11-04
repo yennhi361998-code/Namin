@@ -200,7 +200,11 @@ export function TaskDetail() {
               <PrimaryButton icon="check" onClick={() => toggleTask(task.id)}>
                 Complete task
               </PrimaryButton>
-              {nextDue && <p className="text-center text-body-sm text-ink-sub">The next one will be scheduled for {headerDate(nextDue)}.</p>}
+              {nextDue ? (
+                <p className="text-center text-body-sm text-ink-sub">The next one will be scheduled for {headerDate(nextDue)}.</p>
+              ) : task.recurrence?.endDate ? (
+                <p className="text-center text-body-sm text-ink-sub">This is the last occurrence before repeat ends.</p>
+              ) : null}
               <GhostButton icon="event" onClick={() => postponeTask(task.id)}>
                 Postpone a day
               </GhostButton>

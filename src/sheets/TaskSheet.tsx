@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import { DatePicker, FormField, Select, Stepper, TextArea, TextInput } from '../components/forms';
+import { DatePickerModal } from '../components/DatePickerModal';
 import { BottomSheet } from '../components/overlay';
 import { ChipGroup, cx, Icon, PrimaryButton } from '../components/ui';
-import { today } from '../lib/dates';
+import { shortDate, today } from '../lib/dates';
 import { uid } from '../lib/id';
 import { ROOMS } from '../lib/rooms';
-import { RECURRENCE_PRESETS, recurrenceLabel, sameRecurrence } from '../lib/recurrence';
+import { RECURRENCE_PRESETS, recurrenceLabel, sameCadence } from '../lib/recurrence';
 import type { DateStr, Recurrence } from '../lib/types';
 import { useStore, type TaskInput } from '../store';
 import { toast } from '../store/ui';
@@ -40,6 +41,8 @@ export function TaskSheet({
   const [assigneeId, setAssigneeId] = useState<string | null>(existing ? existing.assigneeId : currentMemberId);
   const [due, setDue] = useState<DateStr>(existing?.dueDate ?? dueDate ?? today());
   const [recurrence, setRecurrence] = useState<Recurrence | null>(existing?.recurrence ?? null);
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<DateStr | null>(existing?.recurrence?.endDate ?? null);
+  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
   const [mappedItemId, setMappedItemId] = useState<string | null>(existing?.mappedItemId ?? initialValues?.mappedItemId ?? null);
   const [mappedQuantity, setMappedQuantity] = useState<number>(existing?.mappedQuantity ?? initialValues?.mappedQuantity ?? 1);
   const [area, setArea] = useState<string | null>(existing?.area ?? initialValues?.area ?? null);
@@ -57,8 +60,8 @@ export function TaskSheet({
 
   // Keep a custom recurrence (e.g. every 3 months) selectable when editing.
   const presets =
-    recurrence && !RECURRENCE_PRESETS.some((p) => sameRecurrence(p.value, recurrence))
-      ? [...RECURRENCE_PRESETS, { label: recurrenceLabel(recurrence), value: recurrence }]
+    recurrence && !RECURRENCE_PRESETS.some((p) => sameCadence(p.value, recurrence))
+      ? [...RECURRENCE_PRESETS, { label: recurrenceLabel({ unit: recurrence.unit, interval: recurrence.interval }), value: recurrence }]
       : RECURRENCE_PRESETS;
 
   const addStep = () => {
@@ -67,10 +70,22 @@ export function TaskSheet({
     setStep('');
   };
 
+  const effectiveRecurrence: Recurrence | null = recurrence
+    ? {
+        unit: recurrence.unit,
+        interval: recurrence.interval,
+        endDate: recurrenceEndDate || null,
+      }
+    : null;
+
   const submit = () => {
     if (submitted.current) return;
     if (!title.trim()) {
       setError('Give the task a name.');
+      return;
+    }
+    if (recurrence && recurrenceEndDate && recurrenceEndDate < due) {
+      setError('Repeat end date must be on or after the due date.');
       return;
     }
     submitted.current = true;
@@ -79,7 +94,7 @@ export function TaskSheet({
       title,
       assigneeId,
       dueDate: due,
-      recurrence,
+      recurrence: effectiveRecurrence,
       reminder: existing?.reminder ?? null,
       estimatedDuration: existing?.estimatedDuration ?? null,
       area,
@@ -151,8 +166,58 @@ export function TaskSheet({
           <DatePicker label="Due date" value={due} onChange={setDue} />
         </FormField>
 
-        <FormField label="Repeat" hint={recurrence ? `${recurrenceLabel(recurrence, due)}. The next one is scheduled when you complete this.` : undefined}>
-          <ChipGroup label="Repeat" value={recurrence} onChange={setRecurrence} isEqual={sameRecurrence} options={presets} />
+        <FormField label="Repeat" hint={effectiveRecurrence ? `${recurrenceLabel(effectiveRecurrence, due)}. The next one is scheduled when you complete this.` : undefined}>
+          <ChipGroup
+            label="Repeat"
+            value={recurrence}
+            onChange={(val) => {
+              if (!val) {
+                setRecurrence(null);
+              } else {
+                setRecurrence({ ...val, endDate: recurrenceEndDate });
+              }
+            }}
+            isEqual={sameCadence}
+            options={presets}
+          />
+
+          {recurrence && (
+            <div className="mt-2.5 pt-2.5 border-t border-line/40 flex items-center justify-between gap-2">
+              <div className="flex flex-col min-w-0">
+                <span className="text-body-sm font-medium text-ink">Repeat until</span>
+                <span className="text-caption text-ink-sub truncate">
+                  {recurrenceEndDate ? `Stops after ${shortDate(recurrenceEndDate)}` : 'No end date (repeats indefinitely)'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEndDatePickerOpen(true)}
+                  className={cx(
+                    'min-h-[34px] px-3 py-1 rounded-full text-body-sm border inline-flex items-center gap-1.5 transition-colors cursor-pointer',
+                    recurrenceEndDate ? 'bg-soft border-sky text-ink font-semibold' : 'bg-surface border-line text-ink-sub hover:text-ink'
+                  )}
+                >
+                  <Icon name="event" className="text-[16px] text-sky-dark" />
+                  <span>{recurrenceEndDate ? shortDate(recurrenceEndDate) : 'Set end date'}</span>
+                </button>
+                {recurrenceEndDate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecurrenceEndDate(null);
+                      setRecurrence((prev) => (prev ? { ...prev, endDate: null } : null));
+                    }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-ink-sub hover:text-err-ink hover:bg-err-ink/10 active:bg-err-ink/20 transition-colors"
+                    title="Clear end date"
+                    aria-label="Clear end date"
+                  >
+                    <Icon name="close" className="text-[16px]" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </FormField>
 
         <FormField label="Room">
@@ -279,6 +344,18 @@ export function TaskSheet({
         {/* Lets the keyboard's return key submit from the name field. */}
         <button type="submit" hidden />
       </form>
+
+      <DatePickerModal
+        open={endDatePickerOpen}
+        onClose={() => setEndDatePickerOpen(false)}
+        value={recurrenceEndDate || due}
+        onChange={(d) => {
+          setRecurrenceEndDate(d);
+          setRecurrence((prev) => (prev ? { ...prev, endDate: d } : null));
+          setEndDatePickerOpen(false);
+        }}
+        title="Repeat until"
+      />
     </BottomSheet>
   );
 }

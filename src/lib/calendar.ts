@@ -41,8 +41,10 @@ export function projectOccurrences(
 ): DateStr[] {
   if (!anchor.recurrence) return [];
   const out: DateStr[] = [];
+  const endDate = anchor.recurrence.endDate;
   let d = step(anchor.dueDate, anchor.recurrence);
   for (let i = 0; d <= to && i < 2000; i++, d = step(d, anchor.recurrence)) {
+    if (endDate && d > endDate) break;
     if (d > anchor.dueDate && d >= from && !taken.has(d) && !anchor.excludedDates?.includes(d)) {
       out.push(d);
     }

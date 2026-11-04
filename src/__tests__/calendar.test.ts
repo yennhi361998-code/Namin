@@ -35,6 +35,16 @@ describe('projection', () => {
   it('next occurrence skips a date already ticked', () => {
     expect(nextOccurrence('2026-09-24', daily.recurrence, '2026-09-24', new Set(['2026-09-25']))).toBe('2026-09-26');
   });
+  it('stops projection at recurrence.endDate', () => {
+    const dailyUntil26 = {
+      dueDate: '2026-09-24',
+      recurrence: { unit: 'day' as const, interval: 1, endDate: '2026-09-26' },
+    };
+    expect(projectOccurrences(dailyUntil26, '2026-09-21', '2026-09-30', '2026-09-24')).toEqual([
+      '2026-09-25',
+      '2026-09-26',
+    ]);
+  });
 });
 
 describe('ticking ahead', () => {
@@ -122,6 +132,34 @@ describe('ticking ahead', () => {
     };
     const out = migrate(v1, 1) as { tasks: { id: string; seriesId: string }[] };
     expect(out.tasks.map((t) => t.seriesId)).toEqual(['a', 'a', 'a', 'x']);
+  });
+
+  it('finishes series when completing task at recurrence.endDate', () => {
+    const taskId = useStore.getState().addTask({
+      title: 'Practice Guitar',
+      assigneeId: null,
+      dueDate: '2026-11-04',
+      recurrence: { unit: 'day', interval: 1, endDate: '2026-11-05' },
+      reminder: null,
+      estimatedDuration: null,
+      area: null,
+      notes: '',
+      checklist: [],
+    });
+
+    // Complete the first occurrence (2026-11-04)
+    useStore.getState().completeTask(taskId);
+    let all = useStore.getState().tasks;
+    const second = all.find((t) => t.title === 'Practice Guitar' && !t.completed)!;
+    expect(second).toBeDefined();
+    expect(second.dueDate).toBe('2026-11-05');
+    expect(second.recurrence?.endDate).toBe('2026-11-05');
+
+    // Complete the last occurrence (2026-11-05)
+    useStore.getState().completeTask(second.id);
+    all = useStore.getState().tasks;
+    const third = all.find((t) => t.title === 'Practice Guitar' && !t.completed);
+    expect(third).toBeUndefined(); // Series stopped, no more tasks spawned!
   });
 });
 

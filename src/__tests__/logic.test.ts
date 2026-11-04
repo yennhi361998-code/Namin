@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { addDays, addMonths, today, parseDate, weekdayName, shortDate, longDate } from '../lib/dates';
 import { parseVnd, formatVnd } from '../lib/money';
-import { nextOccurrence, recurrenceLabel } from '../lib/recurrence';
+import { nextOccurrence, recurrenceLabel, sameCadence, sameRecurrence } from '../lib/recurrence';
 import { computeItemStatus, estimateRestock, isItemLowStock, statusFromEstimate } from '../lib/restock';
 import { guessCategory } from '../lib/categories';
 import { isCategoryHiddenFromInsights, isCategoryCycleHidden } from '../lib/moneyCategories';
@@ -26,6 +26,21 @@ describe('recurrence', () => {
     expect(recurrenceLabel({ unit: 'day', interval: 1 })).toBe('Daily');
     expect(recurrenceLabel({ unit: 'week', interval: 1 }, '2026-09-26')).toBe('Every Saturday');
     expect(recurrenceLabel({ unit: 'week', interval: 2 })).toBe('Every 2 weeks');
+    expect(recurrenceLabel({ unit: 'day', interval: 1, endDate: '2026-11-20' })).toBe('Daily · Until 20 Nov');
+  });
+  it('respects recurrence endDate', () => {
+    const dailyUntilNov10 = { unit: 'day' as const, interval: 1, endDate: '2026-11-10' };
+    expect(nextOccurrence('2026-11-08', dailyUntilNov10, '2026-11-08')).toBe('2026-11-09');
+    expect(nextOccurrence('2026-11-09', dailyUntilNov10, '2026-11-09')).toBe('2026-11-10');
+    expect(nextOccurrence('2026-11-10', dailyUntilNov10, '2026-11-10')).toBeNull();
+  });
+  it('sameRecurrence and sameCadence comparisons', () => {
+    const r1 = { unit: 'day' as const, interval: 1 };
+    const r2 = { unit: 'day' as const, interval: 1, endDate: '2026-11-20' };
+    const r3 = { unit: 'day' as const, interval: 1, endDate: '2026-11-20' };
+    expect(sameCadence(r1, r2)).toBe(true);
+    expect(sameRecurrence(r1, r2)).toBe(false);
+    expect(sameRecurrence(r2, r3)).toBe(true);
   });
 });
 

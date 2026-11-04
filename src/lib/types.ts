@@ -8,6 +8,8 @@ export type RecurrenceUnit = 'day' | 'week' | 'month';
 export interface Recurrence {
   unit: RecurrenceUnit;
   interval: number;
+  /** Optional date after which the task no longer repeats. */
+  endDate?: DateStr | null;
 }
 
 export interface Household {

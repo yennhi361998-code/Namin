@@ -312,11 +312,17 @@ export const useStore = create<State>()(
           set({ tasks: s.tasks.map((t) => (t.id === id ? done : t)), items: updatedItems });
           return;
         }
+        const nextDue = nextOccurrence(task.dueDate, task.recurrence, task.dueDate, seriesDates(s.tasks, task));
+        if (!nextDue) {
+          // Reached or passed recurrence.endDate - series is finished.
+          set({ tasks: s.tasks.map((t) => (t.id === id ? done : t)), items: updatedItems });
+          return;
+        }
         // Recurring: spawn the next occurrence with the same configuration and a fresh checklist.
         const next: Task = {
           ...task,
           id: uid(),
-          dueDate: nextOccurrence(task.dueDate, task.recurrence, task.dueDate, seriesDates(s.tasks, task)),
+          dueDate: nextDue,
           completed: false,
           completedAt: null,
           completedBy: null,
@@ -341,6 +347,7 @@ export const useStore = create<State>()(
         const s = get();
         const anchor = s.tasks.find((t) => t.id === anchorId);
         if (!anchor || seriesDates(s.tasks, anchor).has(date)) return () => {};
+        if (anchor.recurrence?.endDate && date > anchor.recurrence.endDate) return () => {};
         let updatedItems = s.items;
         const mappedItemId = anchor.mappedItemId;
         const mappedQty = anchor.mappedQuantity;
@@ -462,6 +469,9 @@ export const useStore = create<State>()(
               target.dueDate,
               seriesDates(s.tasks, target),
             );
+            if (!nextDate) {
+              return get().deleteTask(id);
+            }
             const updatedTasks = s.tasks.map((t) =>
               t.id === id
                 ? {

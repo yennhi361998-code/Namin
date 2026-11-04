@@ -142,6 +142,45 @@ describe('money totals', () => {
     expect(adjTx?.amount).toBe(500_000);
     expect(adjTx?.type).toBe('expense');
   });
+
+  it('keeps all-time history for income transactions matching name (e.g. Tiền ba mẹ)', () => {
+    const s = useStore.getState();
+    const incomeCat = s.moneyCategories.find((c) => c.type === 'income');
+    expect(incomeCat).toBeDefined();
+
+    s.addTransaction({
+      type: 'income',
+      scope: 'personal',
+      categoryId: incomeCat!.id,
+      amount: 3_000_000,
+      date: '2026-09-10',
+      itemName: 'Tiền ba mẹ',
+      note: 'Ba mẹ gửi tháng 9',
+    });
+
+    s.addTransaction({
+      type: 'income',
+      scope: 'personal',
+      categoryId: incomeCat!.id,
+      amount: 3_500_000,
+      date: '2026-11-02',
+      itemName: 'Tiền ba mẹ',
+      note: 'Ba mẹ gửi tháng 11',
+    });
+
+    const allTx = useStore.getState().transactions;
+    const targetName = 'tiền ba mẹ';
+    const matches = allTx.filter((t) => {
+      const txName = (t.itemName || '').trim().toLowerCase();
+      const txNote = (t.note || '').trim().toLowerCase();
+      const txTitle = (t.itemName?.trim() || t.note?.trim() || '').toLowerCase();
+      return txName === targetName || txNote === targetName || txTitle === targetName;
+    });
+
+    expect(matches.length).toBe(2);
+    expect(matches.some((m) => m.date === '2026-09-10')).toBe(true);
+    expect(matches.some((m) => m.date === '2026-11-02')).toBe(true);
+  });
 });
 
 

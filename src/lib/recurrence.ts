@@ -1,4 +1,4 @@
-import { addDays, addMonths, parseDate, weekdayName } from './dates';
+import { addDays, addMonths, parseDate, shortDate, weekdayName } from './dates';
 import type { DateStr, Recurrence } from './types';
 
 export function step(date: DateStr, r: Recurrence): DateStr {
@@ -11,25 +11,34 @@ export function step(date: DateStr, r: Recurrence): DateStr {
  * Next due date after completing an occurrence due on `dueDate`.
  * Advances by the interval until the date is after `completedOn`, so an overdue
  * chore doesn't spawn a backlog of already-past occurrences, and past any `taken` date.
+ * Returns null if the next occurrence exceeds r.endDate.
  */
-export function nextOccurrence(dueDate: DateStr, r: Recurrence, completedOn: DateStr, taken?: Set<DateStr>): DateStr {
+export function nextOccurrence(dueDate: DateStr, r: Recurrence, completedOn: DateStr, taken?: Set<DateStr>): DateStr | null {
   let next = step(dueDate, r);
   // Skip dates already covered (e.g. ticked ahead in the calendar).
   // Guard against pathological inputs; 1000 steps covers years of daily backlog.
   for (let i = 0; (next <= completedOn || taken?.has(next)) && i < 1000; i++) next = step(next, r);
+  if (r.endDate && next > r.endDate) return null;
   return next;
 }
 
 export function recurrenceLabel(r: Recurrence | null, dueDate?: DateStr): string {
   if (!r) return 'Does not repeat';
-  const { unit, interval } = r;
-  if (unit === 'day') return interval === 1 ? 'Daily' : `Every ${interval} days`;
-  if (unit === 'week') {
-    if (interval === 1) return dueDate ? `Every ${weekdayName(dueDate)}` : 'Every week';
-    return `Every ${interval} weeks`;
+  const { unit, interval, endDate } = r;
+  let base = '';
+  if (unit === 'day') base = interval === 1 ? 'Daily' : `Every ${interval} days`;
+  else if (unit === 'week') {
+    if (interval === 1) base = dueDate ? `Every ${weekdayName(dueDate)}` : 'Every week';
+    else base = `Every ${interval} weeks`;
+  } else if (interval === 1) {
+    base = dueDate ? `Monthly on the ${ordinal(parseDate(dueDate).getDate())}` : 'Every month';
+  } else {
+    base = `Every ${interval} months`;
   }
-  if (interval === 1) return dueDate ? `Monthly on the ${ordinal(parseDate(dueDate).getDate())}` : 'Every month';
-  return `Every ${interval} months`;
+  if (endDate) {
+    return `${base} · Until ${shortDate(endDate)}`;
+  }
+  return base;
 }
 
 function ordinal(n: number): string {
@@ -46,7 +55,12 @@ export const RECURRENCE_PRESETS: { label: string; value: Recurrence | null }[] =
   { label: 'Monthly', value: { unit: 'month', interval: 1 } },
 ];
 
-export function sameRecurrence(a: Recurrence | null, b: Recurrence | null): boolean {
+export function sameCadence(a: Recurrence | null, b: Recurrence | null): boolean {
   if (!a || !b) return a === b;
   return a.unit === b.unit && a.interval === b.interval;
+}
+
+export function sameRecurrence(a: Recurrence | null, b: Recurrence | null): boolean {
+  if (!a || !b) return a === b;
+  return a.unit === b.unit && a.interval === b.interval && (a.endDate ?? null) === (b.endDate ?? null);
 }
