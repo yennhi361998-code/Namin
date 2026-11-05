@@ -217,24 +217,32 @@ export function FinanceScreen({
     });
   }, [transactions, startDate, endDate, scope, accountsMap]);
 
-  // Calculate total spent for this period
+  // Calculate total spent for this period (pure expenses)
   const totalSpent = useMemo(() => {
     const purchaseSum = filteredPurchases.reduce((sum, p) => sum + (p.price ?? 0), 0);
     const txExpenseSum = scopedTransactions
-      .filter((t) => {
-        if (t.type === 'expense') return true;
-        // In personal view, cross-scope transfer to household is an outflow
-        if (t.type === 'transfer') {
-          const fromAcc = t.accountId ? accountsMap.get(t.accountId) : undefined;
-          const toAcc = t.toAccountId ? accountsMap.get(t.toAccountId) : undefined;
-          if (scope === 'personal' && fromAcc?.scope === 'personal' && toAcc?.scope !== 'personal') return true;
-          if (scope === 'household' && fromAcc?.scope !== 'personal' && toAcc?.scope === 'personal') return true;
-        }
-        return false;
-      })
+      .filter((t) => t.type === 'expense')
       .reduce((sum, t) => sum + t.amount, 0);
     return purchaseSum + txExpenseSum;
-  }, [filteredPurchases, scopedTransactions, scope, accountsMap]);
+  }, [filteredPurchases, scopedTransactions]);
+
+  // Calculate total transfer out of this wallet to the other wallet
+  // Chỉ tính khi transfer từ my wallet sang our wallet (hoặc our wallet sang my wallet).
+  // Nếu transfer giữa các account cùng wallet thì không tính vào.
+  const totalTransfer = useMemo(() => {
+    return scopedTransactions
+      .filter((t) => {
+        if (t.type !== 'transfer') return false;
+        const fromAcc = t.accountId ? accountsMap.get(t.accountId) : undefined;
+        const toAcc = t.toAccountId ? accountsMap.get(t.toAccountId) : undefined;
+        if (scope === 'personal') {
+          return fromAcc?.scope === 'personal' && toAcc?.scope !== 'personal';
+        } else {
+          return fromAcc?.scope !== 'personal' && toAcc?.scope === 'personal';
+        }
+      })
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [scopedTransactions, scope, accountsMap]);
 
   // Calculate total income for this period
   const totalIncome = useMemo(() => {
@@ -253,7 +261,7 @@ export function FinanceScreen({
       .reduce((sum, t) => sum + t.amount, 0);
   }, [scopedTransactions, scope, accountsMap]);
 
-  const netPeriod = totalIncome - totalSpent;
+  const netPeriod = totalIncome - (totalTransfer + totalSpent);
 
   // Monthly budget
   const currentBudget = scope === 'household' ? householdBudget : personalBudget;
@@ -405,15 +413,19 @@ export function FinanceScreen({
       });
 
       const dayExpense = entries
+        .filter((e) => e.type === 'expense')
+        .reduce((sum, e) => sum + e.amount, 0);
+
+      const dayTransfer = entries
         .filter((e) => {
-          if (e.type === 'expense') return true;
-          if (e.type === 'transfer') {
-            const fromAcc = e.accountId ? accountsMap.get(e.accountId) : undefined;
-            const toAcc = e.toAccountId ? accountsMap.get(e.toAccountId) : undefined;
-            if (scope === 'personal' && fromAcc?.scope === 'personal' && toAcc?.scope !== 'personal') return true;
-            if (scope === 'household' && fromAcc?.scope !== 'personal' && toAcc?.scope === 'personal') return true;
+          if (e.type !== 'transfer') return false;
+          const fromAcc = e.accountId ? accountsMap.get(e.accountId) : undefined;
+          const toAcc = e.toAccountId ? accountsMap.get(e.toAccountId) : undefined;
+          if (scope === 'personal') {
+            return fromAcc?.scope === 'personal' && toAcc?.scope !== 'personal';
+          } else {
+            return fromAcc?.scope !== 'personal' && toAcc?.scope === 'personal';
           }
-          return false;
         })
         .reduce((sum, e) => sum + e.amount, 0);
 
@@ -437,6 +449,7 @@ export function FinanceScreen({
         date: d,
         dayLabel,
         dayExpense,
+        dayTransfer,
         dayIncome,
         entries,
       };
@@ -756,12 +769,20 @@ export function FinanceScreen({
                   </div>
                 </div>
 
-                {/* Net Text */}
-                <div className="pt-1.5 border-t border-line/40 flex items-center justify-center text-[12px]">
-                  <span className="text-ink-sub mr-1.5">Net:</span>
-                  <span className={cx('font-bold tabular-nums', netPeriod >= 0 ? 'text-done-ink' : 'text-err-ink')}>
-                    {netPeriod >= 0 ? `+ ${formatVnd(netPeriod)}` : `- ${formatVnd(Math.abs(netPeriod))}`}
-                  </span>
+                {/* Transfer & Net Text horizontally aligned, Transfer before Net */}
+                <div className="pt-1.5 border-t border-line/40 flex items-center justify-between px-2 text-[12px]">
+                  <div className="flex items-center">
+                    <span className="text-ink-sub mr-1.5">Transfer:</span>
+                    <span className="font-bold tabular-nums text-ink">
+                      {totalTransfer > 0 ? `- ${formatVnd(totalTransfer)}` : formatVnd(0)}
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="text-ink-sub mr-1.5">Net:</span>
+                    <span className={cx('font-bold tabular-nums', netPeriod >= 0 ? 'text-done-ink' : 'text-err-ink')}>
+                      {netPeriod >= 0 ? `+ ${formatVnd(netPeriod)}` : `- ${formatVnd(Math.abs(netPeriod))}`}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Budget Progress Bar: Only shown if user configured a budget in Settings */}
@@ -910,6 +931,9 @@ export function FinanceScreen({
                       <div className="flex items-center gap-2 text-[11px] tabular-nums shrink-0 text-ink-sub font-normal">
                         {dayGroup.dayIncome > 0 && (
                           <span>Income: {formatVnd(dayGroup.dayIncome)}</span>
+                        )}
+                        {dayGroup.dayTransfer > 0 && (
+                          <span>Transfer: {formatVnd(dayGroup.dayTransfer)}</span>
                         )}
                         {dayGroup.dayExpense > 0 && (
                           <span>Expense: {formatVnd(dayGroup.dayExpense)}</span>
