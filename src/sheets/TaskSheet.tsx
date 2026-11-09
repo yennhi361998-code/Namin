@@ -64,7 +64,7 @@ export function TaskSheet({
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<DateStr | null>(existing?.recurrence?.endDate ?? null);
   const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
 
-  const [customInterval, setCustomInterval] = useState<number>(() => existing?.recurrence?.interval || 1);
+  const [customInterval, setCustomInterval] = useState<number | ''>(() => existing?.recurrence?.interval || 1);
   const [customUnit, setCustomUnit] = useState<RecurrenceUnit>(() => existing?.recurrence?.unit || 'week');
   const [customDaysOfWeek, setCustomDaysOfWeek] = useState<number[]>(() => {
     if (existing?.recurrence?.daysOfWeek && existing.recurrence.daysOfWeek.length > 0) {
@@ -138,9 +138,10 @@ export function TaskSheet({
             ? [...new Set(customDaysOfWeek)].sort((a, b) => a - b)
             : [parseDate(due).getDay()]
           : undefined;
+      const parsedInterval = typeof customInterval === 'number' && customInterval >= 1 ? customInterval : 1;
       return {
         unit: customUnit,
-        interval: Math.max(1, customInterval || 1),
+        interval: parsedInterval,
         endDate: recurrenceEndDate || null,
         daysOfWeek: days,
       };
@@ -260,8 +261,20 @@ export function TaskSheet({
                       max={99}
                       value={customInterval}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        setCustomInterval(isNaN(val) ? 1 : Math.max(1, Math.min(99, val)));
+                        const raw = e.target.value;
+                        if (raw === '') {
+                          setCustomInterval('');
+                          return;
+                        }
+                        const val = parseInt(raw, 10);
+                        if (!isNaN(val)) {
+                          setCustomInterval(Math.max(0, Math.min(99, val)));
+                        }
+                      }}
+                      onBlur={() => {
+                        if (customInterval === '' || customInterval < 1) {
+                          setCustomInterval(1);
+                        }
                       }}
                     />
                   </div>
@@ -270,10 +283,10 @@ export function TaskSheet({
                       value={customUnit}
                       onChange={(e) => setCustomUnit(e.target.value as RecurrenceUnit)}
                     >
-                      <option value="day">{customInterval > 1 ? 'Days' : 'Day'}</option>
-                      <option value="week">{customInterval > 1 ? 'Weeks' : 'Week'}</option>
-                      <option value="month">{customInterval > 1 ? 'Months' : 'Month'}</option>
-                      <option value="year">{customInterval > 1 ? 'Years' : 'Year'}</option>
+                      <option value="day">{(Number(customInterval) || 1) > 1 ? 'Days' : 'Day'}</option>
+                      <option value="week">{(Number(customInterval) || 1) > 1 ? 'Weeks' : 'Week'}</option>
+                      <option value="month">{(Number(customInterval) || 1) > 1 ? 'Months' : 'Month'}</option>
+                      <option value="year">{(Number(customInterval) || 1) > 1 ? 'Years' : 'Year'}</option>
                     </Select>
                   </div>
                 </div>
