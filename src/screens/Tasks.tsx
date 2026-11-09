@@ -45,7 +45,7 @@ export function Tasks() {
   const [mode, setModeState] = useState<CalendarMode>(readMode);
   const setMode = (m: CalendarMode) => {
     setModeState(m);
-    if (m === 'today') select(t);
+    if (m === 'today' || m === 'month') select(t);
     try {
       localStorage.setItem(MODE_KEY, m);
     } catch {

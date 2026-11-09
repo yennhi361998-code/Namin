@@ -132,7 +132,13 @@ export function Calendar({
                 <span
                   className={cx(
                     'w-9 h-9 rounded-full flex items-center justify-center text-body-md tabular-nums transition-colors',
-                    isSel ? 'bg-sky text-ink font-semibold' : isToday ? 'ring-2 ring-sky-dark text-link font-semibold' : outside ? 'text-ink-sub/50' : 'text-ink',
+                    isToday
+                      ? 'bg-sky text-ink font-semibold'
+                      : isSel
+                      ? 'ring-2 ring-sky-dark text-link font-semibold'
+                      : outside
+                      ? 'text-ink-sub/50'
+                      : 'text-ink',
                   )}
                 >
                   {parseDate(d).getDate()}

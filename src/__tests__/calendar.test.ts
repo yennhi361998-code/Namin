@@ -330,6 +330,37 @@ describe('overdue tasks do not roll over to today/future', () => {
     expect(lists.today.some((t) => t.id === 'past-completed')).toBe(false);
     expect(lists.completed.some((t) => t.id === 'past-completed')).toBe(true);
   });
+
+  it('Month calendar highlights focus (bg-sky) only on today, while non-today selected date gets ring indicator', async () => {
+    const { createElement } = await import('react');
+    const { renderToString } = await import('react-dom/server');
+    const { Calendar } = await import('../components/calendar');
+    const { monthGrid } = await import('../lib/calendar');
+
+    const todayStr = '2026-11-09';
+    const selectedDate = '2026-11-12';
+    const days = monthGrid('2026-11');
+
+    const html = renderToString(
+      createElement(Calendar, {
+        mode: 'month',
+        days,
+        selected: selectedDate,
+        todayStr,
+        byDay: new Map(),
+        onSelect: () => {},
+        onPrev: () => {},
+        onNext: () => {},
+      })
+    );
+
+    // Today (9) has bg-sky
+    expect(html).toContain('bg-sky text-ink font-semibold">9<');
+    // Selected date (12) has ring-2 ring-sky-dark, NOT bg-sky
+    expect(html).toContain('ring-2 ring-sky-dark text-link font-semibold">12<');
+    // Other dates (e.g. 10) do not have bg-sky
+    expect(html).not.toContain('bg-sky text-ink font-semibold">10<');
+  });
 });
 
 
