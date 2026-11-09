@@ -1,4 +1,5 @@
 import { addDays, addMonths, daysBetween, monthKey, parseDate, shiftMonth, toDateStr, today } from './dates';
+import type { FinanceScope } from './types';
 
 export type QuickRangeOption =
   | 'all'
@@ -67,8 +68,25 @@ export function formatDateRange(start?: string, end?: string): string {
 
 const MONTH_START_DAY_KEY = 'namin:month-start-day';
 
-export function getSavedMonthStartDay(): number {
+export function getSavedMonthStartDay(scope?: FinanceScope): number {
   try {
+    if (typeof localStorage === 'undefined') return 1;
+    if (scope) {
+      const scopedVal = localStorage.getItem(`${MONTH_START_DAY_KEY}:${scope}`);
+      if (scopedVal) {
+        const parsed = parseInt(scopedVal, 10);
+        if (parsed >= 1 && parsed <= 28) return parsed;
+      }
+      // Fallback for household to legacy key if scoped key not set yet
+      if (scope === 'household') {
+        const val = localStorage.getItem(MONTH_START_DAY_KEY);
+        if (val) {
+          const parsed = parseInt(val, 10);
+          if (parsed >= 1 && parsed <= 28) return parsed;
+        }
+      }
+      return 1;
+    }
     const val = localStorage.getItem(MONTH_START_DAY_KEY);
     if (val) {
       const parsed = parseInt(val, 10);
@@ -78,9 +96,17 @@ export function getSavedMonthStartDay(): number {
   return 1;
 }
 
-export function saveMonthStartDay(day: number): void {
+export function saveMonthStartDay(day: number, scope?: FinanceScope): void {
   try {
-    localStorage.setItem(MONTH_START_DAY_KEY, String(day));
+    if (typeof localStorage === 'undefined') return;
+    if (scope) {
+      localStorage.setItem(`${MONTH_START_DAY_KEY}:${scope}`, String(day));
+      if (scope === 'household') {
+        localStorage.setItem(MONTH_START_DAY_KEY, String(day));
+      }
+    } else {
+      localStorage.setItem(MONTH_START_DAY_KEY, String(day));
+    }
   } catch {}
 }
 

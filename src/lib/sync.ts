@@ -398,7 +398,8 @@ export const useSync = create<SyncState & SyncActions>((set, get) => ({
       for (const a of rawAccounts) {
         if (a && a.id) accMap.set(a.id, { ...a, scope: 'personal' });
       }
-      const mergedAccounts = [...householdAccounts, ...Array.from(accMap.values())];
+      const mergedPersonalAccounts = Array.from(accMap.values()).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const mergedAccounts = [...householdAccounts, ...mergedPersonalAccounts];
 
       // Merge personal transactions: keep household transactions, merge personal by ID
       const householdTxs = state.transactions.filter((t) => t.scope !== 'personal');
@@ -777,6 +778,9 @@ function updateCombinedAccounts() {
   try {
     // Preserve local personal accounts strictly on this device
     const localPersonal = useStore.getState().accounts.filter((a) => a.scope === 'personal');
+    // Maintain stable order using account.order
+    remoteHouseholdAccounts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    localPersonal.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const combined = [...remoteHouseholdAccounts, ...localPersonal];
     if (combined.length > 0) {
       useStore.setState({ accounts: combined });

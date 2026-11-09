@@ -1195,10 +1195,11 @@ export const useStore = create<State>()(
           targetIndices.forEach((targetIdx, i) => {
             const id = orderedIds[i];
             if (id && accountMap.has(id)) {
-              list[targetIdx] = { ...accountMap.get(id)!, order: i };
+              list[targetIdx] = accountMap.get(id)!;
             }
           });
-          return { accounts: list };
+          const updated = list.map((a, idx) => ({ ...a, order: idx }));
+          return { accounts: updated };
         }),
       setBudget: (scope, amount) =>
         set(() => (scope === 'household' ? { householdBudget: amount } : { personalBudget: amount })),
@@ -1227,7 +1228,7 @@ export const useStore = create<State>()(
     }),
     {
       name: 'namin:data',
-      version: 14,
+      version: 15,
       migrate: (persisted, version) => {
         const data = persisted as Data;
         if (version < 2) {
@@ -1423,6 +1424,14 @@ export const useStore = create<State>()(
             data.accounts = data.accounts.map((a) =>
               a.color?.toLowerCase() === '#d946ef' ? { ...a, color: '#E9A3E0' } : a,
             );
+          }
+        }
+        if (version < 15) {
+          if (data.accounts) {
+            data.accounts = data.accounts.map((a, idx) => ({
+              ...a,
+              order: typeof a.order === 'number' ? a.order : idx,
+            }));
           }
         }
         return data;

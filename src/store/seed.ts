@@ -7,11 +7,11 @@ import type { Data } from './types';
 export function defaultAccounts(householdId: string): Account[] {
   const now = new Date().toISOString();
   return [
-    { id: 'acc-cash', householdId, name: 'Cash', icon: 'payments', color: '#3FA88B', scope: 'personal', nature: 'asset', createdAt: now },
-    { id: 'acc-bank', householdId, name: 'Bank Account', icon: 'account_balance', color: '#4B7BFF', scope: 'household', nature: 'asset', createdAt: now },
-    { id: 'acc-momo', householdId, name: 'E-Wallet', icon: 'account_balance_wallet', color: '#E9A3E0', scope: 'household', nature: 'asset', createdAt: now },
-    { id: 'acc-personal-cash', householdId, name: 'Personal Cash', icon: 'payments', color: '#06B6D4', scope: 'personal', nature: 'asset', createdAt: now },
-    { id: 'acc-personal-bank', householdId, name: 'Personal Credit Card', icon: 'credit_card', color: '#8B5CF6', scope: 'personal', nature: 'debt', createdAt: now },
+    { id: 'acc-cash', householdId, name: 'Cash', icon: 'payments', color: '#3FA88B', scope: 'personal', nature: 'asset', order: 0, createdAt: now },
+    { id: 'acc-bank', householdId, name: 'Bank Account', icon: 'account_balance', color: '#4B7BFF', scope: 'household', nature: 'asset', order: 1, createdAt: now },
+    { id: 'acc-momo', householdId, name: 'E-Wallet', icon: 'account_balance_wallet', color: '#E9A3E0', scope: 'household', nature: 'asset', order: 2, createdAt: now },
+    { id: 'acc-personal-cash', householdId, name: 'Personal Cash', icon: 'payments', color: '#06B6D4', scope: 'personal', nature: 'asset', order: 3, createdAt: now },
+    { id: 'acc-personal-bank', householdId, name: 'Personal Credit Card', icon: 'credit_card', color: '#8B5CF6', scope: 'personal', nature: 'debt', order: 4, createdAt: now },
   ];
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LedgerRow } from '../components/rows';
 import { BrandHeader, Fab, PillTabs, ScreenTitle } from '../components/shell';
@@ -133,12 +133,17 @@ export function FinanceScreen({
   const [isReordering, setIsReordering] = useState(false);
   const [showHiddenAccounts, setShowHiddenAccounts] = useState(false);
 
-  const [monthStartDay, setMonthStartDay] = useState<number>(() => getSavedMonthStartDay());
+  const [monthStartDay, setMonthStartDay] = useState<number>(() => getSavedMonthStartDay(scope));
   const initialCycleKey = useMemo(() => getCurrentCycleMonthKey(today(), monthStartDay), [monthStartDay]);
   const [selection, setSelection] = useState<DateFilterSelection>(() => ({
     mode: 'month',
     monthKey: initialCycleKey,
   }));
+
+  useEffect(() => {
+    const saved = getSavedMonthStartDay(scope);
+    setMonthStartDay(saved);
+  }, [scope]);
 
   const [startDate, endDate] = useMemo(() => {
     return resolveDateRange(selection, monthStartDay);
@@ -150,7 +155,8 @@ export function FinanceScreen({
 
   // Scoped accounts
   const scopedAccounts = useMemo(() => {
-    return accounts.filter((a) => (scope === 'household' ? a.scope !== 'personal' : a.scope === 'personal'));
+    const list = accounts.filter((a) => (scope === 'household' ? a.scope !== 'personal' : a.scope === 'personal'));
+    return [...list].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [accounts, scope]);
 
   const activeScopedAccounts = useMemo(() => {
@@ -477,7 +483,7 @@ export function FinanceScreen({
         setSelection(newSelection);
         if (newStartDay !== monthStartDay) {
           setMonthStartDay(newStartDay);
-          saveMonthStartDay(newStartDay);
+          saveMonthStartDay(newStartDay, scope);
         }
       },
     });

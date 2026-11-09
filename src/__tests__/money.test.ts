@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { evaluate, press } from '../lib/calc';
 import { today } from '../lib/dates';
 import { DAILY_CATEGORY_ID } from '../lib/moneyCategories';
@@ -195,6 +195,85 @@ describe('money totals', () => {
     expect(out.accounts[0].color).toBe('#3FA88B');
     expect(out.accounts[1].color).toBe('#E9A3E0');
     expect(out.accounts[2].color).toBe('#E9A3E0');
+  });
+
+  it('separates default start day per wallet scope (Our Wallet vs My Wallet)', async () => {
+    let store: Record<string, string> = {};
+    const mockStorage = {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, val: string) => {
+        store[key] = String(val);
+      },
+      removeItem: (key: string) => {
+        delete store[key];
+      },
+      clear: () => {
+        store = {};
+      },
+    };
+    vi.stubGlobal('localStorage', mockStorage);
+
+    const { getSavedMonthStartDay, saveMonthStartDay } = await import('../lib/dateRanges');
+    mockStorage.clear();
+
+    // Default start day is 1 for both when unset
+    expect(getSavedMonthStartDay('household')).toBe(1);
+    expect(getSavedMonthStartDay('personal')).toBe(1);
+
+    // Set household to 25
+    saveMonthStartDay(25, 'household');
+    expect(getSavedMonthStartDay('household')).toBe(25);
+    // Personal remains untouched (1)
+    expect(getSavedMonthStartDay('personal')).toBe(1);
+
+    // Set personal to 10
+    saveMonthStartDay(10, 'personal');
+    expect(getSavedMonthStartDay('household')).toBe(25);
+    expect(getSavedMonthStartDay('personal')).toBe(10);
+
+    // Backwards compatibility: reading household with only legacy key set
+    mockStorage.removeItem('namin:month-start-day:household');
+    mockStorage.setItem('namin:month-start-day', '20');
+    expect(getSavedMonthStartDay('household')).toBe(20);
+    // But personal still reads personal key or defaults to 1
+    expect(getSavedMonthStartDay('personal')).toBe(10);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('preserves account ordering via order property across reorders and sync snapshots', () => {
+    const s = useStore.getState();
+    const idA = s.addAccount('Joint Account A', 'payments', '#3FA88B', 'household');
+    const idB = s.addAccount('Joint Account B', 'payments', '#4B7BFF', 'household');
+    const idC = s.addAccount('Joint Account C', 'payments', '#E9A3E0', 'household');
+
+    // Reorder C -> A -> B
+    s.reorderAccounts([idC, idA, idB]);
+    const accounts = useStore.getState().accounts;
+    const accC = accounts.find((a) => a.id === idC);
+    const accA = accounts.find((a) => a.id === idA);
+    const accB = accounts.find((a) => a.id === idB);
+
+    expect(accC?.order).toBeLessThan(accA?.order ?? 0);
+    expect(accA?.order).toBeLessThan(accB?.order ?? 0);
+
+    // Simulate incoming snapshot where Firestore returns items in random or reverse ID order
+    const remoteIncoming = [accB!, accA!, accC!];
+    const sorted = [...remoteIncoming].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    expect(sorted.map((a) => a.id)).toEqual([idC, idA, idB]);
+  });
+
+  it('migrates v14 accounts to v15 assigning continuous order to accounts missing order', () => {
+    const migrate = useStore.persist.getOptions().migrate!;
+    const v14 = {
+      accounts: [
+        { id: 'acc-1', name: 'Cash' },
+        { id: 'acc-2', name: 'Bank' },
+      ],
+    };
+    const out = migrate(v14, 14) as { accounts: { id: string; order?: number }[] };
+    expect(out.accounts[0].order).toBe(0);
+    expect(out.accounts[1].order).toBe(1);
   });
 });
 

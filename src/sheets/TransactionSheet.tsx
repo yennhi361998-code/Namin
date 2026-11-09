@@ -811,9 +811,11 @@ export function TransactionSheet({
           {(() => {
             const renderGroup = (isPersonal: boolean) => {
               const currentlySelected = type === 'transfer' && pickingAccountFor === 'to' ? toAccountId : accountId;
-              const list = accounts.filter(
-                (a) => (isPersonal ? a.scope === 'personal' : a.scope !== 'personal') && (!a.archived || a.id === currentlySelected)
-              );
+              const list = accounts
+                .filter(
+                  (a) => (isPersonal ? a.scope === 'personal' : a.scope !== 'personal') && (!a.archived || a.id === currentlySelected)
+                )
+                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
               if (list.length === 0) return null;
               const title = isPersonal ? 'My Wallets' : 'Our Wallets';
               return (
